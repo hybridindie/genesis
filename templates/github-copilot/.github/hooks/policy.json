@@ -9,8 +9,7 @@
         "time.sleep\\(",
         "print\\(",
         "except Exception:",
-        "import os
-",
+        "import os\\n",
         "SECRET_KEY\\s*=\\s*['\"]",
         "DATABASE_URL\\s*=\\s*['\"]",
         "\\bdb\\.commit\\b",

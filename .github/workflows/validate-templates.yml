@@ -19,7 +19,29 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq python3 python3-pip sed grep
-          pip install -q --user yq
+          pip install -q --user yq pyyaml
+
+      - name: Validate tracked JSON and YAML
+        run: |
+          fail=0
+          while IFS= read -r f; do
+            python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$f" \
+              || { echo "INVALID JSON: $f"; fail=1; }
+          done < <(git ls-files '*.json')
+          while IFS= read -r f; do
+            python3 -c 'import sys,yaml; yaml.safe_load(open(sys.argv[1]))' "$f" \
+              || { echo "INVALID YAML: $f"; fail=1; }
+          done < <(git ls-files '*.yml' '*.yaml')
+          exit "$fail"
+
+      - name: Validate shell and Python syntax
+        run: |
+          fail=0
+          while IFS= read -r f; do
+            bash -n "$f" || { echo "INVALID SHELL: $f"; fail=1; }
+          done < <(git ls-files '*.sh')
+          python3 -m py_compile templates/scripts/*.py || fail=1
+          exit "$fail"
 
       - name: Render templates to temp directory
         run: |
@@ -55,6 +77,15 @@ jobs:
             --custom-instructions "Custom rule 1\nCustom rule 2" \
             --output-dir "/tmp/validate-render"
 
+      - name: Check rendered JSON is valid
+        run: |
+          fail=0
+          while IFS= read -r f; do
+            python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$f" \
+              || { echo "INVALID RENDERED JSON: $f"; fail=1; }
+          done < <(find /tmp/validate-render -type f -name '*.json')
+          exit "$fail"
+
       - name: Check zero orphaned placeholders
         run: |
           orphans=$(grep -ro '{{[A-Z_]*}}' /tmp/validate-render | sort | uniq -c)
@@ -82,6 +113,8 @@ jobs:
           for claude_file in /tmp/validate-render/.claude/rules/**/*.md; do
             [[ -f "$claude_file" ]] || continue
             rel="${claude_file#/tmp/validate-render/.claude/rules/}"
+            # Doctrine is referenced by articles/agents and is not mirrored to Copilot.
+            [[ "$rel" == doctrine/* ]] && continue
             mirror="/tmp/validate-render/.github/instructions/${rel//\//-}"
             mirror="${mirror%.md}.instructions.md"
             if [[ ! -f "$mirror" ]]; then
@@ -97,6 +130,7 @@ jobs:
           for claude_file in /tmp/validate-render/.claude/rules/**/*.md; do
             [[ -f "$claude_file" ]] || continue
             rel="${claude_file#/tmp/validate-render/.claude/rules/}"
+            [[ "$rel" == doctrine/* ]] && continue
             mirror="/tmp/validate-render/.github/instructions/${rel//\//-}.instructions.md"
             [[ -f "$mirror" ]] || continue
             
@@ -153,6 +187,7 @@ jobs:
             ".claude/skills/gen-contract-test/SKILL.md"
             ".opencode/skills/gen-contract-test/SKILL.md"
             ".opencode/opencode.json"
+            ".claude/settings.json"
           )
           
           missing=0

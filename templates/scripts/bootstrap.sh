@@ -222,8 +222,6 @@ for entry in data.get('entries', []):
     if os.path.basename(entry['claude_file']) == '$1':
         print(entry['render_dir'])
         sys.exit(0)
-if '$1' == 'primitive-drift.md':
-    print('.github/instructions')
 " 2>/dev/null
 }
 

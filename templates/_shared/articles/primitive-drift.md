@@ -1,6 +1,8 @@
 ---
 description: "Use when editing rule files in .claude/rules/ or instruction files in .github/instructions/ — warns when the corresponding mirror file has drifted and needs updating."
-applyTo: ".claude/rules/**, .github/instructions/**"
+paths:
+  - ".claude/rules/**"
+  - ".github/instructions/**"
 ---
 
 # Primitive Drift: Rule/Instruction Mirror Sync

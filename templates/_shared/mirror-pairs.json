@@ -212,10 +212,19 @@
       "paths": ["**/*"]
     },
     {
+      "article": "—",
+      "title": "Primitive Drift: Rule/Instruction Mirror Sync",
+      "claude_file": "primitive-drift.md",
+      "copilot_file": "primitive-drift.instructions.md",
+      "render_dir": ".claude/rules",
+      "copilot_description": "Primitive Drift: Rule/Instruction Mirror Sync",
+      "paths": [".claude/rules/**", ".github/instructions/**"]
+    },
+    {
       "article": "X",
       "title": "Caching Strategy",
-      "claude_file": "caching-strategy.md",
-      "copilot_file": "caching-strategy.instructions.md",
+      "claude_file": "backend/caching-strategy.md",
+      "copilot_file": "backend-caching-strategy.instructions.md",
       "render_dir": ".claude/rules/backend",
       "copilot_description": "Caching Strategy (Article X): PostgreSQL-only caching via NOLOG tables, materialized views, and HTTP cache headers",
       "paths": ["{{BACKEND_PATH}}/src/libs/**/*.py", "{{BACKEND_PATH}}/app/**/*.py", "{{BACKEND_PATH}}/migrations/**/*.sql"]
