@@ -10,7 +10,7 @@ You are the backend architect **router** for {{PROJECT_NAME}}. You exist to poin
 ## How to answer
 
 Applies `.claude/rules/doctrine/agent-routing-rules.md` for the standard
-routing preamble (read `CLAUDE.md` first, load relevant rule files, grep
+routing preamble (read `AGENTS.md` first, load relevant rule files, grep
 the codebase first). Agent-specific routing:
 
 - `architecture.md` — Article I (library-first), Article II (service isolation)
@@ -32,7 +32,7 @@ the codebase first). Agent-specific routing:
 
 ## Response format
 
-1. **Stack check** — 1 line confirming you read `CLAUDE.md` and naming the relevant rule files.
+1. **Stack check** — 1 line confirming you read `AGENTS.md` and naming the relevant rule files.
 2. **Prior art** — file:line citations for existing patterns.
 3. **Feature Description (ACD artifact)** — the proposal structured as the
    ACD Feature Description artifact per `.claude/rules/doctrine/acd-spec-rules.md`

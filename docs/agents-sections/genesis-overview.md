@@ -10,9 +10,9 @@ On-demand section — read when installing or bootstrapping a harness.
 
 | Platform | Entry point | Rules location |
 |----------|-------------|----------------|
-| Claude Code | `CLAUDE.md` | `.claude/rules/`, `.claude/agents/`, `.claude/commands/` |
+| Claude Code | `CLAUDE.md` (`@AGENTS.md`) | `.claude/rules/`, `.claude/agents/`, `.claude/commands/` |
 | GitHub Copilot | `.github/copilot-instructions.md` | `.github/instructions/`, `.github/agents/`, `.github/prompts/` |
-| Opencode | `CLAUDE.md` | `.opencode/` |
+| Opencode | `AGENTS.md` | `.claude/rules/` (read via the AGENTS.md index) |
 
 ## Install a harness into a project
 

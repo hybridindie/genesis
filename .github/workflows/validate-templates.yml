@@ -105,6 +105,18 @@ jobs:
             --custom-instructions "Custom rule 1\nCustom rule 2" \
             --output-dir "/tmp/validate-render"
 
+      - name: Check harness loading contract
+        run: |
+          grep -q '@AGENTS.md' /tmp/validate-render/CLAUDE.md
+          grep -q 'Rule Index' /tmp/validate-render/AGENTS.md
+          grep -q 'my-workflows.md' /tmp/validate-render/AGENTS.md
+          ! grep -q '.claude/rules' /tmp/validate-render/.opencode/opencode.json
+          ! grep -rq 'npx graphify' /tmp/validate-render/.opencode
+          ! grep -Rq '^permission:' /tmp/validate-render/.opencode/agents
+          grep -Rq '^permissions:' /tmp/validate-render/.opencode/agents
+          test -f /tmp/validate-render/.opencode/commands/graphify.md
+          test -f /tmp/validate-render/.claude/commands/graphify.md
+
       - name: Check rendered JSON is valid
         run: |
           fail=0

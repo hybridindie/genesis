@@ -88,7 +88,9 @@ Both approaches produce:
 - `.claude/rules/` — Constitutional Articles I–X + doctrine (source of truth)
 - `.github/instructions/` — Auto-mirrored Copilot instructions
 - `.github/copilot-instructions.md` — Repo-wide Copilot guidance
-- `CLAUDE.md` + `AGENTS.md` — Master context files
+- `AGENTS.md` — Canonical project context (read natively by OpenCode; imported by `CLAUDE.md`)
+- `CLAUDE.md` — Thin `@AGENTS.md` + `@my-workflows.md` import plus Claude-specific notes
+- `my-workflows.md` — Your cross-project conventions, loaded by OpenCode and imported by Claude
 - `.opencode/` — Equivalent skills, commands, agents, plugins
 - `.claude/skills/` + `.opencode/skills/` — utility skills + `customize-harness`
 - `docs/harness-eval.md` — evaluation prompt for `/harness-eval`
@@ -174,13 +176,17 @@ base articles apply as rendered.
 
 `.claude/rules/*.md` (Claude) and `.github/instructions/*.instructions.md` (Copilot) are **body-identical mirrors**. `generate-copilot-mirrors.py` creates Copilot mirrors from Claude rules. `check-primitive-drift.sh` detects mirror drift.
 
-### Three Equivalent Harnesses
+### Three harnesses, one canonical context
 
 | Platform | Entry Files | Ecosystem |
 |----------|-------------|-----------|
-| **Claude Code** | `CLAUDE.md`, `AGENTS.md` | `.claude/rules/`, `.claude/commands/`, `.claude/agents/`, `.claude/skills/`, `.claude/hooks/` |
-| **GitHub Copilot** | `.github/copilot-instructions.md` | `.github/instructions/`, `.github/rules/`, `.github/agents/`, `.github/prompts/` |
-| **Opencode** | `CLAUDE.md`, `AGENTS.md` | `.opencode/skills/`, `.opencode/commands/`, `.opencode/agents/`, `.opencode/plugins/` |
+| **OpenCode (primary)** | `AGENTS.md` (auto-discovered) + `my-workflows.md` (`instructions`) | `.opencode/skills/`, `.opencode/commands/`, `.opencode/agents/` |
+| **Claude Code** | `CLAUDE.md` (`@AGENTS.md`, `@my-workflows.md`) | `.claude/rules/`, `.claude/commands/`, `.claude/agents/`, `.claude/skills/`, `.claude/hooks/` |
+| **GitHub Copilot** | `.github/copilot-instructions.md` | `.github/instructions/`, `.github/agents/`, `.github/prompts/` |
+
+Rules live once in `.claude/rules/`. Claude scopes them by `paths:` frontmatter;
+OpenCode reads them on demand through the **rule index** in `AGENTS.md` — it does
+not load the directory eagerly.
 
 ### Permission defaults
 
@@ -211,8 +217,8 @@ Templates use `{{PLACEHOLDER}}` syntax with `{{#FLAG}}...{{/FLAG}}` conditional 
 | `{{HAS_MLFLOW}}` | `no` | Include MLflow Prompt Registry rules |
 | `{{HAS_LANGGRAPH}}` | `no` | Include LangGraph agent rules |
 | `{{HAS_NEXTJS}}` | `no` | Use Next.js frontend overlay (App Router, Server Components) |
-| `{{HAS_SUPABASE}}` | derived | Supabase-specific local-dev commands in CLAUDE.md |
-| `{{HAS_POSTGRES}}` | derived | Raw-postgres local-dev commands in CLAUDE.md |
+| `{{HAS_SUPABASE}}` | derived | Supabase-specific local-dev commands in AGENTS.md |
+| `{{HAS_POSTGRES}}` | derived | Raw-postgres local-dev commands in AGENTS.md |
 | `{{COVERAGE_AGGREGATE_BACKEND}}` | `70` | Aggregate backend coverage target |
 | `{{CALVER_VERSION}}` | today's date | Initial CalVer version |
 
@@ -294,7 +300,17 @@ See **[`prompts-skills.md`](prompts-skills.md)** for the full guide and
 
 ## Context Budget
 
-The auto-load footprint per new session is ~7.5KB (~1.9K tokens, ~0.9% of a 200K window) across the entry files (`AGENTS.md`, `CLAUDE.md`, `.claude/CLAUDE.md`). Reference sections are lazy-loaded on demand from `docs/agents-sections/`. Full pipeline runs (all skills + doctrine + rubrics + templates) peak at ~18K tokens (9.2% of window). See `AGENTS.md` for the section layout.
+**In a rendered project** — OpenCode loads `AGENTS.md` (~6KB) plus
+`my-workflows.md` (~4KB) and reads rule files on demand via the rule index
+(~2.5K tokens of entry context). Claude loads the thin `CLAUDE.md`
+(`@AGENTS.md` + `@my-workflows.md`) and path-scoped rules, which load only when
+matching files are touched. Before the restructure, OpenCode eagerly loaded all
+30 rule files (~83KB, ~21K tokens) and never saw the project context.
+
+**This repo's own harness** — ~7.6KB across `AGENTS.md`, `CLAUDE.md` and
+`.claude/CLAUDE.md`; reference sections are lazy-loaded from
+`docs/agents-sections/`. Full pipeline runs (all skills + doctrine + rubrics +
+templates) peak at ~18K tokens (9.2% of a 200K window).
 
 ## Versioning
 

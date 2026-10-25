@@ -128,8 +128,8 @@ bash scripts/check-primitive-drift.sh
 | GitHub Copilot | `.github/agents/implementation-designer.agent.md` | Implementation designer agent |
 | GitHub Copilot | `.github/prompts/pre-merge-verify.prompt.md` | Pre-merge verification prompt |
 | GitHub Copilot | `.github/CUSTOMIZATIONS.md` | Customization system doc |
-| Claude Code | `CLAUDE.md` | Master Claude context |
-| Claude Code | `AGENTS.md` | Copilot agent context (shared) |
+| Claude Code | `CLAUDE.md` | Thin `@AGENTS.md` + `@my-workflows.md` import, Claude-only notes |
+| Claude Code | `AGENTS.md` | Canonical project context (shared with every harness) |
 | Claude Code | `.claude/commands/preflight.md` | Local CI checks command |
 | Claude Code | `.claude/commands/migration-check.md` | Migration validation command |
 | Claude Code | `.claude/agents/backend-architect.md` | Backend architect agent |
@@ -144,8 +144,8 @@ bash scripts/check-primitive-drift.sh
 | Claude Code | `.claude/hooks/check-agent-drift.sh` | Agent version drift hook |
 | Claude Code | `.claude/scripts/bash/bootstrap.sh` | Feature bootstrap script |
 | Claude Code | `.claude/scripts/bash/check-task-prerequisites.sh` | Task prerequisite checker |
-| Opencode | `.opencode/opencode.json` | Opencode plugin config |
-| Opencode | `.opencode/plugins/graphify.js` | Graphify plugin |
+| Opencode | `.opencode/opencode.json` | Opencode config (instructions + v2 permissions) |
+| Opencode | `.opencode/commands/graphify.md` | Graphify CLI command |
 | Opencode | `.opencode/skills/gen-contract-test/SKILL.md` | Contract test generator |
 | Opencode | `.opencode/skills/create-migration/SKILL.md` | Migration scaffolder |
 | Opencode | `.opencode/skills/test-hygiene-scanner/SKILL.md` | Test hygiene scanner |
@@ -155,8 +155,7 @@ bash scripts/check-primitive-drift.sh
 | Opencode | `.opencode/agents/backend-architect.md` | Backend architect agent |
 | Opencode | `.opencode/agents/frontend-architect.md` | Frontend architect agent |
 | Opencode | `.opencode/agents/article-compliance-reviewer.md` | Compliance reviewer agent |
-| Opencode | `CLAUDE.md` | Master context (same content, Opencode-flavored paths) |
-| Opencode | `AGENTS.md` | Shared agent context |
+| Opencode | `AGENTS.md` | Canonical context (auto-discovered) |
 
 ## Customization Modes
 
@@ -185,7 +184,7 @@ After rendering templates into a project, always run:
 # Mirror sync (Claude <-> Copilot rules)
 bash .claude/hooks/check-primitive-drift.sh
 
-# Agent version sync (stack versions in agents vs CLAUDE.md)
+# Agent version sync (stack versions in agents vs AGENTS.md)
 bash .claude/hooks/check-agent-drift.sh
 
 # Test hygiene scan

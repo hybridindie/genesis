@@ -277,6 +277,14 @@
       "opencode_dir": ".opencode/commands"
     },
     {
+      "title": "Graphify",
+      "source_file": "graphify.md",
+      "claude_dir": ".claude/commands",
+      "copilot_file": "graphify.prompt.md",
+      "copilot_dir": ".github/prompts",
+      "opencode_dir": ".opencode/commands"
+    },
+    {
       "title": "Start Session",
       "source_file": "start-session.md",
       "claude_dir": ".claude/commands",

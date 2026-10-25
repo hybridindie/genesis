@@ -1,6 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "instructions": [".claude/rules/**/*.md"],
+  "instructions": ["my-workflows.md"],
   "skills": {
     "paths": [".opencode/skills"]
   },

@@ -14,7 +14,7 @@ Review the provided code (diff, PR, or file list) against the Constitutional Art
 ## Process
 
 Applies `.claude/rules/doctrine/agent-routing-rules.md` for the standard
-routing preamble (read `CLAUDE.md` first, load relevant rule files, grep
+routing preamble (read `AGENTS.md` first, load relevant rule files, grep
 the codebase first). Agent-specific process:
 
 1. Read `.claude/rules/enforcement.md` for the PR acceptance checklist

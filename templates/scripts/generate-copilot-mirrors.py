@@ -187,9 +187,15 @@ def generate_opencode_agent_mirror(claude_file, out_dir, entry):
     if description:
         oc_fm += f'description: "{description}"\n'
     oc_fm += 'mode: subagent\n'
-    oc_fm += 'permission:\n'
-    oc_fm += '  edit: deny\n'
-    oc_fm += '  bash: deny\n'
+    # OpenCode v2 uses the ordered permissions array (the v1 `permission:` object
+    # is not read). Read/glob/grep stay allowed; edits and shell are denied.
+    oc_fm += 'permissions:\n'
+    oc_fm += '  - action: edit\n'
+    oc_fm += '    resource: "*"\n'
+    oc_fm += '    effect: deny\n'
+    oc_fm += '  - action: shell\n'
+    oc_fm += '    resource: "*"\n'
+    oc_fm += '    effect: deny\n'
     oc_fm += '---\n'
 
     source_file = entry['source_file']

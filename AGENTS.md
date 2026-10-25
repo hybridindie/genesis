@@ -19,6 +19,9 @@ Three layers share the same single-source/thin-wrapper pattern:
 
 **Golden rule:** Edit content in `system/` (machine layer), `.agents/` (epic skills) or `templates/_shared/` (genesis). Edit frontmatter in the harness wrappers. Never duplicate content into a wrapper. Shared rules referenced by multiple files live in a `doctrine/` layer — reference, don't restate.
 
+Canonical project context is `templates/_shared/AGENTS.md`: OpenCode reads it
+natively, `CLAUDE.md` imports it (`@AGENTS.md`), and Copilot has its own file.
+
 The end-to-end flow (new machine → new project → tailoring) is in
 [`SYSTEM.md`](SYSTEM.md).
 

@@ -8,7 +8,7 @@ Checks:
   2. Mirror bodies are byte-for-byte identical (excl. frontmatter)
   3. Opencode agents/skills are semantically aligned with Claude rules
   4. No orphaned placeholders in rendered harnesses
-  5. Agent version claims match CLAUDE.md canonical versions
+  5. Agent version claims match AGENTS.md canonical versions
   6. Coverage tier requirements are consistent across harnesses
   7. No-skipped-tests policy is present in all three harnesses
 
@@ -171,12 +171,15 @@ class HarnessSyncChecker:
     def check_version_consistency(self) -> None:
         if not self.output_dir:
             return
-        claude_md = self.output_dir / "CLAUDE.md"
-        if not claude_md.exists():
-            self.warnings.append("WARN: No CLAUDE.md found in rendered output")
+        # AGENTS.md is the canonical context; CLAUDE.md is a thin import kept for
+        # older harnesses, so fall back to it when AGENTS.md is missing.
+        candidates = [self.output_dir / "AGENTS.md", self.output_dir / "CLAUDE.md"]
+        context_md = next((p for p in candidates if p.exists()), None)
+        if context_md is None:
+            self.warnings.append("WARN: No AGENTS.md or CLAUDE.md found in rendered output")
             return
 
-        text = claude_md.read_text(encoding="utf-8")
+        text = context_md.read_text(encoding="utf-8")
         versions = {
             "Python": self._extract_version(text, r"Python\s+([0-9.]+)"),
             "FastAPI": self._extract_version(text, r"FastAPI\s+([0-9.+]+)"),
@@ -187,7 +190,7 @@ class HarnessSyncChecker:
         versions = {k: v for k, v in versions.items() if v is not None}
         self._stack_versions = versions
         if not versions:
-            self.warnings.append("WARN: Could not extract versions from CLAUDE.md")
+            self.warnings.append(f"WARN: Could not extract versions from {context_md.name}")
             return
 
         for search_dir in ("agents", "rules"):
@@ -205,7 +208,7 @@ class HarnessSyncChecker:
                         if found != expected and not found.startswith(expected):
                             self.errors.append(
                                 f"FAIL: Version drift in {path.relative_to(self.output_dir)}: "
-                                f"claims {label} {found}, but CLAUDE.md says {label} {expected}"
+                                f"claims {label} {found}, but {context_md.name} says {label} {expected}"
                             )
 
     # ── 5. Coverage tier consistency --------------------------------------

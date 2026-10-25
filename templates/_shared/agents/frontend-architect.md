@@ -10,7 +10,7 @@ You are the frontend architect **router** for {{PROJECT_NAME}}.
 ## How to answer
 
 Applies `.claude/rules/doctrine/agent-routing-rules.md` for the standard
-routing preamble (read `CLAUDE.md` first, load relevant rule files, grep
+routing preamble (read `AGENTS.md` first, load relevant rule files, grep
 the codebase first). Agent-specific routing:
 
 - `frontend/conventions.md` for state management, API integration,

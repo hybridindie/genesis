@@ -396,7 +396,7 @@ render_harness "$TEMPLATES_DIR/github-copilot/.github" "$OUTPUT_DIR/.github"
 echo "=== Rendering Claude Code Harness ==="
 render_harness "$TEMPLATES_DIR/claude-code/.claude" "$OUTPUT_DIR/.claude"
 substitute_placeholders "$TEMPLATES_DIR/claude-code/CLAUDE.md" "$OUTPUT_DIR/CLAUDE.md"
-substitute_placeholders "$TEMPLATES_DIR/claude-code/AGENTS.md" "$OUTPUT_DIR/AGENTS.md"
+substitute_placeholders "$TEMPLATES_DIR/_shared/AGENTS.md" "$OUTPUT_DIR/AGENTS.md"
 
 echo "=== Rendering Opencode Harness ==="
 render_harness "$TEMPLATES_DIR/opencode/.opencode" "$OUTPUT_DIR/.opencode"

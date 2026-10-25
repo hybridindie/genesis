@@ -22,6 +22,7 @@ templates/
     commands/      ← Shared commands/prompts (body identical across platforms)
     doctrine/      ← Shared rules referenced by multiple articles/agents (rendered to .claude/rules/doctrine/)
     skills/        ← Shared shippable skills (rendered into target .claude/ + .opencode/)
+    AGENTS.md      ← Canonical project context (rendered to the project root; Claude imports it)
     my-workflows.md ← Your cross-project conventions; shipped into each project and
                       applied by the customize-harness skill (edit once, all installs inherit)
     database/      ← SQL and infrastructure rules
