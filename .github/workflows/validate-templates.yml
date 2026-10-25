@@ -18,7 +18,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq python3 python3-pip sed grep
+          sudo apt-get install -y -qq python3 python3-pip sed grep zsh
           pip install -q --user yq pyyaml
 
       - name: Validate tracked JSON and YAML
@@ -41,6 +41,34 @@ jobs:
             bash -n "$f" || { echo "INVALID SHELL: $f"; fail=1; }
           done < <(git ls-files '*.sh')
           python3 -m py_compile templates/scripts/*.py || fail=1
+          exit "$fail"
+
+      - name: Render the system layer into a temp home
+        run: |
+          rm -rf /tmp/syshome
+          bash system/install.sh --home /tmp/syshome --dev-root /tmp/dev \
+            --machine-label ci --all --no-tools
+          test -f /tmp/syshome/.config/zsh/zshenv
+          test -f /tmp/syshome/.config/zsh/conf.d/98-machine.zsh
+          test -f /tmp/syshome/.config/opencode/AGENTS.md
+          test -f /tmp/syshome/.claude/settings.json
+          test -f /tmp/syshome/.config/system/gitconfig
+          test -x /tmp/syshome/.local/bin/zed-wait
+
+      - name: Validate the rendered system layer
+        run: |
+          fail=0
+          while IFS= read -r f; do
+            zsh -n "$f" || { echo "INVALID ZSH: $f"; fail=1; }
+          done < <(find /tmp/syshome -type f \( -name '*.zsh' -o -name 'zshenv' -o -name 'zprofile' -o -name 'zshrc' -o -name 'profile' \))
+          while IFS= read -r f; do
+            python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$f" \
+              || { echo "INVALID JSON: $f"; fail=1; }
+          done < <(find /tmp/syshome -type f \( -name '*.json' -o -name '*.jsonc' \))
+          if grep -rn '{{[A-Z_]*}}' /tmp/syshome; then
+            echo "FAIL: unrendered placeholders in the rendered system layer"
+            fail=1
+          fi
           exit "$fail"
 
       - name: Render templates to temp directory
