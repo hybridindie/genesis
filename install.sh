@@ -14,17 +14,17 @@ set -euo pipefail
 #   bash install.sh --ref some-branch    # use a non-default branch/tag
 #
 # This script is self-contained: it can be run from a clone of the cache
-# (e.g. `bash ~/.cache/instructions-and-rules/install.sh`) or piped from a raw
+# (e.g. `bash ~/.cache/genesis/install.sh`) or piped from a raw
 # URL if the repo is public (`curl -fsSL <raw>/install.sh | bash`).
 #
 # Environment overrides:
-#   GENESIS_CACHE   where to clone the genesis repo (default: ~/.cache/instructions-and-rules)
+#   GENESIS_CACHE   where to clone the genesis repo (default: ~/.cache/genesis)
 #   GENESIS_REF     branch/tag to check out (default: main)
 # ─────────────────────────────────────────────────────────────────────────────
 
-REPO_URL="https://github.com/hybridindie/instructions-and-rules.git"
+REPO_URL="https://github.com/hybridindie/genesis.git"
 
-CACHE="${GENESIS_CACHE:-$HOME/.cache/instructions-and-rules}"
+CACHE="${GENESIS_CACHE:-$HOME/.cache/genesis}"
 REF="${GENESIS_REF:-main}"
 OUTPUT_DIR="$PWD"
 FETCH_ONLY=0

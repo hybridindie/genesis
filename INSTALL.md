@@ -12,16 +12,16 @@ authentication. All routes run the same flow defined in
 From inside the project you want to tailor:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/hybridindie/instructions-and-rules/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/hybridindie/genesis/main/install.sh | bash
 ```
 
-That clones the genesis repo into `~/.cache/instructions-and-rules` and renders a
+That clones the genesis repo into `~/.cache/genesis` and renders a
 harness tailored to the current directory via auto-detection. No interview, no auth.
 
 Options (pass after `bash -s --`):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/hybridindie/instructions-and-rules/main/install.sh \
+curl -fsSL https://raw.githubusercontent.com/hybridindie/genesis/main/install.sh \
   | bash -s -- --output-dir /path/to/project --ref main
 ```
 
@@ -34,10 +34,10 @@ When you want a plan review and to be asked about things auto-detect can't infer
 Fetch the AI harness genesis repo and tailor a complete harness into THIS project.
 
 1. Clone or update it:
-   git clone --depth 1 https://github.com/hybridindie/instructions-and-rules.git ~/.cache/instructions-and-rules 2>/dev/null \
-     || git -C ~/.cache/instructions-and-rules pull --ff-only
+   git clone --depth 1 https://github.com/hybridindie/genesis.git ~/.cache/genesis 2>/dev/null \
+     || git -C ~/.cache/genesis pull --ff-only
 
-2. Read and follow ~/.cache/instructions-and-rules/.agents/skills/bootstrap-harness.md,
+2. Read and follow ~/.cache/genesis/.agents/skills/bootstrap-harness.md,
    using the current directory as the target output-dir.
 
 Probe my stack, show me the install plan, ask only about genuine unknowns,

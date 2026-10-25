@@ -2,7 +2,7 @@
 
 **Date**: 2026-05-09
 **Scope**: AI harness template system for TypeScript/React + Python/FastAPI projects across GitHub Copilot, Claude Code, and Opencode.
-**Repositories audited**: `instructions-and-rules` (templates), `influencer-sync` (live), `nomikailist` (live)
+**Repositories audited**: `genesis` (formerly `instructions-and-rules`), `influencer-sync` (live), `nomikailist` (live)
 **Total files cataloged**: 159
 
 ---

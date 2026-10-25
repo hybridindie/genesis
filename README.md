@@ -9,7 +9,7 @@ Generate equivalent instruction harnesses for GitHub Copilot, Claude Code, and O
 The repo is public, so from inside the project you want to tailor:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/hybridindie/instructions-and-rules/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/hybridindie/genesis/main/install.sh | bash
 ```
 
 This fetches the genesis repo and renders a harness tailored to the current
