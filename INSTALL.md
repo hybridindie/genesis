@@ -1,7 +1,7 @@
 # Install the harness into your project
 
-Fetch this repo and tailor a complete AI harness (Claude Code + Opencode +
-GitHub Copilot) into any project. The repo is public, so nothing here needs
+Fetch this repo and tailor a complete AI harness (OpenCode + Claude Code) into
+any project. The repo is public, so nothing here needs
 authentication. All routes run the same flow defined in
 [`.agents/skills/bootstrap-harness.md`](.agents/skills/bootstrap-harness.md).
 
@@ -55,7 +55,7 @@ If you already have the genesis repo open:
 
 - **Claude Code / Opencode:** run `/bootstrap-harness` (pass an output dir as the
   argument, or run it from the target project).
-- **Claude Code / Copilot agent:** `@install-harness /absolute/path/to/target`.
+- **Claude Code agent:** `@install-harness /absolute/path/to/target`.
 
 ---
 

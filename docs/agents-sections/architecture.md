@@ -18,18 +18,16 @@ shared content by path.
    │
    │  wrapped by thin, frontmatter-only pointers per harness:
    ├── Opencode        .opencode/skills/<name>/SKILL.md   + opencode.json commands
-   ├── Claude Code     .claude/skills/<name>/SKILL.md     (skills double as /commands)
-   │                   .claude/agents/<name>.md           (agents point at the same bodies)
-   └── GitHub Copilot  .github/skills/<name>/SKILL.md
-                        .github/agents/<name>.agent.md     (agents point at the same bodies)
+   └── Claude Code     .claude/skills/<name>/SKILL.md     (skills double as /commands)
+                       .claude/agents/<name>.md           (agents point at the same bodies)
 ```
 
 Both the epic-scoping skills **and** the genesis meta-flow follow this rule.
 `bootstrap-harness` is the single canonical body for installing/tailoring a
-harness; the `install-harness` agent (Claude Code / Copilot) is just another
+harness; the `install-harness` agent (Claude Code) is just another
 thin entry point pointing at that same file. Only genesis template *output*
-under `.github/instructions/`, `.github/copilot-instructions.md`, etc. is exempt
-— that is deduped by `templates/_shared/`, not `.agents/`.
+(the rendered `.claude/rules/` and `.opencode/` files) is exempt — that is
+deduped by `templates/_shared/`, not `.agents/`.
 
 **Golden rule:** Edit content in `.agents/`. Edit frontmatter in the harness
 wrappers. Never duplicate content into a wrapper.

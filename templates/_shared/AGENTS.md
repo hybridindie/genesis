@@ -1,9 +1,8 @@
 # {{PROJECT_NAME}} — Agent Context
 
 Canonical project context for every AI harness in this repo. OpenCode reads this
-file natively; Claude Code imports it from `CLAUDE.md` (`@AGENTS.md`); GitHub
-Copilot has its own `.github/copilot-instructions.md`. Do not duplicate this
-content elsewhere.
+file natively; Claude Code imports it from `CLAUDE.md` (`@AGENTS.md`). Do not
+duplicate this content elsewhere.
 
 ## How to use this harness
 
@@ -168,14 +167,14 @@ supabase db push{{/HAS_SUPABASE}}
 
 ## Harness Map
 
-| Capability | Claude Code | OpenCode | Copilot |
-|---|---|---|---|
-| Project context | `CLAUDE.md` (`@AGENTS.md`) | `AGENTS.md` (this file) | `.github/copilot-instructions.md` |
-| Rules | `.claude/rules/**` (path-scoped) | `.claude/rules/**` (read via the index) | `.github/instructions/*.instructions.md` |
-| Commands | `.claude/commands/*.md` | `.opencode/commands/*.md` | `.github/prompts/*.prompt.md` |
-| Subagents | `.claude/agents/*.md` | `.opencode/agents/*.md` (read-only routers) | `.github/agents/*.agent.md` |
-| Skills | `.claude/skills/*/SKILL.md` | `.opencode/skills/*/SKILL.md` | prompts |
-| Hooks / gates | `.claude/hooks/*.sh` | CI + `/preflight` | `.github/hooks/policy.json` |
+| Capability | Claude Code | OpenCode |
+|---|---|---|
+| Project context | `CLAUDE.md` (`@AGENTS.md`) | `AGENTS.md` (this file) |
+| Rules | `.claude/rules/**` (path-scoped) | `.claude/rules/**` (read via the index) |
+| Commands | `.claude/commands/*.md` | `.opencode/commands/*.md` |
+| Subagents | `.claude/agents/*.md` | `.opencode/agents/*.md` (read-only routers) |
+| Skills | `.claude/skills/*/SKILL.md` | `.opencode/skills/*/SKILL.md` |
+| Hooks / gates | `.claude/hooks/*.sh` | CI + `/preflight` |
 
 ### Commands available
 

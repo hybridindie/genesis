@@ -41,9 +41,8 @@ Edit there once; all references inherit.
 |---|---|---|---|---|
 | Opencode | `.opencode/skills/<name>/SKILL.md` | `opencode.json` command entries: `/epic-composer`, `/epic-interview`, `/epic-acceptance-linter`, `/story-decomposer`, `/task-decomposer` | `.opencode/plugins/*.ts` | `name`, `description` |
 | Claude Code | `.claude/skills/<name>/SKILL.md` | skills double as `/epic-composer`, `/epic-acceptance-linter`, `/epic-interview`, `/story-decomposer`, `/task-decomposer` (accept `$ARGUMENTS`) | `.claude/hooks/*.sh` | `name`, `description`, `when_to_use` |
-| GitHub Copilot | `.github/skills/<name>/SKILL.md` | skills appear in the Copilot Chat `/` menu under the same names | `.github/hooks/*.json` + `scripts/` | `name`, `description` |
 
-The command names are identical across harnesses (the skill names). Each skill
+The command names are identical across both harnesses (the skill names). Each skill
 wrapper is a one-line body referencing `.agents/skills/<name>.md`; the Opencode
 and Claude Code wrappers also take `$ARGUMENTS` for user-provided input.
 

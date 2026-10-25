@@ -5,6 +5,11 @@
 **Repositories audited**: `genesis` (formerly `instructions-and-rules`), `influencer-sync` (live), `nomikailist` (live)
 **Total files cataloged**: 159
 
+> **Historical (2026-05-09).** GitHub Copilot support was removed from this
+> repository; it now targets OpenCode (primary) and Claude Code, and the only
+> GitHub-specific content is CI workflows. The Copilot material below is kept
+> as research history.
+
 ---
 
 ## Part 1: External Best Practices Research

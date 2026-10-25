@@ -27,8 +27,7 @@ the gap between what bootstrap rendered and what the project actually needs.
   files, config files, directory structure).
 - The rendered harness files (`AGENTS.md` is the canonical context; `CLAUDE.md`
   is a thin `@AGENTS.md` import; `.claude/rules/`, `.claude/agents/`,
-  `.claude/commands/`, `.claude/skills/`, and the `.opencode/` + `.github/`
-  equivalents).
+  `.claude/commands/`, `.claude/skills/`, and the `.opencode/` equivalents).
 - The project's `my-workflows.md` if present (loaded by OpenCode, imported by
   `CLAUDE.md`).
 
@@ -211,7 +210,7 @@ headings. Preserve them when trimming.
 
 ### Frontmatter paths
 
-The `paths:` frontmatter tells Claude Code and Copilot when to auto-load
+The `paths:` frontmatter tells Claude Code when to auto-load
 the rule based on the file being edited. When you trim an article:
 - If the article no longer applies at all, remove it (and its paths).
 - If you trim a section, update the paths to match what the article still
@@ -233,21 +232,20 @@ edit content:
 
 ### Cross-harness sync
 
-The harness targets three platforms: **OpenCode (primary)**, Claude Code, and
-GitHub Copilot. `AGENTS.md` is the canonical context; `CLAUDE.md` imports it.
+The harness targets two platforms: **OpenCode (primary)** and Claude Code.
+`AGENTS.md` is the canonical context; `CLAUDE.md` imports it.
 When you add, remove, or rename a rule file:
 
-| Action | OpenCode (primary) | Claude Code | Copilot | AGENTS.md (canonical) |
-|--------|--------------------|-------------|---------|-----------------------|
-| **Add article** | Add a row to the rule index — rules are read on demand, never eagerly loaded | Create `.claude/rules/<path>/<name>.md` | Create `.github/instructions/<name>.instructions.md` (same body, `description` + `applyTo`) | Add to Authoritative References if top-level |
-| **Remove article** | Remove the index row | Delete `.claude/rules/<path>/<name>.md` | Delete `.github/instructions/<name>.instructions.md` | Remove from references if listed |
-| **Trim article** | Update the index row only if its "read when" changed | Edit `.claude/rules/<path>/<name>.md` in place | Re-mirror: copy the trimmed body to `.github/instructions/<name>.instructions.md` | No change unless the trim removes a referenced capability |
-| **Add doctrine** | Nothing — read only when a rule points to it | Create `.claude/rules/doctrine/<name>.md` | (not mirrored — referenced, not loaded) | No change |
+| Action | OpenCode (primary) | Claude Code | AGENTS.md (canonical) |
+|--------|--------------------|-------------|-----------------------|
+| **Add article** | Add a row to the rule index — rules are read on demand, never eagerly loaded | Create `.claude/rules/<path>/<name>.md` | Add to Authoritative References if top-level |
+| **Remove article** | Remove the index row | Delete `.claude/rules/<path>/<name>.md` | Remove from references if listed |
+| **Trim article** | Update the index row only if its "read when" changed | Edit `.claude/rules/<path>/<name>.md` in place | No change unless the trim removes a referenced capability |
+| **Add doctrine** | Nothing — read only when a rule points to it | Create `.claude/rules/doctrine/<name>.md` | No change |
 
-If you're in a rendered target project (not the genesis repo), the Copilot
-mirror is the one that matters — keep it in sync manually after editing
-the Claude rule. The next `bootstrap.sh` re-render will fix any drift, but
-until then the two must match.
+If you're in a rendered target project (not the genesis repo), the OpenCode
+agent/command mirrors are generated from the Claude sources — edit the shared
+source and re-run bootstrap, or keep the pair in sync manually.
 
 ### AGENTS.md references
 

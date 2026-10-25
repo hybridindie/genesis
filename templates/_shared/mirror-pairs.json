@@ -1,233 +1,151 @@
 {
   "version": "1.0.0",
-  "description": "Single source of truth for Claude rules -> Copilot instruction mirrors and shared article routing. Update this file to add/remove articles; all downstream tools read from here.",
+  "description": "Single source of truth for article routing and the OpenCode agent/command mirrors. Update this file to add/remove articles, agents or commands; all downstream tools read from here.",
   "claude_rules_dir": ".claude/rules",
-  "copilot_instructions_dir": ".github/instructions",
   "entries": [
     {
       "article": "I & II",
       "title": "Architecture: Library-First & Service Isolation",
       "claude_file": "backend/architecture.md",
-      "copilot_file": "backend-architecture.instructions.md",
-      "render_dir": ".claude/rules/backend",
-      "copilot_description": "Architecture: Library-First & Service Isolation (Articles I & II)",
-      "paths": ["{{BACKEND_PATH}}/src/libs/**/*.py", "{{BACKEND_PATH}}/app/**/*.py"]
+      "render_dir": ".claude/rules/backend"
     },
     {
       "article": "III",
       "title": "Testing: TDD Mandate",
       "claude_file": "backend/testing.md",
-      "copilot_file": "backend-testing.instructions.md",
-      "render_dir": ".claude/rules/backend",
-      "copilot_description": "Testing: TDD Mandate (Article III)",
-      "paths": ["{{BACKEND_PATH}}/**/*.py"]
+      "render_dir": ".claude/rules/backend"
     },
     {
       "article": "IV",
       "title": "Error Handling & Observability",
       "claude_file": "backend/error-handling.md",
-      "copilot_file": "backend-error-handling.instructions.md",
-      "render_dir": ".claude/rules/backend",
-      "copilot_description": "Error Handling & Observability (Article IV)",
-      "paths": ["{{BACKEND_PATH}}/src/libs/**/*.py", "{{BACKEND_PATH}}/app/**/*.py"]
+      "render_dir": ".claude/rules/backend"
     },
     {
       "article": "V",
       "title": "Async-First & Typed Interfaces",
       "claude_file": "backend/async-patterns.md",
-      "copilot_file": "backend-async-patterns.instructions.md",
-      "render_dir": ".claude/rules/backend",
-      "copilot_description": "Async-First & Typed Interfaces (Article V)",
-      "paths": ["{{BACKEND_PATH}}/src/libs/**/*.py", "{{BACKEND_PATH}}/app/**/*.py"]
+      "render_dir": ".claude/rules/backend"
     },
     {
       "article": "VI",
       "title": "API Contract & Documentation",
       "claude_file": "backend/api-design.md",
-      "copilot_file": "backend-api-design.instructions.md",
-      "render_dir": ".claude/rules/backend",
-      "copilot_description": "API Contract & Documentation (Article VI)",
-      "paths": ["{{BACKEND_PATH}}/app/api/**/*.py"]
+      "render_dir": ".claude/rules/backend"
     },
     {
       "article": "VII",
       "title": "Secure-by-Default",
       "claude_file": "backend/security.md",
-      "copilot_file": "backend-security.instructions.md",
-      "render_dir": ".claude/rules/backend",
-      "copilot_description": "Secure-by-Default (Article VII)",
-      "paths": ["{{BACKEND_PATH}}/src/libs/auth_manager/**/*.py", "{{BACKEND_PATH}}/src/libs/platform_auth/**/*.py", "{{BACKEND_PATH}}/src/libs/route_guard/**/*.py", "{{BACKEND_PATH}}/app/api/routes/auth*.py", "{{BACKEND_PATH}}/app/core/security*.py", "{{BACKEND_PATH}}/app/core/dependencies*.py"]
+      "render_dir": ".claude/rules/backend"
     },
     {
       "article": "VIII",
       "title": "CI/CD & Automation Integrity",
       "claude_file": "cicd.md",
-      "copilot_file": "cicd.instructions.md",
-      "render_dir": ".claude/rules",
-      "copilot_description": "CI/CD & Automation Integrity (Article VIII)",
-      "paths": [".github/workflows/**", "pyproject.toml", "requirements.txt", "package.json", "{{FRONTEND_PATH}}/package.json"]
+      "render_dir": ".claude/rules"
     },
     {
       "article": "IX",
       "title": "Enforcement, Compliance & Versioning",
       "claude_file": "enforcement.md",
-      "copilot_file": "enforcement.instructions.md",
-      "render_dir": ".claude/rules",
-      "copilot_description": "Enforcement, Compliance & Versioning (Article IX)",
-      "paths": ["**/*"]
+      "render_dir": ".claude/rules"
     },
     {
-      "article": "—",
+      "article": "\u2014",
       "title": "Workflow Pipeline",
       "claude_file": "workflow.md",
-      "copilot_file": "workflow.instructions.md",
-      "render_dir": ".claude/rules",
-      "copilot_description": "Workflow Pipeline (canonical)",
-      "paths": ["**/*"]
+      "render_dir": ".claude/rules"
     },
     {
-      "article": "—",
+      "article": "\u2014",
       "title": "SQL Standards: Schema Design & Migrations",
       "claude_file": "database/sql-standards.md",
-      "copilot_file": "database-sql-standards.instructions.md",
-      "render_dir": ".claude/rules/database",
-      "copilot_description": "SQL Standards: Schema Design & Migrations",
-      "paths": ["supabase/migrations/**", "supabase/seed.sql"]
+      "render_dir": ".claude/rules/database"
     },
     {
-      "article": "—",
+      "article": "\u2014",
       "title": "PostgreSQL-Only Infrastructure",
       "claude_file": "database/infrastructure.md",
-      "copilot_file": "database-infrastructure.instructions.md",
-      "render_dir": ".claude/rules/database",
-      "copilot_description": "PostgreSQL-Only Infrastructure",
-      "paths": ["supabase/**", "{{BACKEND_PATH}}/src/libs/**/repositories/**", "{{BACKEND_PATH}}/src/libs/**/repository.py", "{{BACKEND_PATH}}/app/core/dependencies*.py", "{{BACKEND_PATH}}/docs/DATABASE_ARCHITECTURE.md"]
+      "render_dir": ".claude/rules/database"
     },
     {
-      "article": "—",
+      "article": "\u2014",
       "title": "Frontend Conventions",
       "claude_file": "frontend/conventions.md",
-      "copilot_file": "frontend-conventions.instructions.md",
-      "render_dir": ".claude/rules/frontend",
-      "copilot_description": "Frontend Conventions",
-      "paths": ["{{FRONTEND_PATH}}/**"]
+      "render_dir": ".claude/rules/frontend"
     },
     {
-      "article": "—",
+      "article": "\u2014",
       "title": "Privacy & GDPR Compliance",
       "claude_file": "privacy-gdpr.md",
-      "copilot_file": "privacy-gdpr.instructions.md",
-      "render_dir": ".claude/rules",
-      "copilot_description": "Privacy & GDPR Compliance",
-      "paths": ["{{BACKEND_PATH}}/src/libs/**/models/**/*.py", "{{BACKEND_PATH}}/app/core/security*.py", "{{BACKEND_PATH}}/app/api/routes/**"]
+      "render_dir": ".claude/rules"
     },
     {
-      "article": "—",
+      "article": "\u2014",
       "title": "Rate Limiting & Throttling",
       "claude_file": "rate-limiting.md",
-      "copilot_file": "rate-limiting.instructions.md",
-      "render_dir": ".claude/rules",
-      "copilot_description": "Rate Limiting & Throttling",
-      "paths": ["{{BACKEND_PATH}}/app/api/routes/**/*.py", "{{BACKEND_PATH}}/app/core/middleware*.py", "{{BACKEND_PATH}}/app/core/dependencies*.py"]
+      "render_dir": ".claude/rules"
     },
     {
-      "article": "—",
+      "article": "\u2014",
       "title": "Input Validation & Security",
       "claude_file": "input-security.md",
-      "copilot_file": "input-security.instructions.md",
-      "render_dir": ".claude/rules",
-      "copilot_description": "Input Validation & Security",
-      "paths": ["{{BACKEND_PATH}}/app/api/routes/**/*.py", "{{BACKEND_PATH}}/src/libs/**/models/*.py"]
+      "render_dir": ".claude/rules"
     },
     {
-      "article": "—",
+      "article": "\u2014",
       "title": "Production Safety: Feature Flags, Canary, Rollback",
       "claude_file": "production-safety.md",
-      "copilot_file": "production-safety.instructions.md",
-      "render_dir": ".claude/rules",
-      "copilot_description": "Production Safety: Feature Flags, Canary, Rollback",
-      "paths": [".github/workflows/**", "{{BACKEND_PATH}}/app/core/feature_flags*.py", "{{FRONTEND_PATH}}/src/config/**"]
+      "render_dir": ".claude/rules"
     },
     {
-      "article": "—",
+      "article": "\u2014",
       "title": "Dependency Security & Supply Chain",
       "claude_file": "dependency-security.md",
-      "copilot_file": "dependency-security.instructions.md",
-      "render_dir": ".claude/rules",
-      "copilot_description": "Dependency Security & Supply Chain",
-      "paths": ["pyproject.toml", "requirements.txt", "requirements*.txt", "package.json", "package-lock.json", "poetry.lock"]
+      "render_dir": ".claude/rules"
     },
     {
-      "article": "—",
+      "article": "\u2014",
       "title": "Logging, Observability & Tracing",
       "claude_file": "logging-observability.md",
-      "copilot_file": "logging-observability.instructions.md",
-      "render_dir": ".claude/rules",
-      "copilot_description": "Logging, Observability & Tracing",
-      "paths": ["{{BACKEND_PATH}}/src/libs/**/logger*.py", "{{BACKEND_PATH}}/app/core/logging*.py", ".github/workflows/**"]
+      "render_dir": ".claude/rules"
     },
     {
-      "article": "—",
+      "article": "\u2014",
       "title": "Health Check Endpoints & K8s Probes",
       "claude_file": "health-endpoints.md",
-      "copilot_file": "health-endpoints.instructions.md",
-      "render_dir": ".claude/rules",
-      "copilot_description": "Health Check Endpoints & K8s Probes",
-      "paths": ["{{BACKEND_PATH}}/app/health*.py", "{{BACKEND_PATH}}/app/api/health*.py"]
+      "render_dir": ".claude/rules"
     },
     {
-      "article": "—",
+      "article": "\u2014",
       "title": "Documentation Standards",
       "claude_file": "documentation-standards.md",
-      "copilot_file": "documentation-standards.instructions.md",
-      "render_dir": ".claude/rules",
-      "copilot_description": "Documentation Standards",
-      "paths": ["README.md", "docs/**/*.md", "adr/**/*.md", "{{BACKEND_PATH}}/docs/**/*.md"]
+      "render_dir": ".claude/rules"
     },
     {
-      "article": "—",
+      "article": "\u2014",
       "title": "Performance Budgets & SLOs",
       "claude_file": "performance-budgets.md",
-      "copilot_file": "performance-budgets.instructions.md",
-      "render_dir": ".claude/rules",
-      "copilot_description": "Performance Budgets & SLOs",
-      "paths": ["{{BACKEND_PATH}}/**/*.py", "{{FRONTEND_PATH}}/**", ".github/workflows/**"]
+      "render_dir": ".claude/rules"
     },
     {
-      "article": "—",
+      "article": "\u2014",
       "title": "Error Budgets & Availability Targets",
       "claude_file": "error-budgets.md",
-      "copilot_file": "error-budgets.instructions.md",
-      "render_dir": ".claude/rules",
-      "copilot_description": "Error Budgets & Availability Targets",
-      "paths": ["{{BACKEND_PATH}}/**/*.py", ".github/workflows/**", "observability/**"]
+      "render_dir": ".claude/rules"
     },
     {
-      "article": "—",
+      "article": "\u2014",
       "title": "Agentic Continuous Delivery (ACD)",
       "claude_file": "agentic-workflow.md",
-      "copilot_file": "agentic-workflow.instructions.md",
-      "render_dir": ".claude/rules",
-      "copilot_description": "Agentic Continuous Delivery: agent delivery contract, ACD constraints, session discipline, and expert validation agents",
-      "paths": ["**/*"]
-    },
-    {
-      "article": "—",
-      "title": "Primitive Drift: Rule/Instruction Mirror Sync",
-      "claude_file": "primitive-drift.md",
-      "copilot_file": "primitive-drift.instructions.md",
-      "render_dir": ".claude/rules",
-      "copilot_description": "Primitive Drift: Rule/Instruction Mirror Sync",
-      "paths": [".claude/rules/**", ".github/instructions/**"]
+      "render_dir": ".claude/rules"
     },
     {
       "article": "X",
       "title": "Caching Strategy",
       "claude_file": "backend/caching-strategy.md",
-      "copilot_file": "backend-caching-strategy.instructions.md",
-      "render_dir": ".claude/rules/backend",
-      "copilot_description": "Caching Strategy (Article X): PostgreSQL-only caching via NOLOG tables, materialized views, and HTTP cache headers",
-      "paths": ["{{BACKEND_PATH}}/src/libs/**/*.py", "{{BACKEND_PATH}}/app/**/*.py", "{{BACKEND_PATH}}/migrations/**/*.sql"]
+      "render_dir": ".claude/rules/backend"
     }
   ],
   "agent_entries": [
@@ -235,8 +153,6 @@
       "title": "Backend Architect",
       "source_file": "backend-architect.md",
       "claude_dir": ".claude/agents",
-      "copilot_file": "backend-architect.agent.md",
-      "copilot_dir": ".github/agents",
       "opencode_dir": ".opencode/agents",
       "argument_hint": "Describe the feature, service, or change. Include domain context and any existing file paths."
     },
@@ -244,8 +160,6 @@
       "title": "Frontend Architect",
       "source_file": "frontend-architect.md",
       "claude_dir": ".claude/agents",
-      "copilot_file": "frontend-architect.agent.md",
-      "copilot_dir": ".github/agents",
       "opencode_dir": ".opencode/agents",
       "argument_hint": "Describe the UI feature, component, or page. Include mockups or wireframes if available."
     },
@@ -253,8 +167,6 @@
       "title": "Article Compliance Reviewer",
       "source_file": "article-compliance-reviewer.md",
       "claude_dir": ".claude/agents",
-      "copilot_file": "article-compliance-reviewer.agent.md",
-      "copilot_dir": ".github/agents",
       "opencode_dir": ".opencode/agents",
       "argument_hint": "Provide a diff, file list, or PR description to review for constitutional compliance."
     }
@@ -264,56 +176,42 @@
       "title": "Preflight",
       "source_file": "preflight.md",
       "claude_dir": ".claude/commands",
-      "copilot_file": "pre-merge-verify.prompt.md",
-      "copilot_dir": ".github/prompts",
       "opencode_dir": ".opencode/commands"
     },
     {
       "title": "Migration Check",
       "source_file": "migration-check.md",
       "claude_dir": ".claude/commands",
-      "copilot_file": "migration-check.prompt.md",
-      "copilot_dir": ".github/prompts",
       "opencode_dir": ".opencode/commands"
     },
     {
       "title": "Graphify",
       "source_file": "graphify.md",
       "claude_dir": ".claude/commands",
-      "copilot_file": "graphify.prompt.md",
-      "copilot_dir": ".github/prompts",
       "opencode_dir": ".opencode/commands"
     },
     {
       "title": "Start Session",
       "source_file": "start-session.md",
       "claude_dir": ".claude/commands",
-      "copilot_file": "start-session.prompt.md",
-      "copilot_dir": ".github/prompts",
       "opencode_dir": ".opencode/commands"
     },
     {
       "title": "End Session",
       "source_file": "end-session.md",
       "claude_dir": ".claude/commands",
-      "copilot_file": "end-session.prompt.md",
-      "copilot_dir": ".github/prompts",
       "opencode_dir": ".opencode/commands"
     },
     {
       "title": "Fix",
       "source_file": "fix.md",
       "claude_dir": ".claude/commands",
-      "copilot_file": "fix.prompt.md",
-      "copilot_dir": ".github/prompts",
       "opencode_dir": ".opencode/commands"
     },
     {
       "title": "Harness Eval",
       "source_file": "harness-eval.md",
       "claude_dir": ".claude/commands",
-      "copilot_file": "harness-eval.prompt.md",
-      "copilot_dir": ".github/prompts",
       "opencode_dir": ".opencode/commands"
     }
   ],

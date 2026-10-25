@@ -8,8 +8,8 @@ machine                                    project
 ───────                                    ───────
 system/install.sh                          install.sh  /  new-project.sh
   ├─ ~/.config/zsh          (shell)          ├─ .claude/rules/  .claude/skills/
-  ├─ ~/.config/opencode/AGENTS.md (user)     ├─ .github/instructions/
-  ├─ ~/.claude/{CLAUDE.md,settings.json}     ├─ .opencode/{skills,agents,commands}
+  ├─ ~/.config/opencode/AGENTS.md (user)     ├─ .opencode/{skills,agents,commands}
+  ├─ ~/.claude/{CLAUDE.md,settings.json}     ├─ .claude/{rules,skills,hooks}
   ├─ ~/.config/system/gitconfig (git)        ├─ CLAUDE.md  AGENTS.md
   └─ herdr / zed (optional)                  └─ my-workflows.md
 ```

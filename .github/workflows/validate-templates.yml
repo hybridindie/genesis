@@ -145,50 +145,28 @@ jobs:
           fi
           echo "PASS: MLflow Prompt Registry section present in architecture.md"
 
-      - name: Check mirror sync
+      - name: Check OpenCode agent/command mirrors
         run: |
-          python3 templates/scripts/generate-copilot-mirrors.py /tmp/validate-render
-          
-          # Verify all Claude rules have Copilot mirrors
-          for claude_file in /tmp/validate-render/.claude/rules/**/*.md; do
-            [[ -f "$claude_file" ]] || continue
-            rel="${claude_file#/tmp/validate-render/.claude/rules/}"
-            # Doctrine is referenced by articles/agents and is not mirrored to Copilot.
-            [[ "$rel" == doctrine/* ]] && continue
-            mirror="/tmp/validate-render/.github/instructions/${rel//\//-}"
-            mirror="${mirror%.md}.instructions.md"
-            if [[ ! -f "$mirror" ]]; then
-              echo "FAIL: Mirror missing for $rel"
-              exit 1
-            fi
+          fail=0
+          for kind in agents commands; do
+            for cf in /tmp/validate-render/.claude/$kind/*.md; do
+              [[ -f "$cf" ]] || continue
+              rel="${cf#/tmp/validate-render/.claude/$kind/}"
+              of="/tmp/validate-render/.opencode/$kind/$rel"
+              if [[ ! -f "$of" ]]; then
+                echo "FAIL: Missing OpenCode mirror: $kind/$rel"
+                fail=1
+                continue
+              fi
+              claude_body=$(awk '/^---$/{if (++count == 2) nextfile} count >= 2' "$cf")
+              opencode_body=$(awk '/^---$/{if (++count == 2) nextfile} count >= 2' "$of")
+              if [[ "$claude_body" != "$opencode_body" ]]; then
+                echo "DRIFT: $kind/$rel (body differs from the Claude source)"
+                fail=1
+              fi
+            done
           done
-          echo "PASS: All Copilot mirrors generated"
-
-      - name: Check mirror body identity
-        run: |
-          diffs=0
-          for claude_file in /tmp/validate-render/.claude/rules/**/*.md; do
-            [[ -f "$claude_file" ]] || continue
-            rel="${claude_file#/tmp/validate-render/.claude/rules/}"
-            [[ "$rel" == doctrine/* ]] && continue
-            mirror="/tmp/validate-render/.github/instructions/${rel//\//-}.instructions.md"
-            [[ -f "$mirror" ]] || continue
-            
-            # Extract body (after second ---)
-            claude_body=$(awk '/^---$/{if (++count == 2) nextfile} count >= 2' "$claude_file")
-            mirror_body=$(awk '/^---$/{if (++count == 2) nextfile} count >= 2' "$mirror")
-            
-            if [[ "$claude_body" != "$mirror_body" ]]; then
-              echo "DRIFT: $rel"
-              diffs=$((diffs + 1))
-            fi
-          done
-          
-          if [[ $diffs -gt 0 ]]; then
-            echo "FAIL: $diffs mirror pair(s) have drifted"
-            exit 1
-          fi
-          echo "PASS: All mirror bodies identical"
+          exit "$fail"
 
       - name: Check hook syntax
         run: |
@@ -211,7 +189,6 @@ jobs:
           files=(
             "CLAUDE.md"
             "AGENTS.md"
-            ".github/copilot-instructions.md"
             ".claude/rules/backend/architecture.md"
             ".claude/rules/backend/testing.md"
             ".claude/rules/backend/error-handling.md"
@@ -259,8 +236,8 @@ jobs:
           if [[ ! -x templates/scripts/bootstrap.sh ]]; then
             chmod +x templates/scripts/bootstrap.sh
           fi
-          if [[ ! -x templates/scripts/generate-copilot-mirrors.py ]]; then
-            chmod +x templates/scripts/generate-copilot-mirrors.py
+          if [[ ! -x templates/scripts/generate-harness-mirrors.py ]]; then
+            chmod +x templates/scripts/generate-harness-mirrors.py
           fi
           if [[ ! -x templates/scripts/process-conditionals.py ]]; then
             chmod +x templates/scripts/process-conditionals.py

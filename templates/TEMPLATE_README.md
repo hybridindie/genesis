@@ -2,9 +2,8 @@
 
 ## Overview
 
-This repository contains a unified template system for bootstrapping project-specific AI harnesses across three code-assistant platforms:
+This repository contains a unified template system for bootstrapping project-specific AI harnesses across two code-assistant platforms:
 
-- **GitHub Copilot** — `.github/copilot-instructions.md`, `.github/instructions/*.instructions.md`, `.github/rules/`, `.github/agents/`, `.github/prompts/`
 - **Claude Code** — `CLAUDE.md`, `AGENTS.md`, `.claude/rules/`, `.claude/commands/`, `.claude/agents/`, `.claude/skills/`, `.claude/hooks/`, `.claude/scripts/`
 - **Opencode** — `.opencode/` ecosystem with skills, commands, and plugins
 
@@ -51,9 +50,9 @@ Use `templates/scripts/customize-harness.md` as a prompt for deep semantic tailo
 
 Templates use `{{PLACEHOLDER}}` syntax. The bootstrap script performs simple string substitution. The AI customization skill performs semantic tailoring (removing irrelevant articles, adjusting coverage tiers, etc.).
 
-### 3. Sync Rule Mirrors
+### 3. Sync OpenCode mirrors
 
-After customizing, run the drift checker to ensure Copilot and Claude rule mirrors stay in sync:
+After customizing, run the drift checker to ensure the OpenCode agents/commands still match their Claude sources:
 
 ```bash
 bash scripts/check-primitive-drift.sh
@@ -102,32 +101,26 @@ bash scripts/check-primitive-drift.sh
 
 ## File Manifest
 
-### Shared Constitutional Articles (rendered into all three harnesses)
+### Shared Constitutional Articles (rendered for both harnesses)
 
 | File | Description | Target Paths |
 |---|---|---|
-| `_shared/articles/architecture.md` | Article I & II: Library-first, service isolation | `.claude/rules/backend/architecture.md` + `.github/instructions/backend-architecture.instructions.md` |
-| `_shared/articles/testing.md` | Article III: TDD mandate, coverage tiers | `.claude/rules/backend/testing.md` + `.github/instructions/backend-testing.instructions.md` |
-| `_shared/articles/error-handling.md` | Article IV: Structured errors | `.claude/rules/backend/error-handling.md` + `.github/instructions/backend-error-handling.instructions.md` |
-| `_shared/articles/async-patterns.md` | Article V: Async-first | `.claude/rules/backend/async-patterns.md` + `.github/instructions/backend-async-patterns.instructions.md` |
-| `_shared/articles/api-design.md` | Article VI: OpenAPI & Pydantic | `.claude/rules/backend/api-design.md` + `.github/instructions/backend-api-design.instructions.md` |
-| `_shared/articles/security.md` | Article VII: Secure-by-default | `.claude/rules/backend/security.md` + `.github/instructions/backend-security.instructions.md` |
-| `_shared/articles/cicd.md` | Article VIII: CI/CD integrity | `.claude/rules/cicd.md` + `.github/instructions/cicd.instructions.md` |
-| `_shared/articles/enforcement.md` | Article IX: Enforcement gates, PR checklist, versioning | `.claude/rules/enforcement.md` + `.github/instructions/enforcement.instructions.md` |
-| `_shared/articles/primitive-drift.md` | Mirror sync rule | `.github/instructions/primitive-drift.instructions.md` |
-| `_shared/database/sql-standards.md` | PostgreSQL schema standards | `.claude/rules/database/sql-standards.md` + `.github/instructions/database-sql-standards.instructions.md` |
-| `_shared/database/infrastructure.md` | PostgreSQL-only infra | `.claude/rules/database/infrastructure.md` + `.github/instructions/database-infrastructure.instructions.md` |
-| `_shared/frontend/conventions.md` | React/TypeScript conventions | `.claude/rules/frontend/conventions.md` + `.github/instructions/frontend-conventions.instructions.md` |
+| `_shared/articles/architecture.md` | Article I & II: Library-first, service isolation | `.claude/rules/backend/architecture.md` |
+| `_shared/articles/testing.md` | Article III: TDD mandate, coverage tiers | `.claude/rules/backend/testing.md` |
+| `_shared/articles/error-handling.md` | Article IV: Structured errors | `.claude/rules/backend/error-handling.md` |
+| `_shared/articles/async-patterns.md` | Article V: Async-first | `.claude/rules/backend/async-patterns.md` |
+| `_shared/articles/api-design.md` | Article VI: OpenAPI & Pydantic | `.claude/rules/backend/api-design.md` |
+| `_shared/articles/security.md` | Article VII: Secure-by-default | `.claude/rules/backend/security.md` |
+| `_shared/articles/cicd.md` | Article VIII: CI/CD integrity | `.claude/rules/cicd.md` |
+| `_shared/articles/enforcement.md` | Article IX: Enforcement gates, PR checklist, versioning | `.claude/rules/enforcement.md` |
+| `_shared/database/sql-standards.md` | PostgreSQL schema standards | `.claude/rules/database/sql-standards.md` |
+| `_shared/database/infrastructure.md` | PostgreSQL-only infra | `.claude/rules/database/infrastructure.md` |
+| `_shared/frontend/conventions.md` | React/TypeScript conventions | `.claude/rules/frontend/conventions.md` |
 
 ### Harness-Specific Templates
 
 | Harness | File | Description |
 |---|---|---|
-| GitHub Copilot | `.github/copilot-instructions.md` | Master Copilot instructions |
-| GitHub Copilot | `.github/agents/ux-researcher.agent.md` | UX research agent |
-| GitHub Copilot | `.github/agents/implementation-designer.agent.md` | Implementation designer agent |
-| GitHub Copilot | `.github/prompts/pre-merge-verify.prompt.md` | Pre-merge verification prompt |
-| GitHub Copilot | `.github/CUSTOMIZATIONS.md` | Customization system doc |
 | Claude Code | `CLAUDE.md` | Thin `@AGENTS.md` + `@my-workflows.md` import, Claude-only notes |
 | Claude Code | `AGENTS.md` | Canonical project context (shared with every harness) |
 | Claude Code | `.claude/commands/preflight.md` | Local CI checks command |
@@ -181,7 +174,7 @@ The AI reads the full template, asks clarifying questions, then:
 After rendering templates into a project, always run:
 
 ```bash
-# Mirror sync (Claude <-> Copilot rules)
+# OpenCode mirror sync (agents/commands vs Claude sources)
 bash .claude/hooks/check-primitive-drift.sh
 
 # Agent version sync (stack versions in agents vs AGENTS.md)

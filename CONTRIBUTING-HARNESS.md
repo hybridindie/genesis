@@ -14,7 +14,7 @@ sessions — open it on demand when editing.
 - **Canonical context**: edit `templates/_shared/AGENTS.md`. Keep `templates/claude-code/CLAUDE.md` thin (`@AGENTS.md` + Claude-only notes); never copy the project context into it.
 - **Add a new agent**: add `.md` to `templates/_shared/agents/`, add an `agent_entries` entry in `mirror-pairs.json`.
 - **Add a new command**: add `.md` to `templates/_shared/commands/`, add a `command_entries` entry in `mirror-pairs.json`.
-- **Add shared doctrine**: add `.md` to `templates/_shared/doctrine/`, add a `doctrine_entries` entry in `mirror-pairs.json` (with `source_file` + `render_dir` = `.claude/rules/doctrine`). Doctrine is referenced by articles/agents, not mirrored to Copilot.
+- **Add shared doctrine**: add `.md` to `templates/_shared/doctrine/`, add a `doctrine_entries` entry in `mirror-pairs.json` (with `source_file` + `render_dir` = `.claude/rules/doctrine`). Doctrine is referenced by articles/agents, not mirrored.
 - **Check for drift**: `bash templates/claude-code/.claude/hooks/check-primitive-drift.sh` (must be run from repo root with a bootstrapped harness in scope).
 - **Test a bootstrap**: `bash templates/scripts/bootstrap.sh --project-name Test --project-slug test --output-dir /tmp/test-harness`.
 
@@ -37,7 +37,7 @@ the doctrine it references, and vice versa. The header `invokes:` and
 
 ## Drift policy
 
-`templates/_shared/` is the single source. Platform-specific files in `templates/claude-code/.claude/agents/`, `templates/claude-code/.claude/commands/`, and `templates/github-copilot/.github/agents/` + `templates/github-copilot/.github/prompts/` are **generated output** — do not edit them directly. Edit the shared source and re-run bootstrap.
+`templates/_shared/` is the single source. The OpenCode agents and commands are generated from their Claude counterparts by `generate-harness-mirrors.py` — do not edit `.opencode/agents/` or `.opencode/commands/` directly in a rendered project without updating the shared source.
 
 ## Hooks
 
@@ -49,5 +49,4 @@ instead of the canonical `.agents/` content, editing a load-bearing
 `templates/_shared/doctrine/` file. Both doctrine layers are referenced by
 path from multiple skills/rubrics (epic side) or articles/agents (genesis
 side), so edits there propagate everywhere. Configs:
-`.opencode/plugins/warn-pointer-edit.ts`, `.claude/hooks/warn-pointer-edit.sh`,
-`.github/hooks/warn-pointer-edit.json`.
+`.opencode/plugins/warn-pointer-edit.ts`, `.claude/hooks/warn-pointer-edit.sh`.

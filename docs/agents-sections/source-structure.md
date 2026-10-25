@@ -17,8 +17,8 @@ new-project.sh          ← create a repo + render the harness in one step
 
 templates/
   _shared/
-    articles/      ← Constitutional rules (rendered into all three harnesses)
-    agents/        ← Shared agent definitions (Claude frontmatter → Copilot transformed)
+    articles/      ← Constitutional rules (rendered for both harnesses)
+    agents/        ← Shared agent definitions (Claude frontmatter → OpenCode transformed)
     commands/      ← Shared commands/prompts (body identical across platforms)
     doctrine/      ← Shared rules referenced by multiple articles/agents (rendered to .claude/rules/doctrine/)
     skills/        ← Shared shippable skills (rendered into target .claude/ + .opencode/)
@@ -29,11 +29,10 @@ templates/
     frontend/      ← Frontend conventions
     mirror-pairs.json  ← Single source of truth for all mirror pairs (entries, agent_entries, command_entries, doctrine_entries)
   claude-code/    ← Claude-specific harness assets (skills, hooks, scripts)
-  github-copilot/ ← Copilot-specific assets (prompts that aren't mirrored commands)
   opencode/       ← Opencode-specific assets
   scripts/
     bootstrap.sh                 ← Main installer
-    generate-copilot-mirrors.py  ← Transforms Claude frontmatter → Copilot frontmatter (skips doctrine/)
+    generate-harness-mirrors.py  ← Mirrors Claude agents/commands into .opencode/ (body identical)
     inspect-project.py           ← Detects project stack (used by --auto-detect)
     process-conditionals.py      ← Strips {{#FLAG}}...{{/FLAG}} blocks
 ```

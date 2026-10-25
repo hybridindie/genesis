@@ -2,7 +2,7 @@
 
 On-demand section — read when installing or bootstrapping a harness.
 
-`templates/scripts/bootstrap.sh` reads `templates/_shared/` (canonical source) and renders three equivalent harnesses into a target project:
+`templates/scripts/bootstrap.sh` reads `templates/_shared/` (canonical source) and renders equivalent OpenCode and Claude Code harnesses into a target project:
 
 > There is also a **system layer** for the machine itself: `bash system/install.sh`
 > renders the zsh config, the user-level `AGENTS.md`, and shared git settings into
@@ -11,7 +11,6 @@ On-demand section — read when installing or bootstrapping a harness.
 | Platform | Entry point | Rules location |
 |----------|-------------|----------------|
 | Claude Code | `CLAUDE.md` (`@AGENTS.md`) | `.claude/rules/`, `.claude/agents/`, `.claude/commands/` |
-| GitHub Copilot | `.github/copilot-instructions.md` | `.github/instructions/`, `.github/agents/`, `.github/prompts/` |
 | Opencode | `AGENTS.md` | `.claude/rules/` (read via the AGENTS.md index) |
 
 ## Install a harness into a project

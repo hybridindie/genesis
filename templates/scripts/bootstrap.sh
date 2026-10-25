@@ -328,7 +328,7 @@ fi
 
 echo "=== Rendering Shared Doctrine ==="
 # Doctrine files ship into .claude/rules/doctrine/ so articles and agents can
-# reference them by path. They are NOT mirrored to Copilot (referenced by
+# reference them by path. They are not mirrored to OpenCode (referenced by
 # articles/agents, not loaded as path-targeted instructions).
 python3 -c "
 import json, os
@@ -387,11 +387,8 @@ if [[ "$HAS_NEXTJS" == "yes" ]]; then
   fi
 fi
 
-echo "=== Mirroring Claude Rules to Copilot Instructions ==="
-python3 "$SCRIPT_DIR/generate-copilot-mirrors.py" "$OUTPUT_DIR" "$TEMPLATES_DIR"
-
-echo "=== Rendering GitHub Copilot Harness ==="
-render_harness "$TEMPLATES_DIR/github-copilot/.github" "$OUTPUT_DIR/.github"
+echo "=== Mirroring Claude Agents/Commands to OpenCode ==="
+python3 "$SCRIPT_DIR/generate-harness-mirrors.py" "$OUTPUT_DIR" "$TEMPLATES_DIR"
 
 echo "=== Rendering Claude Code Harness ==="
 render_harness "$TEMPLATES_DIR/claude-code/.claude" "$OUTPUT_DIR/.claude"

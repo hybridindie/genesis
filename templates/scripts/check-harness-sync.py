@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-Cross-Harness Policy Checker — validates that Claude, Copilot, and Opencode
-harnesses remain consistent with the single source of truth (mirror-pairs.json).
+Cross-Harness Policy Checker — validates that the Claude and OpenCode harnesses
+remain consistent with the single source of truth (mirror-pairs.json).
 
 Checks:
-  1. All mirrors from mirror-pairs.json have a shared source file
-  2. Mirror bodies are byte-for-byte identical (excl. frontmatter)
+  1. All article/agent/command sources from mirror-pairs.json exist
+  2. Rendered rule files exist in the target project
   3. Opencode agents/skills are semantically aligned with Claude rules
   4. No orphaned placeholders in rendered harnesses
   5. Agent version claims match AGENTS.md canonical versions
-  6. Coverage tier requirements are consistent across harnesses
-  7. No-skipped-tests policy is present in all three harnesses
+  6. Coverage tier requirements are present
+  7. No-skipped-tests policy is present in both harnesses
 
 Usage:
   python3 templates/scripts/check-harness-sync.py [templates_dir] [output_dir]
@@ -82,32 +82,15 @@ class HarnessSyncChecker:
                 )
 
     def check_rendered_mirrors(self) -> None:
-        """If output_dir is given, verify mirrored files exist and bodies match."""
+        """If output_dir is given, verify every rendered rule file exists."""
         if not self.output_dir:
             return
         for entry in self.entries:
             claude_path = self.output_dir / ".claude" / "rules" / entry["claude_file"]
-            copilot_path = (
-                self.output_dir
-                / ".github"
-                / "instructions"
-                / entry["copilot_file"]
-            )
-
-            for path, side in [(claude_path, "claude"), (copilot_path, "copilot")]:
-                if not path.exists():
-                    self.errors.append(
-                        f"FAIL: Missing rendered {side} mirror: {path}"
-                    )
-
-            if claude_path.exists() and copilot_path.exists():
-                claude_body = self._extract_body(claude_path)
-                copilot_body = self._extract_body(copilot_path)
-                if claude_body != copilot_body:
-                    self.errors.append(
-                        f"FAIL: Body drift detected between .claude/rules/{entry['claude_file']} "
-                        f"and .github/instructions/{entry['copilot_file']}"
-                    )
+            if not claude_path.exists():
+                self.errors.append(
+                    f"FAIL: Missing rendered rule: {claude_path}"
+                )
 
     # ── 2. Opencode alignment -------------------------------------------
 
@@ -216,12 +199,12 @@ class HarnessSyncChecker:
     def check_coverage_tiers(self) -> None:
         if not self.output_dir:
             return
-        copilot = self.output_dir / ".github" / "copilot-instructions.md"
-        if copilot.exists():
-            text = copilot.read_text(encoding="utf-8")
-            if "Security 90%+" not in text:
-                self.errors.append(
-                    "FAIL: Copilot instructions missing Security 90%+ tier"
+        testing = self.output_dir / ".claude" / "rules" / "backend" / "testing.md"
+        if testing.exists():
+            text = testing.read_text(encoding="utf-8")
+            if "Security 90%+" not in text and "90%+" not in text:
+                self.warnings.append(
+                    "WARN: testing.md does not mention the security coverage tier"
                 )
 
     # ── 6. No-skipped-tests policy presence ---------------------------
@@ -239,14 +222,6 @@ class HarnessSyncChecker:
             if "pytest.mark.skip" not in body:
                 self.errors.append(
                     "FAIL: Claude check-no-skipped-tests.sh does not enforce pytest.skip"
-                )
-
-        copilot = self.output_dir / ".github" / "copilot-instructions.md"
-        if copilot.exists():
-            text = copilot.read_text(encoding="utf-8")
-            if "Zero failing tests" not in text:
-                self.warnings.append(
-                    "WARN: Copilot instructions do not reference no-skipped-tests policy"
                 )
 
         opencode_skills = self.output_dir / ".opencode" / "skills"

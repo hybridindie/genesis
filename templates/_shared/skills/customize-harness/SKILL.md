@@ -26,7 +26,7 @@ to re-run anytime. It is **idempotent**: re-running refines, it does not duplica
 - **Installed harness:** list what exists — `AGENTS.md` (canonical context +
   rule index), `CLAUDE.md` (thin `@AGENTS.md` import), `my-workflows.md`,
   `.claude/rules/**`, `.claude/agents/**`, `.claude/commands/**`, and the
-  equivalent OpenCode/Copilot files.
+  equivalent OpenCode files.
 
 ## Phase 2 — Propose a plan (always show before editing)
 

@@ -2,14 +2,14 @@
 
 **Constitutional AI instruction templates for Python (FastAPI, Flask, MCP) and TypeScript (React, Next.js) projects — plus a machine setup layer for the shell and the user-level agent rules.**
 
-Generate equivalent instruction harnesses for GitHub Copilot, Claude Code, and Opencode with a single command. Templates codify Articles I–X (library-first architecture, TDD mandate, structured errors, async-first, API contracts, security, CI integrity, enforcement, caching) plus twelve extended articles, PostgreSQL schema standards, frontend conventions, and a complete workflow pipeline.
+Generate equivalent instruction harnesses for OpenCode and Claude Code with a single command. Templates codify Articles I–X (library-first architecture, TDD mandate, structured errors, async-first, API contracts, security, CI integrity, enforcement, caching) plus twelve extended articles, PostgreSQL schema standards, frontend conventions, and a complete workflow pipeline.
 
 ## Two layers
 
 | Layer | Entry point | Installs into |
 |-------|-------------|---------------|
 | **System** (this machine) | `system/install.sh` | `~/.config/zsh`, `~/.config/opencode/AGENTS.md`, `~/.claude/{CLAUDE.md,settings.json}`, shared git config, optional Herdr/Zed |
-| **Project** (one repo) | `install.sh`, `new-project.sh`, `/bootstrap-harness` | the target project's `.claude/`, `.github/`, `.opencode/` |
+| **Project** (one repo) | `install.sh`, `new-project.sh`, `/bootstrap-harness` | the target project's `.claude/` and `.opencode/` |
 
 New machine: clone, then `bash system/install.sh`. New project:
 `./new-project.sh myapp`. The full flow (machine → project → `/harness-eval` →
@@ -37,12 +37,6 @@ Clone this repo once. Then use the `install-harness` agent from any project:
 **Claude Code:**
 ```
 # Open this genesis repo in Claude Code, then:
-@install-harness /absolute/path/to/your-project
-```
-
-**GitHub Copilot:**
-```
-# Open this genesis repo in VS Code, then use the install-harness agent:
 @install-harness /absolute/path/to/your-project
 ```
 
@@ -86,8 +80,6 @@ bootstrap.sh     → render (deterministic: placeholders + overlays + conditiona
 
 Both approaches produce:
 - `.claude/rules/` — Constitutional Articles I–X + doctrine (source of truth)
-- `.github/instructions/` — Auto-mirrored Copilot instructions
-- `.github/copilot-instructions.md` — Repo-wide Copilot guidance
 - `AGENTS.md` — Canonical project context (read natively by OpenCode; imported by `CLAUDE.md`)
 - `CLAUDE.md` — Thin `@AGENTS.md` + `@my-workflows.md` import plus Claude-specific notes
 - `my-workflows.md` — Your cross-project conventions, loaded by OpenCode and imported by Claude
@@ -112,7 +104,7 @@ capability: they live under `.agents/` and run in this genesis repo. See
 Two systems share the same pattern:
 
 - **Genesis harness**: `templates/_shared/` → rendered into target projects by `bootstrap.sh`. Articles, agents, commands, doctrine, and shippable skills.
-- **Epic Scoping Skills**: `.agents/` → thin wrappers in `.claude/`, `.opencode/`, `.github/`. Skills, doctrine, templates, evals.
+- **Epic Scoping Skills**: `.agents/` → thin wrappers in `.claude/` and `.opencode/`. Skills, doctrine, templates, evals.
 
 **Golden rule:** Edit content in `.agents/` (epic skills) or `templates/_shared/` (genesis). Edit frontmatter in the harness wrappers. Never duplicate content into a wrapper. Shared rules referenced by multiple files live in a `doctrine/` layer — reference, don't restate.
 
@@ -174,15 +166,14 @@ base articles apply as rendered.
 
 ### Mirror System
 
-`.claude/rules/*.md` (Claude) and `.github/instructions/*.instructions.md` (Copilot) are **body-identical mirrors**. `generate-copilot-mirrors.py` creates Copilot mirrors from Claude rules. `check-primitive-drift.sh` detects mirror drift.
+The OpenCode agents and commands are generated from their Claude counterparts by `generate-harness-mirrors.py` (frontmatter adapted, body identical). `check-primitive-drift.sh` and CI verify the bodies stay identical. Rule files are not mirrored — both harnesses read `.claude/rules/` directly.
 
-### Three harnesses, one canonical context
+### Two harnesses, one canonical context
 
 | Platform | Entry Files | Ecosystem |
 |----------|-------------|-----------|
 | **OpenCode (primary)** | `AGENTS.md` (auto-discovered) + `my-workflows.md` (`instructions`) | `.opencode/skills/`, `.opencode/commands/`, `.opencode/agents/` |
 | **Claude Code** | `CLAUDE.md` (`@AGENTS.md`, `@my-workflows.md`) | `.claude/rules/`, `.claude/commands/`, `.claude/agents/`, `.claude/skills/`, `.claude/hooks/` |
-| **GitHub Copilot** | `.github/copilot-instructions.md` | `.github/instructions/`, `.github/agents/`, `.github/prompts/` |
 
 Rules live once in `.claude/rules/`. Claude scopes them by `paths:` frontmatter;
 OpenCode reads them on demand through the **rule index** in `AGENTS.md` — it does
@@ -294,7 +285,7 @@ See **[`prompts-skills.md`](prompts-skills.md)** for the full guide and
 
 - **Articles/agents/commands**: edit in `templates/_shared/`. Re-run bootstrap to re-render.
 - **Doctrine**: edit in `templates/_shared/doctrine/` (genesis) or `.agents/doctrine/` (epic skills). All references inherit.
-- **Frontmatter**: edit in the harness wrappers (`.claude/`, `.opencode/`, `.github/`), not in `.agents/`.
+- **Frontmatter**: edit in the harness wrappers (`.claude/`, `.opencode/`), not in `.agents/`.
 - **Versioning**: bump `version:` in each file's header comment (patch/minor/major). See [`CONTRIBUTING-HARNESS.md`](CONTRIBUTING-HARNESS.md).
 - **Drift**: `check-primitive-drift.sh` catches mirror desync. `warn-pointer-edit` hooks warn on editing wrappers or doctrine.
 

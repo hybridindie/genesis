@@ -3,8 +3,8 @@
 Reusable prompts, skills, and eval rubrics for building solid epics when
 scoping new work. Migrated from the standalone `prompts-skills` project into
 this repository; the skills, templates, and evals now live alongside the
-harness templates and target the same three AI coding harnesses:
-**Opencode**, **Claude Code**, and **GitHub Copilot**.
+harness templates and target the same two AI coding harnesses:
+**OpenCode** and **Claude Code**.
 
 This is the full usage guide. `AGENTS.md` holds the concise cross-harness
 entrypoint; the constitutional harness-generation system is documented in the
@@ -27,8 +27,7 @@ rather than restated — this is what keeps the skills from drifting apart.
    │
    │  wrapped by thin, frontmatter-only pointers per harness:
    ├── Opencode        .opencode/skills/<name>/SKILL.md   + opencode.json commands
-   ├── Claude Code     .claude/skills/<name>/SKILL.md     (skills double as /commands)
-   └── GitHub Copilot  .github/skills/<name>/SKILL.md
+   └── Claude Code     .claude/skills/<name>/SKILL.md     (skills double as /commands)
 ```
 
 The full file tree is under [Layout](#layout).
@@ -89,19 +88,6 @@ AGENTS.md                          # Cross-harness entrypoint
     log-instructions-loaded.sh
     warn-pointer-edit.sh
 
-.github/
-  copilot-instructions.md         # Copilot pointer (auto-loaded)
-  skills/                          # Copilot skill wrappers
-    epic-composer/SKILL.md
-    epic-acceptance-linter/SKILL.md
-    epic-interview/SKILL.md
-    story-decomposer/SKILL.md
-    task-decomposer/SKILL.md
-  hooks/                           # Copilot hooks
-    warn-pointer-edit.json         # Hook config (bash + powershell)
-    scripts/
-      warn-pointer-edit.sh         # Shell implementation (macOS/Linux)
-      warn-pointer-edit.ps1        # PowerShell implementation (Windows)
 ```
 
 ## Workflow
@@ -195,24 +181,12 @@ Every skill can be invoked **two ways**:
   Frontmatter is `name`, `description`, `when_to_use`.
 - Docs: [Claude Code Skills](https://code.claude.com/docs/en/skills)
 
-### GitHub Copilot
-
-- **Directly:** in Copilot Chat, type `/` and pick a skill (`/epic-composer`,
-  `/epic-interview`, `/epic-acceptance-linter`, `/story-decomposer`,
-  `/task-decomposer`) — skills appear in the `/` menu.
-- **Automatically:** skills in `.github/skills/<name>/SKILL.md` also auto-load
-  when your request matches their `description`; `.github/copilot-instructions.md`
-  is always in context. (Set `user-invocable: false` or
-  `disable-model-invocation: true` on a skill to restrict it to one mode.)
-- Config: skill frontmatter is `name`/`description`.
-- Docs: [Agent Skills](https://code.visualstudio.com/docs/agent-customization/agent-skills)
-
 ## Hooks
 
 The hooks matter only when **editing this repo** — they don't affect using the
 skills. Each harness ships a non-blocking "pointer-edit" guardrail that
 enforces the golden rule: it fires a reminder (warns; never blocks) if you try
-to edit a thin wrapper (in `.opencode/`, `.claude/`, or `.github/`) instead of
+to edit a thin wrapper (in `.opencode/` or `.claude/`) instead of
 the canonical content in `.agents/`, **or** if you edit a load-bearing file
 under `.agents/doctrine/` — those are referenced by path from multiple
 skills and rubrics, so edits there propagate everywhere.
@@ -221,15 +195,13 @@ skills and rubrics, so edits there propagate everywhere.
 |---|---|---|---|
 | Opencode | `.opencode/plugins/warn-pointer-edit.ts` | `tool.execute.before` | TS plugin; logs a warning via `client.app.log` |
 | Claude Code | `.claude/hooks/warn-pointer-edit.sh` | `PreToolUse` (Edit\|Write) | Shell script; returns an `additionalContext` reminder |
-| GitHub Copilot | `.github/hooks/warn-pointer-edit.json` + `scripts/*.sh`/`*.ps1` | `preToolUse` | JSON config + bash/PowerShell script; warns to stderr |
 
 Claude Code additionally runs an `InstructionsLoaded` hook that logs which
 instruction files load (to `.claude/hooks/instructions-loaded.log`) — purely for
 observability; safe to remove.
 
 Docs: [Opencode plugins](https://opencode.ai/docs/plugins) ·
-[Claude Code hooks](https://code.claude.com/docs/en/hooks) ·
-[Copilot hooks](https://docs.github.com/en/copilot/reference/hooks-reference)
+[Claude Code hooks](https://code.claude.com/docs/en/hooks)
 
 ## Example workflows
 
@@ -246,7 +218,7 @@ Each task uses the **same slash command in every harness** — the skill's name:
 Type the command from the `/` menu, then paste your content after it — or just
 describe your goal and let the matching skill auto-load from its `description`.
 (In Opencode these names are `command` entries in `opencode.json`; in Claude
-Code and Copilot they are the skills themselves.)
+Code they are the skills themselves.)
 
 To adapt any example, replace the **[bracketed placeholder]** with your own
 material and keep the rest.

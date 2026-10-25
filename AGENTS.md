@@ -5,7 +5,7 @@ This is the **genesis repository**. Two products:
 - **System layer**: `system/` → rendered into a machine by `system/install.sh`
   (zsh config, user-level agent rules, git defaults, optional Herdr/Zed).
 - **Project layer**: `templates/` → rendered into a repository by `bootstrap.sh`
-  (`.claude/`, `.github/`, `.opencode/` harnesses).
+  (`.claude/` and `.opencode/` harnesses).
 
 It also hosts the **Epic Scoping Skills** as its own installed harness.
 
@@ -15,12 +15,12 @@ Three layers share the same single-source/thin-wrapper pattern:
 
 - **System layer**: `system/` → `system/install.sh` renders into `$HOME`. Shell config, user-level `AGENTS.md`, shared git settings. Machine-specific values are flags, never hardcoded.
 - **Genesis harness**: `templates/_shared/` → rendered into target projects by `bootstrap.sh`. Constitutional articles, agents, commands, doctrine, and shippable skills.
-- **Epic Scoping Skills**: `.agents/` → thin wrappers in `.claude/`, `.opencode/`, `.github/`. Skills, doctrine, templates, evals.
+- **Epic Scoping Skills**: `.agents/` → thin wrappers in `.claude/` and `.opencode/`. Skills, doctrine, templates, evals.
 
 **Golden rule:** Edit content in `system/` (machine layer), `.agents/` (epic skills) or `templates/_shared/` (genesis). Edit frontmatter in the harness wrappers. Never duplicate content into a wrapper. Shared rules referenced by multiple files live in a `doctrine/` layer — reference, don't restate.
 
 Canonical project context is `templates/_shared/AGENTS.md`: OpenCode reads it
-natively, `CLAUDE.md` imports it (`@AGENTS.md`), and Copilot has its own file.
+natively and `CLAUDE.md` imports it (`@AGENTS.md`).
 
 The end-to-end flow (new machine → new project → tailoring) is in
 [`SYSTEM.md`](SYSTEM.md).
