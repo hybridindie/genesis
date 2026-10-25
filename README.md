@@ -2,7 +2,7 @@
 
 **Constitutional AI instruction templates for Python (FastAPI, Flask, MCP) and TypeScript (React, Next.js) projects.**
 
-Generate equivalent instruction harnesses for GitHub Copilot, Claude Code, and Opencode with a single command. Templates codify Articles I–X (library-first architecture, TDD mandate, structured errors, async-first, API contracts, security, CI integrity, enforcement, caching) along with PostgreSQL schema standards, frontend conventions, and a complete workflow pipeline.
+Generate equivalent instruction harnesses for GitHub Copilot, Claude Code, and Opencode with a single command. Templates codify Articles I–X (library-first architecture, TDD mandate, structured errors, async-first, API contracts, security, CI integrity, enforcement, caching) plus twelve extended articles, PostgreSQL schema standards, frontend conventions, and a complete workflow pipeline.
 
 ## Install — one command (recommended)
 
@@ -119,6 +119,25 @@ Two systems share the same pattern:
 | `database/infrastructure.md` | — | PostgreSQL-only infrastructure |
 | `frontend/conventions.md` | — | React/TypeScript/Vite conventions |
 
+### Extended articles (shipped, unnumbered)
+
+Topic-scoped articles that ship alongside Articles I–X when the stack needs them:
+
+| File | Topic |
+|------|-------|
+| `articles/agentic-workflow.md` | Agentic Continuous Delivery (ACD) |
+| `articles/dependency-security.md` | Dependency and supply-chain security |
+| `articles/documentation-standards.md` | Documentation and ADR standards |
+| `articles/error-budgets.md` | Error budgets and SLOs |
+| `articles/health-endpoints.md` | Health, readiness and liveness endpoints |
+| `articles/input-security.md` | Input sanitisation, XSS and injection |
+| `articles/logging-observability.md` | Logging, observability and telemetry |
+| `articles/performance-budgets.md` | Performance budgets and SLOs |
+| `articles/primitive-drift.md` | Rule/instruction mirror sync |
+| `articles/privacy-gdpr.md` | Privacy and GDPR |
+| `articles/production-safety.md` | Feature flags, canaries, rollbacks |
+| `articles/rate-limiting.md` | Rate limiting and throttling |
+
 Shared rules referenced by multiple articles/agents live in
 `templates/_shared/doctrine/` (genesis) and `.agents/doctrine/` (epic skills).
 Each doctrine module is a single source of truth — edit once, all references
@@ -135,6 +154,9 @@ when the profile is selected:
 | `mcp` | 2 (architecture, api-design) | MCP tools, resources, prompts, async server |
 | `nextjs` (`--has-nextjs yes`) | 1 (frontend/conventions) | App Router, Server Components, Server Actions |
 
+`fastapi` (the default) and `generic-python` (the fallback) have no overlays — the
+base articles apply as rendered.
+
 ### Mirror System
 
 `.claude/rules/*.md` (Claude) and `.github/instructions/*.instructions.md` (Copilot) are **body-identical mirrors**. `generate-copilot-mirrors.py` creates Copilot mirrors from Claude rules. `check-primitive-drift.sh` detects mirror drift.
@@ -146,6 +168,17 @@ when the profile is selected:
 | **Claude Code** | `CLAUDE.md`, `AGENTS.md` | `.claude/rules/`, `.claude/commands/`, `.claude/agents/`, `.claude/skills/`, `.claude/hooks/` |
 | **GitHub Copilot** | `.github/copilot-instructions.md` | `.github/instructions/`, `.github/rules/`, `.github/agents/`, `.github/prompts/` |
 | **Opencode** | `CLAUDE.md`, `AGENTS.md` | `.opencode/skills/`, `.opencode/commands/`, `.opencode/agents/`, `.opencode/plugins/` |
+
+### Permission defaults
+
+Generated harnesses ship least-privilege defaults, not just prose:
+
+- **Opencode** — a v2 ordered `permissions` array in `.opencode/opencode.json`.
+- **Claude Code** — `.claude/settings.json` with `deny` / `ask` / `allow` rules.
+
+Routine commands are allowed, destructive ones (`sudo`, `rm -rf`, package installs,
+force-push, `direnv allow`) ask first, and credential paths (`~/.ssh`, `~/.aws`,
+`~/.kube`, `**/.env`) are denied. Patterns are prefix matches, not a sandbox.
 
 ## Placeholder Schema
 
@@ -248,8 +281,12 @@ See **[`prompts-skills.md`](prompts-skills.md)** for the full guide and
 
 ## Context Budget
 
-The auto-load footprint per new session is ~3.4KB (~975 tokens, 0.5% of a 200K window). Reference sections are lazy-loaded on demand from `docs/agents-sections/`. Full pipeline runs (all skills + doctrine + rubrics + templates) peak at ~18K tokens (9.2% of window). See `AGENTS.md` for the section layout.
+The auto-load footprint per new session is ~7.5KB (~1.9K tokens, ~0.9% of a 200K window) across the entry files (`AGENTS.md`, `CLAUDE.md`, `.claude/CLAUDE.md`). Reference sections are lazy-loaded on demand from `docs/agents-sections/`. Full pipeline runs (all skills + doctrine + rubrics + templates) peak at ~18K tokens (9.2% of window). See `AGENTS.md` for the section layout.
 
 ## Versioning
 
 Templates follow CalVer: `YYYY.MM.DD[-N]`. Epic-scoping files carry a `version: x.y.z` in their header comment — see [`CONTRIBUTING-HARNESS.md`](CONTRIBUTING-HARNESS.md) for the bump policy.
+
+## License
+
+MIT — see [`LICENSE`](LICENSE).
