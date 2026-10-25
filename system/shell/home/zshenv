@@ -1,0 +1,3 @@
+# Loader only — real configuration lives in ~/.config/zsh (XDG layout).
+# This file is read by EVERY zsh, so it must stay tiny and silent.
+[[ -r "$HOME/.config/zsh/zshenv" ]] && source "$HOME/.config/zsh/zshenv"

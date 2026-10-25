@@ -11,6 +11,9 @@ authentication. All routes run the same flow defined in
 
 From inside the project you want to tailor:
 
+> Configuring a **new machine** (shell, user-level agent rules, git defaults)?
+> Run `bash system/install.sh` once — see [`SYSTEM.md`](SYSTEM.md).
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/hybridindie/genesis/main/install.sh | bash
 ```

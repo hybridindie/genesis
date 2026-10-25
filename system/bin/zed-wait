@@ -1,0 +1,4 @@
+#!/bin/sh
+# Wrapper so $EDITOR is safe for git, crontab, etc.: `zed` returns immediately
+# unless --wait is passed, so callers would think the file was already saved.
+exec zed --wait "$@"

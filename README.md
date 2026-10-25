@@ -1,8 +1,21 @@
-# AI Harness Templates
+# AI Harness Genesis
 
-**Constitutional AI instruction templates for Python (FastAPI, Flask, MCP) and TypeScript (React, Next.js) projects.**
+**Constitutional AI instruction templates for Python (FastAPI, Flask, MCP) and TypeScript (React, Next.js) projects — plus a machine setup layer for the shell and the user-level agent rules.**
 
 Generate equivalent instruction harnesses for GitHub Copilot, Claude Code, and Opencode with a single command. Templates codify Articles I–X (library-first architecture, TDD mandate, structured errors, async-first, API contracts, security, CI integrity, enforcement, caching) plus twelve extended articles, PostgreSQL schema standards, frontend conventions, and a complete workflow pipeline.
+
+## Two layers
+
+| Layer | Entry point | Installs into |
+|-------|-------------|---------------|
+| **System** (this machine) | `system/install.sh` | `~/.config/zsh`, `~/.config/opencode/AGENTS.md`, `~/.claude/{CLAUDE.md,settings.json}`, shared git config, optional Herdr/Zed |
+| **Project** (one repo) | `install.sh`, `new-project.sh`, `/bootstrap-harness` | the target project's `.claude/`, `.github/`, `.opencode/` |
+
+New machine: clone, then `bash system/install.sh`. New project:
+`./new-project.sh myapp`. The full flow (machine → project → `/harness-eval` →
+`/customize-harness`) is in [`SYSTEM.md`](SYSTEM.md); the system layer's details
+and flags are in [`system/README.md`](system/README.md). Both are platform-aware
+(macOS + Linux) and never overwrite a differing file without `--force`.
 
 ## Install — one command (recommended)
 

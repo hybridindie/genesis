@@ -4,6 +4,10 @@ On-demand section — read when installing or bootstrapping a harness.
 
 `templates/scripts/bootstrap.sh` reads `templates/_shared/` (canonical source) and renders three equivalent harnesses into a target project:
 
+> There is also a **system layer** for the machine itself: `bash system/install.sh`
+> renders the zsh config, the user-level `AGENTS.md`, and shared git settings into
+> `$HOME`. See [`SYSTEM.md`](../../SYSTEM.md).
+
 | Platform | Entry point | Rules location |
 |----------|-------------|----------------|
 | Claude Code | `CLAUDE.md` | `.claude/rules/`, `.claude/agents/`, `.claude/commands/` |

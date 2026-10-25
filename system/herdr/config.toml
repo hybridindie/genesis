@@ -1,0 +1,16 @@
+onboarding = false
+
+[ui]
+# Surface blocked/done agents first instead of grouping them by space.
+# ("spaces" is the default; "priority" is an attention queue.)
+agent_panel_sort = "priority"
+# Label split panes with the agent that owns them when no manual pane name is set.
+show_agent_labels_on_pane_borders = true
+
+[keys]
+# Agent navigation (unbound by default).
+previous_agent = "prefix+a"
+next_agent = "prefix+d"
+focus_agent = "prefix+alt+1..9"
+# Jump back to the last pane (unbound by default); prefix+tab is cycle_pane_next.
+last_pane = "prefix+backtick"

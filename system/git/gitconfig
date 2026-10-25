@@ -1,0 +1,27 @@
+# Shared git settings, included from ~/.gitconfig:
+#
+#   [include]
+#   	path = ~/.config/system/gitconfig
+#
+# Identity (user.name/user.email) stays in the untracked ~/.gitconfig so this
+# file has nothing personal. Change shared settings with:
+#   git config --file ~/.config/system/gitconfig <key> <value>
+
+[init]
+	defaultBranch = main
+[push]
+	autoSetupRemote = true
+[fetch]
+	prune = true
+[merge]
+	conflictstyle = zdiff3
+[rerere]
+	enabled = true
+[diff]
+	algorithm = histogram
+	colorMoved = zebra
+[rebase]
+	autoStash = true
+[core]
+{{GIT_PAGER_LINE}}
+{{DELTA_BLOCK}}

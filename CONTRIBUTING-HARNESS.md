@@ -6,6 +6,10 @@ sessions — open it on demand when editing.
 
 ## Working on the genesis repo
 
+- **System layer**: edit `system/`. Test with
+  `bash system/install.sh --home /tmp/syshome --all --no-tools` then run
+  `zsh -n` on the rendered files. Never put machine-specific paths in `system/`;
+  they come from `--dev-root` / `--machine-label` / `--wiki-fabric-dir`.
 - **Add a new article**: add `.md` to `templates/_shared/articles/`, add an entry in `mirror-pairs.json`, run bootstrap to test.
 - **Add a new agent**: add `.md` to `templates/_shared/agents/`, add an `agent_entries` entry in `mirror-pairs.json`.
 - **Add a new command**: add `.md` to `templates/_shared/commands/`, add a `command_entries` entry in `mirror-pairs.json`.

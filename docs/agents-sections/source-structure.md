@@ -2,7 +2,19 @@
 
 On-demand section — read when editing the genesis repo structure.
 
+Two products live here: the **project harness** (`templates/`) and the **system
+layer** (`system/`), which configures a machine.
+
 ```
+system/                 ← machine layer (see SYSTEM.md and system/README.md)
+  install.sh            ← renders into $HOME (idempotent, --diff/--force)
+  shell/                ← zsh config -> ~/.config/zsh + $HOME loaders
+  agents/               ← user-level AGENTS.md, CLAUDE.md import, global configs
+  git/                  ← shared gitconfig + global gitignore
+  herdr/ zed/ bin/      ← optional tool configs and wrappers
+  Brewfile              ← macOS/Linuxbrew package set
+new-project.sh          ← create a repo + render the harness in one step
+
 templates/
   _shared/
     articles/      ← Constitutional rules (rendered into all three harnesses)

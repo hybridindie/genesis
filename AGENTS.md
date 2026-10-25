@@ -1,18 +1,26 @@
 # AI Harness Template Repository
 
-This is the **genesis repository**. It generates AI assistant harnesses for
-`.claude/`, `.github/`, and `.opencode/` from a single set of shared
-constitutional articles. It also hosts the **Epic Scoping Skills** as its own
-installed harness.
+This is the **genesis repository**. Two products:
+
+- **System layer**: `system/` → rendered into a machine by `system/install.sh`
+  (zsh config, user-level agent rules, git defaults, optional Herdr/Zed).
+- **Project layer**: `templates/` → rendered into a repository by `bootstrap.sh`
+  (`.claude/`, `.github/`, `.opencode/` harnesses).
+
+It also hosts the **Epic Scoping Skills** as its own installed harness.
 
 ## Architecture (summary)
 
-Two systems share the same single-source/thin-wrapper pattern:
+Three layers share the same single-source/thin-wrapper pattern:
 
+- **System layer**: `system/` → `system/install.sh` renders into `$HOME`. Shell config, user-level `AGENTS.md`, shared git settings. Machine-specific values are flags, never hardcoded.
 - **Genesis harness**: `templates/_shared/` → rendered into target projects by `bootstrap.sh`. Constitutional articles, agents, commands, doctrine, and shippable skills.
 - **Epic Scoping Skills**: `.agents/` → thin wrappers in `.claude/`, `.opencode/`, `.github/`. Skills, doctrine, templates, evals.
 
-**Golden rule:** Edit content in `.agents/` (epic skills) or `templates/_shared/` (genesis). Edit frontmatter in the harness wrappers. Never duplicate content into a wrapper. Shared rules referenced by multiple files live in a `doctrine/` layer — reference, don't restate.
+**Golden rule:** Edit content in `system/` (machine layer), `.agents/` (epic skills) or `templates/_shared/` (genesis). Edit frontmatter in the harness wrappers. Never duplicate content into a wrapper. Shared rules referenced by multiple files live in a `doctrine/` layer — reference, don't restate.
+
+The end-to-end flow (new machine → new project → tailoring) is in
+[`SYSTEM.md`](SYSTEM.md).
 
 ## On-demand reference sections
 
