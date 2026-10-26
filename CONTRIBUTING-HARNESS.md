@@ -9,7 +9,7 @@ sessions — open it on demand when editing.
 - **System layer**: edit `system/`. Test with
   `bash system/install.sh --home /tmp/syshome --all --no-tools` then run
   `zsh -n` on the rendered files. Never put machine-specific paths in `system/`;
-  they come from `--dev-root` / `--machine-label` / `--wiki-fabric-dir`.
+  they come from `--dev-root` / `--machine-label`.
 - **Add a core rule**: add `.md` to `templates/_shared/core/articles/` with `read_when:` frontmatter (required; the AGENTS.md rule index is generated from it) and optional `paths:` for Claude scoping. Re-render to test.
 - **Add a profile rule**: add `.md` under `templates/_shared/profiles/<profile>/articles/`; a file with the same relative path overrides the core rule.
 - **Canonical context**: edit `templates/_shared/AGENTS.md`. Keep `templates/claude-code/CLAUDE.md` thin (`@AGENTS.md` + Claude-only notes); never copy the project context into it.

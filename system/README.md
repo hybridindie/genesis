@@ -22,8 +22,7 @@ system/
 ```bash
 bash system/install.sh \
   --dev-root ~/Development \
-  --machine-label "$(hostname -s)" \
-  [--wiki-fabric-dir ~/vault]
+  --machine-label "$(hostname -s)"
 ```
 
 Flags: `--home` (test target), `--force` (update differing files after a
