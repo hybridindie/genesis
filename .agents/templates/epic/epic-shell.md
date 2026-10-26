@@ -1,128 +1,69 @@
 <!--
-  epic-shell.md — Epic structural skeleton
-  Referenced by: .agents/skills/epic-composer.md (Phase 4)
-  version: 3.1.0, owner: John D
+  epic-shell.md — Epic issue body (paste under the issue title `Epic: <outcome>`)
+  Referenced by: .agents/skills/epic-composer.md
+  version: 4.0.0, owner: John D
 -->
 
-# Epic Title
+**Why**
 
-## Epic Summary
-A 2-3 sentence overview of what this Epic delivers and why.
+[The problem, who feels it, and the evidence. Keep it concrete: a user pain, a
+measured gap, an incident, a constraint. No solutioning here.]
 
-## Problem Statement
-### Current State
-What is broken, missing, or painful today? Describe the specific problem
-users or the business faces. Ground this in source material, not assumptions.
+**Outcome**
 
-### Desired Future State
-What does the world look like after this Epic is delivered? Describe the
-outcome, not the implementation.
+[What is observably different when this epic is done. One coherent outcome; if
+there are two unrelated outcomes, split the epic.]
 
-## Users / Stakeholders
-- Primary users: (who directly uses the feature)
-- Secondary users: (who is affected but not the primary actor)
-- Impacted teams: (engineering, support, operations, etc.)
-- Decision owners: (who signs off on scope and acceptance)
+**Scope**
 
-### User Context
-What are primary users trying to accomplish when they hit this problem?
-What is their current workaround? What pain does it cause?
+- **In:** [the minimum that delivers the outcome]
+- **Out:** [explicit exclusions and why]
 
-## Business / User Value
-What measurable value does delivering this Epic create? Tie to business
-goals or user outcomes, not implementation milestones.
+**Acceptance criteria**
 
-## Scope
-### In Scope — Must Have (MVP)
-- (core items required for the Epic to deliver value)
+- **AC1:** When [trigger], then [observable behaviour], so that [value].
+- **AC2:** …
+- **AC3:** …
 
-### In Scope — Should Have (Phase 2)
-- (valuable but not blocking for initial delivery)
+[3–8 outcomes. If you need more, the epic is too large — split it. Write what a
+user or operator observes, not how it is built.]
 
-### Out of Scope
-- (explicitly excluded items, with brief rationale)
+**Stories (dependency order)**
 
-## Constraints and Dependencies
-- Technical constraints
-- Policy/compliance constraints
-- Upstream/downstream dependencies
-- Required integrations or operational dependencies
+| # | Story | Size | Priority | Wave | Depends on |
+|---|-------|------|----------|------|------------|
+| #TBD | Story 1: … | S | P1 | 1 | — |
+| #TBD | Story 2: … | M | P1 | 2 | Story 1 |
 
-## Non-Functional Requirements
-- Performance: (response time, throughput, load expectations)
-- Security: (auth, authz, data protection, audit needs)
-- Accessibility: (WCAG level, specific accommodations)
-- Observability: (logging, metrics, alerting requirements)
-- Compliance: (regulatory, contractual, organizational)
-- (Mark any NFR as [UNKNOWN] if not established by source material)
+[Fill `#` once the story issues exist. Size S/M/L; priority P0–P2; wave numbers
+match the parallel map below.]
 
-## Source Alignment Notes
-- Confirmed across multiple sources
-- Present in one source only
-- Conflicting across sources
+**Parallelization map**
 
-## Assumptions
-- ...
+- **Shared contract:** [interface / type / schema / file format / API both
+  sides need — or "none"]
+- **Wave 1 (parallel):** Story …
+- **Wave 2 (parallel, after Wave 1):** Story …, Story …
+- **Integration:** Story … [merge, end-to-end verification]
 
-## Risks
-- ...
+[Default to parallel. Put a story in a later wave only for a real dependency,
+and say what the dependency is.]
 
-## Edge Cases and Validation Considerations
-- unhappy paths
-- empty states
-- invalid inputs
-- duplicate actions
-- partial completion
-- authorization/permission issues
-- data quality problems
-- concurrency or race conditions where relevant
-- migration or backward compatibility where relevant
+**Constraints and non-functional requirements**
 
-## Acceptance Criteria
-Write each criterion using the outcome pattern: "When [trigger], then
-[observable behavior], so that [user/business value]." Story decomposition
-later refines each Epic AC into concrete Given/When/Then scenarios; write the
-outcome so it survives that translation.
+- [technical, security, performance, compliance, or "none known"]
 
-Example:
-- When a support agent handling 3 concurrent chats escalates to a supervisor,
-  then the supervisor receives the full chat history without the agent losing
-  context, so that the handoff takes under 30 seconds and requires no
-  re-typing.
+**Risks and open questions**
 
-- When a user exports a report, then the system produces a PDF within 10
-  seconds for reports under 500 rows, so that the user does not wait or
-  retry.
+- [risk → mitigation / owner, or a question that blocks a story]
 
-Number each criterion (AC1, AC2, ...) for traceability.
+**Success measures**
 
-1. AC1: ...
-2. AC2: ...
-3. AC3: ...
+- [outcome metric, leading indicator, and whether the baseline exists]
 
-## Success Measures
-- Outcome metric: (what you measure to know the Epic worked)
-- Leading indicator: (early signal you're on the right track)
-- Operational quality signal: (error rate, latency, support tickets)
-- Baseline known? yes / no (if no, establishing the baseline is a prerequisite)
-- Target known? yes / no (if no, defining the target is a prerequisite)
+**Definition of done**
 
-## Open Questions
-- ...
-
-## Definition of Done
-The Epic is done when:
-- [ ] All acceptance criteria are met or explicitly descoped with rationale
-- [ ] Traceability is complete for all scope items and acceptance criteria
-- [ ] All contradictions are resolved or explicitly deferred with owner and date
-- [ ] NFRs are addressed or marked [UNKNOWN] with a plan to resolve
-- [ ] Success measures have baselines and targets (or a plan to establish them)
-- [ ] The Epic has been reviewed by at least one stakeholder outside the author
-- [ ] Readiness rubric scores "Ready for Decomposition"
-
-## Readiness Assessment
-- Draft | Needs Clarification | Ready for Decomposition
-
-## Traceability Map
-- Use `.agents/templates/epic/traceability-template.md` for the table format.
-- Include inline or link to a separate traceability document.
+- [ ] All acceptance criteria met or explicitly descoped with a reason
+- [ ] Every story traced to an AC or an explicit constraint
+- [ ] Parallel waves and shared contracts are accurate
+- [ ] Open questions resolved or assigned

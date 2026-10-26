@@ -4,7 +4,7 @@
                  article-compliance-reviewer.md
   Rendered into target projects at .claude/rules/doctrine/agent-routing-rules.md
   version: 1.0.0, owner: John D
-  Single source of truth for the "read CLAUDE.md first, load rule files"
+  Single source of truth for the "read AGENTS.md first, load rule files"
   preamble shared by all three agents.
 -->
 
@@ -16,7 +16,7 @@ opening.
 
 ## Standard routing preamble
 
-1. **Read `CLAUDE.md` first** for the current tech stack, architecture
+1. **Read `AGENTS.md` first** for the current tech stack, architecture
    milestones, and authoritative references.
 2. **Load the relevant rule file(s) from `.claude/rules/`** for the topic
    at hand (backend rules under `.claude/rules/backend/`, frontend under

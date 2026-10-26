@@ -1,7 +1,7 @@
 <!--
   traceability-template.md — Traceability table for mapping Epic claims to sources
-  Referenced by: .agents/skills/epic-composer.md (Phase 4)
-  version: 3.0.0, owner: John D
+  Referenced by: epic-composer (optional, when the user asks for traceability)
+  version: 3.0.1, owner: John D
 -->
 
 ## Traceability Map

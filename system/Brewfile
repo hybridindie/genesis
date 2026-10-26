@@ -1,0 +1,17 @@
+# Packages used by the system layer (macOS / Linuxbrew).
+#   brew bundle --file ~/.config/system/Brewfile
+#
+# pyenv is installed by its own installer (~/.pyenv), not brew, so it is not listed.
+# Optional: cask "zed" (macOS), kubectl, docker.
+brew "bat"
+brew "direnv"
+brew "eza"
+brew "fd"
+brew "fzf"
+brew "git-delta"
+brew "gh"
+brew "ripgrep"
+brew "starship"
+brew "uv"
+brew "yq"
+brew "zoxide"

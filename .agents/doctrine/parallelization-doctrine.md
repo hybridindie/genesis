@@ -1,63 +1,74 @@
 <!--
   parallelization-doctrine.md — Shared parallel-first doctrine
-  Referenced by: story-decomposer, task-decomposer,
-                 story-rubric dimensions 11 & 15
-  version: 1.0.0, owner: John D
-  Single source of truth for the contract → tracks/waves → integration pattern.
-  Replaces the parallel-first prose previously restated in both decomposers.
+  Referenced by: story-decomposer, task-decomposer
+  version: 2.0.0, owner: John D
+  Single source of truth for the contract → tracks → integration pattern and the
+  metadata that makes work dispatchable to subagents and teams.
 -->
 
 # Parallel-First Doctrine
 
-Decompose for maximum parallelism from the start. The default for any
-independent work is **parallel**, not sequential. Mark work sequential only
-when it genuinely depends on another unit's output.
+Default to parallel. Sequence work only when one unit genuinely needs another
+unit's output, and name that dependency. The goal is not “more agents”; it is
+that a lead can dispatch a wave and know it will not collide.
+
+## Metadata every unit carries
+
+| Field | Meaning |
+|---|---|
+| `depends_on` | Units that must land first (a real output dependency) |
+| `parallel_with` | Units that can run at the same time |
+| `owns` | Files/directories this unit may change |
+| `must_not_touch` | Paths owned by a parallel unit |
+| `contract` | Interface/type/schema/file format the tracks share |
+| `verify` | Command or check that proves the unit is done |
+| `integration` | Merge order and the end-to-end check after the tracks |
+
+Two units may run in parallel only when their `owns` sets are disjoint and
+neither needs the other's output.
 
 ## The pattern
 
-1. Identify which work groups are independent (can run in parallel).
-2. Define the **shared contract** that unblocks parallel work — the interface,
-   API spec, type definition, or file format both sides need, defined upfront.
-3. Define the **parallel tracks** (tasks) or **waves** (stories) — each is an
-   independent stream an AI agent can execute without waiting on the others.
-4. Define the **integration** task that merges all tracks.
-5. Minimize the number of sequential gates. If a dependency can be broken with
-   a shared contract defined upfront, do it.
-
-When two units seem dependent, ask whether they can proceed in parallel behind
-a shared contract (API spec, type definition, file format) defined upfront
-rather than sequencing them.
-
-## Parallelization decision
-
-Determine whether the unit is parallelizable:
-
-- **Yes**: 2+ independent tracks with a clear integration point, and the unit
-  is M or L sized.
-- **No**: single component, hard sequential dependency, or S sized.
-- **Partial**: some tracks are independent but others are sequential.
-
-Only parallelize when there are genuinely independent tracks. Do not
-over-parallelize S-sized units or those with hard sequential dependencies.
-
-## Output shape
-
-Parallel-structured work is grouped so an AI harness can see at a glance which
-units it can dispatch simultaneously and which must wait:
+1. **Shared contract** — define the interface, type, schema, or file format
+   both sides need. One unit owns it; it lands first.
+2. **Tracks** — independent streams of work behind the contract. Each names
+   its owned paths and its verify command.
+3. **Integration** — merge the tracks in a stated order and run the end-to-end
+   check. This unit owns conflicts and the final proof.
 
 ```
-Shared contract (sequential — must complete first)
-  → Track/Wave A (parallel — after contract)
-  → Track/Wave B (parallel — after contract)
-Integration (sequential — after all tracks)
+Shared contract (sequential)
+  → Track A (parallel, after contract)   owns src/api/**
+  → Track B (parallel, after contract)   owns src/ui/**
+Integration (sequential)                verifies end-to-end
 ```
 
-## How callers use this file
+## Dispatch
 
-- `story-decomposer` Phase 4 turns this doctrine into an explicit
-  wave-grouped execution sequence for stories.
-- `task-decomposer` Phase 2 applies it at the task level: shared contract →
-  parallel tracks → integration.
-- `story-rubric` dimensions 11 (dependency ordering + execution sequence) and
-  15 (AI-parallelization structure) assess against this doctrine (Pass/Gap)
-  without restating it.
+A track is dispatchable when a subagent or team can start from the story alone:
+
+- the contract is linked and stable;
+- the owned paths are listed, and the paths it must not touch are listed;
+- the verify command is exact;
+- the integration order is known.
+
+Give each subagent one track. Do not let two tracks edit the same file; if they
+must, stop and either split the file's scope or sequence the tracks.
+
+## When not to parallelize
+
+- The unit is S-sized and one coherent change.
+- The work touches a single file with tightly coupled edits.
+- A track would spend more time reading the contract than doing the work.
+- The dependency is genuinely sequential (a migration before a backfill).
+
+Saying “sequential because …” is a good answer. Pretending two tracks are
+independent when they share files is the failure mode.
+
+## Anti-patterns
+
+- Contract defined *after* the tracks start.
+- Parallel tracks with overlapping ownership.
+- “Parallel” tasks with no verify step.
+- Integration left implicit (“merge the branches”).
+- More tracks than there are independent concerns.

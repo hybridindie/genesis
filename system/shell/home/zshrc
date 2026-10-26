@@ -1,0 +1,2 @@
+# Loader only — real configuration lives in ~/.config/zsh/conf.d (XDG layout).
+[[ -r "$HOME/.config/zsh/zshrc" ]] && source "$HOME/.config/zsh/zshrc"

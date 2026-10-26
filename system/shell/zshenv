@@ -1,0 +1,72 @@
+# ~/.config/zsh/zshenv — loaded by EVERY zsh: interactive, login, and `zsh -c`.
+#
+# Rules for this file:
+#   * no output, no prompts, no interactive-only init (agents and editors spawn
+#     `zsh -c` from a near-empty environment and capture the exit status/output)
+#   * PATH and editor settings must live HERE, not in .zprofile/.zshrc, or
+#     GUI apps, MCP servers and agent harnesses will not find the tools
+#
+# Rendered by `system/install.sh`; the source of truth is
+# https://github.com/hybridindie/genesis (system/shell/zshenv).
+
+# ---- XDG base directories ----------------------------------------------------
+export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+export XDG_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
+export XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
+export XDG_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"
+export ZSHDIR="$XDG_CONFIG_HOME/zsh"
+
+# Machine values (dev root, optional vault path, label) are rendered into
+# conf.d/98-machine.zsh by system/install.sh.
+
+# ---- PATH: one source of truth, de-duplicated --------------------------------
+# `typeset -U` keeps the first occurrence, so repeated entries (inherited from a
+# parent shell, brew shellenv, etc.) collapse instead of stacking up.
+typeset -U path fpath
+_priority_path=(
+  "$HOME/.local/bin"      # user scripts, uv tools, wrappers
+  "$HOME/.opencode/bin"   # opencode
+  "$HOME/.pyenv/bin"      # pyenv itself
+  "$HOME/.pyenv/shims"    # python/pip picked by .python-version
+  "$HOME/.cargo/bin"      # rustup
+)
+if [[ $OSTYPE == darwin* ]]; then
+  _priority_path+=(/opt/homebrew/bin /opt/homebrew/sbin)
+else
+  _priority_path+=(/home/linuxbrew/.linuxbrew/bin /home/linuxbrew/.linuxbrew/sbin /snap/bin)
+fi
+_priority_path+=(/usr/local/bin /usr/local/sbin)
+path=($_priority_path $path)   # keep anything the caller exported
+unset _priority_path
+export PATH
+
+# ---- locale ------------------------------------------------------------------
+# Only when the caller has none: minimal server images often lack en_US.UTF-8.
+if [[ -z ${LANG:-} ]]; then
+  if [[ $OSTYPE == darwin* ]]; then
+    export LANG=en_US.UTF-8
+  else
+    export LANG=C.UTF-8
+  fi
+fi
+
+# ---- editor ------------------------------------------------------------------
+# A GUI editor must block, or `git commit`, `crontab -e` and friends return before
+# the file is saved. zed-wait is that wrapper for Zed.
+if [[ -n ${SSH_CONNECTION:-}${SSH_TTY:-} ]]; then
+  export EDITOR=nvim
+elif (( $+commands[zed-wait] )); then
+  export EDITOR=zed-wait
+elif (( $+commands[zed] )); then
+  export EDITOR=zed
+elif (( $+commands[nvim] )); then
+  export EDITOR=nvim
+else
+  export EDITOR=vi
+fi
+export VISUAL="$EDITOR"
+
+# ---- pager -------------------------------------------------------------------
+export PAGER="${PAGER:-less}"
+export LESS="${LESS:--FRX}"
+export MANPAGER='less -R'

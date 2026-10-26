@@ -1,66 +1,56 @@
-# Epic Acceptance Criteria Linter
+# Epic Acceptance Linter
 
 <!--
   Shared content — referenced by harness-specific SKILL.md wrappers.
-  version: 3.2.0, owner: John D
-  invokes: .agents/evals/epic-rubric.md
-  doctrine: .agents/doctrine/acceptance-criteria-rules.md,
-            .agents/doctrine/source-discipline.md
+  version: 3.3.0, owner: John D
+  doctrine: .agents/doctrine/acceptance-criteria-rules.md
 -->
 
-You use this skill to evaluate and refine acceptance criteria in an Epic.
+You are reviewing acceptance criteria for an Epic or a story. Improve them;
+do not rewrite the whole document.
 
-## When to use
-Use this skill after acceptance criteria have been drafted and you need a
-quality pass before marking the Epic ready. The typical call sequence is:
-`epic-composer` Phase 4 (Epic Draft) reads this file and applies its linting
-rules, then Phase 5 reads `.agents/evals/epic-rubric.md` for the readiness
-assessment.
+## What to check
 
-You can also be invoked directly by the user via the `/epic-acceptance-linter`
-command to review an existing Epic draft.
+For each criterion:
 
-## Goal
-Acceptance criteria should be clear, concise, specific, testable, aligned with
-user and business outcomes, and realistic within constraints. The full
-definition and the six linting rules live in
-`.agents/doctrine/acceptance-criteria-rules.md` — this skill is the canonical
-applier of those rules.
+- **Observable** — can a user, operator, or test see the result?
+- **Testable** — is there a clear pass/fail, without reading the implementation?
+- **Specific** — are the actor, trigger, and condition named?
+- **Outcome-focused** — does it describe behaviour, not a solution?
+- **Consistent** — does it conflict with another criterion or a constraint?
+- **Covered** — are the main edge cases present: empty, invalid, duplicate,
+  permission, timeout, partial failure?
+- **Bounded** — does “done” include the non-functional constraint it depends on
+  (latency, security, data retention)?
 
-## Linting
-Apply the six rules from `.agents/doctrine/acceptance-criteria-rules.md`
-(observability, testability, specificity, outcome focus, non-conflict,
-coverage) to each acceptance criterion. Use the example lints there as
-reference for strengthening weak criteria.
+A criterion that cannot fail is not a criterion.
 
-## Response States
+## How to respond
 
-Every response must clearly label one of:
+For each problem, give the current text, why it fails the check, and a concrete
+replacement:
 
-| State | When to use |
-|---|---|
-| **PASS** | All criteria meet the quality bar; Epic can proceed to readiness assessment |
-| **NEEDS_REVISION** | One or more criteria require strengthening, clarification, or coverage additions |
-| **BLOCKED** | Source material is too vague to support any criteria; switch back to Epic interview mode for clarity |
+```
+AC2 — “Export works”
+  Why: not observable and has no failure mode.
+  Try: “When the user exports a report under 500 rows, then a PDF downloads
+        within 10 seconds; when the service is unavailable, then an error with
+        retry is shown.”
+```
 
-Label the state at the top of every response.
+Group findings by severity:
 
-## Output format
+- **Blocking** — scope or acceptance is ambiguous; a story cannot be written.
+- **Improve** — the criterion is testable but weak (vague actor, missing edge).
+- **Optional** — wording or polish.
 
-### Acceptance Criteria Review
-- Criteria reviewed
-- Lint results per criterion
-- Suggested improvements
-- Coverage notes
+End with an optional verdict — **Ready**, **Needs work**, or **Blocked** — and
+the top three changes. The verdict is advice, not a gate.
 
-## Behavior rules
-Applies `.agents/doctrine/source-discipline.md`. On top of that:
-- Prefer strengthening existing criteria over adding many new ones.
-- Do not fabricate thresholds or metrics not supported by source material
-  (per `acceptance-criteria-rules.md`).
-- If the source material is too vague to support good criteria, read
-  `.agents/skills/epic-interview.md` and follow its instructions to request
-  clarity from the user.
-- When the lint returns PASS, return to the caller (epic-composer Phase 5, or
-  the user). If called from epic-composer, it will read `.agents/evals/epic-rubric.md`
-  for the final readiness assessment.
+## Guardrails
+
+- Don't add requirements the sources do not support; ask or mark them unknown.
+- Don't rewrite criteria that are already good.
+- Don't turn every criterion into Given/When/Then when a single observable
+  sentence is clearer.
+- Don't lint implementation detail; this is about acceptance.

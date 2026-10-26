@@ -1,14 +1,11 @@
 ---
 name: epic-interview
 description: >
-  Guided interview mode that closes critical gaps in Epic source material
-  before drafting or finalizing an Epic. Trigger words: interview mode, close
-  gaps, clarify requirements, clarifying questions, resolve contradictions,
-  gap analysis, guided interview, epic questions.
+  Ask the smallest set of questions that unblocks an Epic; returns blockers, answers, and updated assumptions without drafting the Epic. Trigger words: run interview mode, close gaps on this epic, clarify these requirements, what questions do I need to answer, resolve these contradictions.
 ---
 
 Read and follow the complete instructions at `.agents/skills/epic-interview.md`.
 
-Apply the interview to the following material:
+Apply the workflow to the following material:
 
 $ARGUMENTS

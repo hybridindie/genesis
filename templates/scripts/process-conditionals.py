@@ -58,6 +58,16 @@ def process_conditionals(text, flags):
     return pattern.sub(replacer, text)
 
 
+def process_all(text, flags):
+    """Evaluate nested conditional blocks until stable, then tidy blank lines."""
+    while True:
+        new_text = process_conditionals(text, flags)
+        if new_text == text:
+            break
+        text = new_text
+    return re.sub(r"\n{3,}", "\n\n", text)
+
+
 def process_directory(target_dir, flags):
     for root, _dirs, files in os.walk(target_dir):
         for fname in files:
@@ -66,7 +76,7 @@ def process_directory(target_dir, flags):
             if fname.endswith(('.md', '.sh', '.json', '.js', '.ts', '.py', '.yml', '.yaml')):
                 with open(fpath, 'r', encoding='utf-8') as f:
                     text = f.read()
-                new_text = process_conditionals(text, flags)
+                new_text = process_all(text, flags)
                 if new_text != text:
                     with open(fpath, 'w', encoding='utf-8') as f:
                         f.write(new_text)

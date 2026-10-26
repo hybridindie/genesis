@@ -1,0 +1,18 @@
+# POSIX login shells only (zsh reads ~/.zprofile instead).
+# Prepends the same binary directories zsh uses, in the same priority order, and
+# de-duplicates the result so `sh -l` / `bash -l` see a clean PATH.
+
+_new="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin"
+_rest="$PATH:"
+while [ -n "$_rest" ]; do
+	_dir=${_rest%%:*}
+	_rest=${_rest#*:}
+	[ -z "$_dir" ] && continue
+	case ":$_new:" in
+		*":$_dir:"*) ;;
+		*) _new="$_new:$_dir" ;;
+	esac
+done
+PATH=$_new
+export PATH
+unset _new _rest _dir

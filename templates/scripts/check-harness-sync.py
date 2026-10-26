@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """
-Cross-Harness Policy Checker — validates that Claude, Copilot, and Opencode
-harnesses remain consistent with the single source of truth (mirror-pairs.json).
+Cross-Harness Policy Checker — validates that a freshly rendered harness matches
+the template sources and mirror-pairs.json. This is the genesis-source check; the
+deployed-project counterpart is .claude/hooks/check-project-drift.py.
 
 Checks:
-  1. All mirrors from mirror-pairs.json have a shared source file
-  2. Mirror bodies are byte-for-byte identical (excl. frontmatter)
+  1. Every source article declares read_when
+  2. Every rendered rule is indexed in AGENTS.md (and the index has no extras)
   3. Opencode agents/skills are semantically aligned with Claude rules
   4. No orphaned placeholders in rendered harnesses
-  5. Agent version claims match CLAUDE.md canonical versions
-  6. Coverage tier requirements are consistent across harnesses
-  7. No-skipped-tests policy is present in all three harnesses
+  5. Agent version claims match AGENTS.md canonical versions
+  6. Coverage tier requirements are present
+  7. No-skipped-tests policy is present in both harnesses
 
 Usage:
   python3 templates/scripts/check-harness-sync.py [templates_dir] [output_dir]
@@ -37,8 +38,7 @@ class HarnessSyncChecker:
         self.warnings: list[str] = []
 
         self.mirror_json = self.templates_dir / "_shared" / "mirror-pairs.json"
-        self.entries: list[dict] = []
-        self.pairs: dict[str, dict] = {}
+        self.agent_entries: list[dict] = []
         self._load_mirror_pairs()
 
         self._stack_versions: dict[str, str] = {}
@@ -48,102 +48,70 @@ class HarnessSyncChecker:
     def _load_mirror_pairs(self) -> None:
         with open(self.mirror_json, "r", encoding="utf-8") as f:
             data = json.load(f)
-        self.entries = data.get("entries", [])
-        for entry in self.entries:
-            self.pairs[entry["claude_file"]] = entry
+        self.agent_entries = data.get("agent_entries", [])
 
-    def _find_shared_source(self, rel_path: str) -> Path | None:
-        """Map output path under .claude/rules/ to shared source under templates/_shared/."""
-        shared_dir = self.templates_dir / "_shared"
-        direct = shared_dir / rel_path
-        if direct.is_file():
-            return direct
-        # Most articles live under articles/<flat> e.g. articles/enforcement.md
-        basename = Path(rel_path).name
-        for sub in ("articles", "database", "frontend"):
-            candidate = shared_dir / sub / rel_path
-            if candidate.is_file():
-                return candidate
-            candidate = shared_dir / sub / basename
-            if candidate.is_file():
-                return candidate
-        for candidate in shared_dir.rglob(basename):
-            if candidate.is_file():
-                return candidate
-        return None
+    def check_article_sources(self) -> None:
+        """Every source article must declare read_when (used by the rule index)."""
+        roots = [self.templates_dir / "_shared" / "core" / "articles"]
+        profiles = self.templates_dir / "_shared" / "profiles"
+        if profiles.is_dir():
+            roots += sorted(profiles.glob("*/articles"))
+        if not roots[0].is_dir():
+            self.errors.append("FAIL: core/articles directory missing")
+        for root in roots:
+            if not root.is_dir():
+                continue
+            for path in sorted(root.rglob("*.md")):
+                text = path.read_text(encoding="utf-8")
+                fm = re.match(r"^---\n(.*?)\n---", text, re.DOTALL)
+                if not fm or "read_when:" not in fm.group(1):
+                    self.errors.append(
+                        f"FAIL: {path.relative_to(self.templates_dir)} needs read_when frontmatter"
+                    )
 
-    def check_mirrors_exist(self) -> None:
-        """Check that every entry in mirror-pairs.json has a shared source file."""
-        for entry in self.entries:
-            src = self._find_shared_source(entry["claude_file"])
-            if src is None:
-                self.errors.append(
-                    f"FAIL: Missing shared source for {entry['title']}: {entry['claude_file']}"
-                )
-
-    def check_rendered_mirrors(self) -> None:
-        """If output_dir is given, verify mirrored files exist and bodies match."""
+    def check_rendered_rules(self) -> None:
+        """Rendered rules must all be indexed in AGENTS.md, and vice versa."""
         if not self.output_dir:
             return
-        for entry in self.entries:
-            claude_path = self.output_dir / ".claude" / "rules" / entry["claude_file"]
-            copilot_path = (
-                self.output_dir
-                / ".github"
-                / "instructions"
-                / entry["copilot_file"]
+        rules = self.output_dir / ".claude" / "rules"
+        if not rules.is_dir():
+            self.errors.append("FAIL: rendered .claude/rules directory missing")
+            return
+        files = [
+            p for p in rules.rglob("*.md")
+            if not p.relative_to(rules).as_posix().startswith("doctrine/")
+        ]
+        for path in files:
+            fm = re.match(r"^---\n(.*?)\n---", path.read_text(encoding="utf-8"), re.DOTALL)
+            if not fm or "read_when:" not in fm.group(1):
+                self.errors.append(f"FAIL: rendered rule missing read_when: {path.relative_to(self.output_dir)}")
+        agents = self.output_dir / "AGENTS.md"
+        text = agents.read_text(encoding="utf-8") if agents.exists() else ""
+        rows = len(re.findall(r"^\| `\.claude/rules/", text, re.MULTILINE))
+        if rows != len(files):
+            self.errors.append(
+                f"FAIL: AGENTS.md rule index has {rows} rows for {len(files)} rendered rules"
             )
-
-            for path, side in [(claude_path, "claude"), (copilot_path, "copilot")]:
-                if not path.exists():
-                    self.errors.append(
-                        f"FAIL: Missing rendered {side} mirror: {path}"
-                    )
-
-            if claude_path.exists() and copilot_path.exists():
-                claude_body = self._extract_body(claude_path)
-                copilot_body = self._extract_body(copilot_path)
-                if claude_body != copilot_body:
-                    self.errors.append(
-                        f"FAIL: Body drift detected between .claude/rules/{entry['claude_file']} "
-                        f"and .github/instructions/{entry['copilot_file']}"
-                    )
 
     # ── 2. Opencode alignment -------------------------------------------
 
     def check_opencode_alignment(self) -> None:
-        opencode_dir = self.output_dir or self.templates_dir / "opencode"
-        for name in ("backend-architect.md", "frontend-architect.md"):
-            path = opencode_dir / "agents" / name
-            if not path.exists():
+        if self.output_dir:
+            base = self.output_dir / ".opencode"
+        else:
+            base = self.templates_dir / "opencode" / ".opencode"
+        expected_agents = ["article-compliance-reviewer.md"]
+        expected_commands = ["preflight.md", "harness-eval.md", "graphify.md"]
+        web = self.output_dir and (self.output_dir / ".claude" / "rules" / "api-design.md").exists()
+        if web:
+            expected_agents += ["backend-architect.md", "frontend-architect.md"]
+            expected_commands += ["migration-check.md"]
+        for name in expected_agents:
+            if not (base / "agents" / name).exists():
                 self.warnings.append(f"WARN: Opencode agent missing: {name}")
-
-        # Semantic sniff: key phrases from first two core articles must appear
-        # in at least one Opencode agent file
-        if not (self.output_dir and (self.output_dir / ".opencode").exists()):
-            return
-
-        agents_dir = self.output_dir / ".opencode" / "agents"
-        if not agents_dir.exists():
-            return
-
-        for entry in self.entries[:2]:
-            src = self._find_shared_source(entry["claude_file"])
-            if src is None:
-                continue
-            phrases = self._extract_key_phrases(src)
-            for phrase in phrases:
-                found_in_any = False
-                for md in agents_dir.glob("*.md"):
-                    body = md.read_text(encoding="utf-8")
-                    if phrase in body:
-                        found_in_any = True
-                        break
-                if not found_in_any:
-                    self.warnings.append(
-                        f"WARN: Opencode agents do not reference '{phrase}' "
-                        f"from {entry['claude_file']}"
-                    )
+        for name in expected_commands:
+            if not (base / "commands" / name).exists():
+                self.warnings.append(f"WARN: Opencode command missing: {name}")
 
     # ── 3. Placeholder check -------------------------------------------
 
@@ -171,12 +139,15 @@ class HarnessSyncChecker:
     def check_version_consistency(self) -> None:
         if not self.output_dir:
             return
-        claude_md = self.output_dir / "CLAUDE.md"
-        if not claude_md.exists():
-            self.warnings.append("WARN: No CLAUDE.md found in rendered output")
+        # AGENTS.md is the canonical context; CLAUDE.md is a thin import kept for
+        # older harnesses, so fall back to it when AGENTS.md is missing.
+        candidates = [self.output_dir / "AGENTS.md", self.output_dir / "CLAUDE.md"]
+        context_md = next((p for p in candidates if p.exists()), None)
+        if context_md is None:
+            self.warnings.append("WARN: No AGENTS.md or CLAUDE.md found in rendered output")
             return
 
-        text = claude_md.read_text(encoding="utf-8")
+        text = context_md.read_text(encoding="utf-8")
         versions = {
             "Python": self._extract_version(text, r"Python\s+([0-9.]+)"),
             "FastAPI": self._extract_version(text, r"FastAPI\s+([0-9.+]+)"),
@@ -187,7 +158,7 @@ class HarnessSyncChecker:
         versions = {k: v for k, v in versions.items() if v is not None}
         self._stack_versions = versions
         if not versions:
-            self.warnings.append("WARN: Could not extract versions from CLAUDE.md")
+            self.warnings.append(f"WARN: Could not extract versions from {context_md.name}")
             return
 
         for search_dir in ("agents", "rules"):
@@ -205,7 +176,7 @@ class HarnessSyncChecker:
                         if found != expected and not found.startswith(expected):
                             self.errors.append(
                                 f"FAIL: Version drift in {path.relative_to(self.output_dir)}: "
-                                f"claims {label} {found}, but CLAUDE.md says {label} {expected}"
+                                f"claims {label} {found}, but {context_md.name} says {label} {expected}"
                             )
 
     # ── 5. Coverage tier consistency --------------------------------------
@@ -213,12 +184,12 @@ class HarnessSyncChecker:
     def check_coverage_tiers(self) -> None:
         if not self.output_dir:
             return
-        copilot = self.output_dir / ".github" / "copilot-instructions.md"
-        if copilot.exists():
-            text = copilot.read_text(encoding="utf-8")
-            if "Security 90%+" not in text:
-                self.errors.append(
-                    "FAIL: Copilot instructions missing Security 90%+ tier"
+        testing = self.output_dir / ".claude" / "rules" / "backend" / "testing.md"
+        if testing.exists():
+            text = testing.read_text(encoding="utf-8")
+            if "Security 90%+" not in text and "90%+" not in text:
+                self.warnings.append(
+                    "WARN: testing.md does not mention the security coverage tier"
                 )
 
     # ── 6. No-skipped-tests policy presence ---------------------------
@@ -236,14 +207,6 @@ class HarnessSyncChecker:
             if "pytest.mark.skip" not in body:
                 self.errors.append(
                     "FAIL: Claude check-no-skipped-tests.sh does not enforce pytest.skip"
-                )
-
-        copilot = self.output_dir / ".github" / "copilot-instructions.md"
-        if copilot.exists():
-            text = copilot.read_text(encoding="utf-8")
-            if "Zero failing tests" not in text:
-                self.warnings.append(
-                    "WARN: Copilot instructions do not reference no-skipped-tests policy"
                 )
 
         opencode_skills = self.output_dir / ".opencode" / "skills"
@@ -282,8 +245,8 @@ class HarnessSyncChecker:
     # ── Runner ----------------------------------------------------------
 
     def run(self) -> int:
-        self.check_mirrors_exist()
-        self.check_rendered_mirrors()
+        self.check_article_sources()
+        self.check_rendered_rules()
         self.check_opencode_alignment()
         self.check_placeholders()
         self.check_version_consistency()

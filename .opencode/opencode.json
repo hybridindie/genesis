@@ -3,18 +3,19 @@
   "skills": {
     "paths": [".opencode/skills"]
   },
-  "instructions": ["AGENTS.md"],
-  "permission": {
-    "skill": {
-      "*": "allow",
-      "bootstrap-harness": "allow",
-      "epic-composer": "allow",
-      "epic-acceptance-linter": "allow",
-      "epic-interview": "allow",
-      "story-decomposer": "allow",
-      "task-decomposer": "allow"
-    }
-  },
+  "instructions": ["AGENTS.md", ".wiki-overlay.md"],
+  "permissions": [
+    { "action": "shell", "resource": "*", "effect": "allow" },
+    { "action": "shell", "resource": "sudo *", "effect": "ask" },
+    { "action": "shell", "resource": "rm -rf *", "effect": "ask" },
+    { "action": "shell", "resource": "brew *", "effect": "ask" },
+    { "action": "shell", "resource": "git push --force*", "effect": "ask" },
+    { "action": "shell", "resource": "direnv allow *", "effect": "ask" },
+    { "action": "read", "resource": "~/.ssh/**", "effect": "deny" },
+    { "action": "read", "resource": "~/.aws/**", "effect": "deny" },
+    { "action": "read", "resource": "~/.kube/**", "effect": "deny" },
+    { "action": "read", "resource": "**/.env", "effect": "deny" }
+  ],
   "command": {
     "bootstrap-harness": {
       "description": "Scan a project, interview about unknowns, and generate a complete AI harness (Claude + Opencode + Copilot).",
@@ -26,7 +27,7 @@
     },
     "epic-interview": {
       "description": "Run Epic interview mode to close critical gaps.",
-      "template": "Load the epic-interview skill and follow its instructions on the current material and draft.\n\nThe skill will direct you to read .agents/skills/epic-interview.md. Do not rewrite the Epic — ask concise, high-value questions grouped by priority, then label the response state.\n\n$ARGUMENTS"
+      "template": "Load the epic-interview skill and follow its instructions on the current material and draft.\n\nThe skill will direct you to read .agents/skills/epic-interview.md. Do not rewrite the Epic \u2014 ask concise, high-value questions grouped by priority, then label the response state.\n\n$ARGUMENTS"
     },
     "epic-acceptance-linter": {
       "description": "Lint acceptance criteria on an existing Epic draft.",
@@ -36,13 +37,25 @@
       "description": "Decompose a ready Epic into INVEST-compliant user stories.",
       "template": "Load the story-decomposer skill and follow its instructions to decompose the Epic below.\n\nThe skill will direct you to read .agents/skills/story-decomposer.md. Verify the Epic is ready, map ACs to stories, write BDD acceptance criteria, apply INVEST, map dependencies, and assess readiness.\n\n$ARGUMENTS"
     },
-        "task-decomposer": {
-            "description": "Break down a story into AI-executable engineering tasks.",
-            "template": "Load the task-decomposer skill and apply it to the story below.\n\nThe skill will direct you to read .agents/skills/task-decomposer.md. Draft specific tasks with file paths, APIs, and test paths. Lint for specificity and verifiability. Assess AI-parallelization.\n\n$ARGUMENTS"
-        },
-        "harness-eval": {
-            "description": "Evaluate the installed harness against the project's actual stack.",
-            "template": "Read and follow the complete evaluation prompt at docs/harness-eval.md.\n\nThat file is the canonical evaluation workflow. Follow all five phases: stack discovery, stack-fit evaluation, trim, suggest missing rules, and report. Present the plan before executing any edits.\n\n$ARGUMENTS"
-        }
+    "task-decomposer": {
+      "description": "Break down a story into AI-executable engineering tasks.",
+      "template": "Load the task-decomposer skill and apply it to the story below.\n\nThe skill will direct you to read .agents/skills/task-decomposer.md. Draft specific tasks with file paths, APIs, and test paths. Lint for specificity and verifiability. Assess AI-parallelization.\n\n$ARGUMENTS"
+    },
+    "harness-eval": {
+      "description": "Evaluate the installed harness against the project's actual stack.",
+      "template": "Read and follow the complete evaluation prompt at docs/harness-eval.md.\n\nThat file is the canonical evaluation workflow. Follow all five phases: stack discovery, stack-fit evaluation, trim, suggest missing rules, and report. Present the plan before executing any edits.\n\n$ARGUMENTS"
+    }
+  },
+  "references": {
+    "wiki-fabric": {
+      "path": "~/wiki-fabric",
+      "description": "Global knowledge fabric (evidence-first wiki + cross-project promotion)"
+    }
+  },
+  "watcher": {
+    "ignore": [
+      "evidence/raw/**",
+      ".obsidian/**"
+    ]
   }
 }

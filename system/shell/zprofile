@@ -1,0 +1,21 @@
+# ~/.config/zsh/zprofile — LOGIN shells only (once per terminal login).
+# PATH basics already come from zshenv; this adds tool-managed environment that is
+# only needed once per login shell.
+
+# Homebrew: MANPATH/INFOPATH/HOMEBREW_* (PATH duplicates are dropped afterwards).
+# Linux uses the linuxbrew prefix; macOS the /opt/homebrew one.
+_brew_prefix=""
+if [[ -x /opt/homebrew/bin/brew ]]; then
+  _brew_prefix=/opt/homebrew
+elif [[ -x /home/linuxbrew/.linuxbrew/bin/brew ]]; then
+  _brew_prefix=/home/linuxbrew/.linuxbrew
+fi
+if [[ -n $_brew_prefix ]]; then
+  eval "$("$_brew_prefix/bin/brew" shellenv zsh)"
+fi
+unset _brew_prefix
+
+# brew prepends through the tied PATH *string*, which does not honour the array's
+# -U (unique) attribute. Re-assign the array to collapse duplicates.
+path=($path)
+export PATH

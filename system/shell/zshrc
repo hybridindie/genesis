@@ -1,0 +1,13 @@
+# ~/.config/zsh/zshrc — interactive shells only.
+#
+# The old single-file config was split into conf.d/ modules that load in lexical
+# order. Add machine-specific tweaks in 99-local.zsh; do not edit this loader.
+#
+# Real file: ~/.zshrc is a two-line loader that sources this one.
+
+if [[ -o interactive ]]; then
+  for _zsh_module in "$ZSHDIR"/conf.d/*.zsh(N); do
+    source "$_zsh_module"
+  done
+  unset _zsh_module
+fi

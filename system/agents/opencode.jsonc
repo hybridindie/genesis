@@ -1,0 +1,42 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permissions": [
+    { "action": "shell", "resource": "*", "effect": "allow" },
+    { "action": "shell", "resource": "sudo *", "effect": "ask" },
+    { "action": "shell", "resource": "rm -rf *", "effect": "ask" },
+    { "action": "shell", "resource": "brew *", "effect": "ask" },
+    { "action": "shell", "resource": "uv tool *", "effect": "ask" },
+    { "action": "shell", "resource": "direnv allow *", "effect": "ask" },
+    { "action": "shell", "resource": "git push --force*", "effect": "ask" },
+    { "action": "shell", "resource": "kubectl delete *", "effect": "ask" },
+    { "action": "read", "resource": "~/.ssh/**", "effect": "deny" },
+    { "action": "read", "resource": "~/.aws/**", "effect": "deny" },
+    { "action": "read", "resource": "~/.kube/**", "effect": "deny" },
+    { "action": "read", "resource": "~/.claude.json", "effect": "deny" },
+    { "action": "read", "resource": "~/.config/opencode/service.json", "effect": "deny" },
+    { "action": "read", "resource": "**/.env", "effect": "deny" },
+    { "action": "edit", "resource": "~/.ssh/**", "effect": "deny" },
+    { "action": "edit", "resource": "~/.aws/**", "effect": "deny" },
+    { "action": "edit", "resource": "~/.kube/**", "effect": "deny" }
+  ],
+  "plugins": [
+    "@mohak34/opencode-notifier@1.1.1",
+    "opencode-models-discovery@2.0.0"
+  ],
+  "mcp": {
+    "context7": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@upstash/context7-mcp@latest"
+      ],
+      "enabled": true
+    }
+  },
+  "skills": {
+    "paths": [
+      "~/.claude/skills"
+    ]
+  }
+}

@@ -7,7 +7,7 @@ trims what doesn't apply, and suggests rules the project needs but doesn't
 have.
 
 This is the semantic complement to bootstrap's deterministic rendering:
-bootstrap does placeholder substitution and profile overlays; this does
+bootstrap does placeholder substitution and adds the selected profile's rules; this does
 stack-fit analysis and gap detection. Run it with `/harness-eval` or
 reference this file with `@docs/harness-eval.md`.
 
@@ -17,7 +17,7 @@ reference this file with `@docs/harness-eval.md`.
 
 You are a harness engineer evaluating an already-installed AI harness against
 the project it was installed into. The bootstrap render is deterministic — it
-substitutes placeholders and applies profile overlays, but it cannot read the
+substitutes placeholders and adds the profile's rules, but it cannot read the
 project's actual code or understand semantics. You can. Your job is to close
 the gap between what bootstrap rendered and what the project actually needs.
 
@@ -25,10 +25,11 @@ the gap between what bootstrap rendered and what the project actually needs.
 
 - The project's codebase (read it — `package.json`, `pyproject.toml`, source
   files, config files, directory structure).
-- The rendered harness files (`.claude/rules/`, `CLAUDE.md`, `.claude/agents/`,
-  `.claude/commands/`, `.claude/skills/`, and the `.opencode/` + `.github/`
-  equivalents).
-- The project's `my-workflows.md` if present (user conventions).
+- The rendered harness files (`AGENTS.md` is the canonical context; `CLAUDE.md`
+  is a thin `@AGENTS.md` import; `.claude/rules/`, `.claude/agents/`,
+  `.claude/commands/`, `.claude/skills/`, and the `.opencode/` equivalents).
+- The project's `my-workflows.md` if present (loaded by OpenCode, imported by
+  `CLAUDE.md`).
 
 ## Phase 1 — Stack discovery
 
@@ -80,8 +81,8 @@ Produce a stack-fit table:
 For each article that doesn't match the stack, propose one of:
 
 - **Remove** — the article doesn't apply at all (e.g. frontend rules in a
-  backend-only project). Delete the file and remove its reference from
-  `CLAUDE.md`.
+  backend-only project). Delete the file and remove its row from the
+  `AGENTS.md` rule index (and any mention elsewhere).
 - **Trim** — the article is partially relevant but contains wrong sections.
   Remove the wrong sections, keep the rest. (e.g. remove supabase-specific
   migration commands from sql-standards.md, keep the general SQL rules.)
@@ -89,6 +90,9 @@ For each article that doesn't match the stack, propose one of:
   manually (copy the overlay content over the rendered file). (e.g. if
   bootstrap didn't apply the Flask overlay, do it now.)
 - **Keep** — the article matches. No change.
+
+Also trim the `AGENTS.md` **rule index** to match: a deleted rule must lose its
+row; a rule that no longer applies to a path should say so.
 
 Present the trim plan grouped by action. Ask the user to confirm before
 deleting or editing any file.
@@ -180,12 +184,12 @@ Every rule file in `.claude/rules/` follows this shape:
 
 ```markdown
 ---
-paths:
-  - "{{BACKEND_PATH}}/src/libs/**/*.py"
-  - "{{BACKEND_PATH}}/app/**/*.py"
+read_when: "One short sentence: when an agent should open this rule"
+paths:                      # optional; Claude Code uses it for path scoping
+  - "backend/src/**/*.py"
 ---
 
-# <Title> (Article <N>)
+# <Title>
 
 ## MUST
 - <hard rules>
@@ -196,17 +200,17 @@ paths:
 ## ANTI-PATTERNS (BLOCKING)
 - <forbidden patterns>
 
-## Enforcement Checklist
+## Checklist
 - [ ] <checklist items>
 ```
 
-Not every article has all four sections (MUST/SHOULD/ANTI-PATTERNS/
-Enforcement Checklist), but the sections that exist use these exact
-headings. Preserve them when trimming.
+`read_when` is required: `AGENTS.md` is rebuilt from it and CI fails if a rule
+lacks one. `paths` is optional and only meaningful to Claude Code. Preserve the
+MUST / SHOULD / ANTI-PATTERNS / Checklist headings when trimming.
 
 ### Frontmatter paths
 
-The `paths:` frontmatter tells Claude Code and Copilot when to auto-load
+The `paths:` frontmatter tells Claude Code when to auto-load
 the rule based on the file being edited. When you trim an article:
 - If the article no longer applies at all, remove it (and its paths).
 - If you trim a section, update the paths to match what the article still
@@ -228,28 +232,29 @@ edit content:
 
 ### Cross-harness sync
 
-The harness targets three platforms: Claude Code, GitHub Copilot, and
-Opencode. When you add, remove, or rename a rule file:
+The harness targets two platforms: **OpenCode (primary)** and Claude Code.
+`AGENTS.md` is the canonical context; `CLAUDE.md` imports it.
+When you add, remove, or rename a rule file:
 
-| Action | Claude Code | Copilot | Opencode | CLAUDE.md |
-|--------|-------------|---------|----------|-----------|
-| **Add article** | Create `.claude/rules/<path>/<name>.md` | Create `.github/instructions/<name>.instructions.md` (same body, Copilot frontmatter: `description` + `applyTo`) | (auto-discovered from `.claude/rules/` via bootstrap — no manual step in a rendered project) | Add to Authoritative References if top-level |
-| **Remove article** | Delete `.claude/rules/<path>/<name>.md` | Delete `.github/instructions/<name>.instructions.md` | (auto-cleaned on next bootstrap) | Remove from references if listed |
-| **Trim article** | Edit `.claude/rules/<path>/<name>.md` in place | Re-mirror: copy the trimmed body to `.github/instructions/<name>.instructions.md` | (auto-mirrored on next bootstrap) | No change unless the trim removes a referenced capability |
-| **Add doctrine** | Create `.claude/rules/doctrine/<name>.md` | (not mirrored — doctrine is referenced by articles, not loaded directly) | (not mirrored) | No change — doctrine is referenced by articles, not CLAUDE.md |
+| Action | OpenCode (primary) | Claude Code | AGENTS.md (canonical) |
+|--------|--------------------|-------------|-----------------------|
+| **Add article** | Add a row to the rule index — rules are read on demand, never eagerly loaded | Create `.claude/rules/<path>/<name>.md` | Add to Authoritative References if top-level |
+| **Remove article** | Remove the index row | Delete `.claude/rules/<path>/<name>.md` | Remove from references if listed |
+| **Trim article** | Update the index row only if its "read when" changed | Edit `.claude/rules/<path>/<name>.md` in place | No change unless the trim removes a referenced capability |
+| **Add doctrine** | Nothing — read only when a rule points to it | Create `.claude/rules/doctrine/<name>.md` | No change |
 
-If you're in a rendered target project (not the genesis repo), the Copilot
-mirror is the one that matters — keep it in sync manually after editing
-the Claude rule. The next `bootstrap.sh` re-render will fix any drift, but
-until then the two must match.
+If you're in a rendered target project (not the genesis repo), the OpenCode
+agent/command mirrors are generated from the Claude sources — edit the shared
+source and re-run bootstrap, or keep the pair in sync manually.
 
-### CLAUDE.md references
+### AGENTS.md references
 
-`CLAUDE.md` lists top-level rules in the "Authoritative References" section
-and the "Tech Stack" section. When you remove an article, also remove its
-reference from CLAUDE.md. When you add an article, add it to the
-Authoritative References list if it's a cross-cutting rule (not a
-path-scoped one that auto-loads via frontmatter).
+`AGENTS.md` is canonical and holds the **rule index** plus the
+"Authoritative References" and "Tech Stack" sections. When you remove an
+article, remove its index row and any reference. When you add an article, add
+its index row with a clear "read when" trigger — this is how OpenCode finds
+rules without loading them eagerly. Keep `CLAUDE.md` thin: it should only
+import `AGENTS.md` / `my-workflows.md` and carry Claude-specific notes.
 
 ### Agent files
 

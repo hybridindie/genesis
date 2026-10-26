@@ -1,43 +1,66 @@
 ---
-description: Run local CI checks (lint, format, types, constitution, tests) before pushing
+description: Run local CI checks (lint, format, types, tests, gates) before pushing
 ---
 
-Run all CI-equivalent checks locally and report results. This mirrors what the CI pipeline runs so issues are caught before push.
+Run the project's CI-equivalent checks locally and report the result.
 
 ## Steps
 
-1. **Suite-health gate (skip/xfail scan)** — Run `bash .claude/hooks/check-no-skipped-tests.sh` first. If any forbidden skip/xfail pattern is checked in, fix that before running anything else.
+1. **Suite-health gate** — run `bash .claude/hooks/check-no-skipped-tests.sh`.
+   If it reports a forbidden skip/xfail, fix that before anything else.
 
-2. **Backend lint & format** — Run `cd {{BACKEND_PATH}} && {{LINT_BACKEND_CMD}}` and report pass/fail.
+{{#PROFILE_WEB}}
+2. **Backend lint/type** — `cd {{BACKEND_PATH}} && {{LINT_BACKEND_CMD}}` and
+   `{{TYPE_BACKEND_CMD}}`. Report new errors only.
+3. **Backend tests (quick)** — `cd {{BACKEND_PATH}} && {{TEST_BACKEND_CMD}} tests/contract tests/unit -x -q`.
+4. **Frontend lint/type** — `cd {{FRONTEND_PATH}} && {{LINT_FRONTEND_CMD}}` and
+   `{{TYPE_FRONTEND_CMD}}`. Report new errors only.
+5. **Frontend tests (quick)** — `cd {{FRONTEND_PATH}} && {{TEST_FRONTEND_CMD}}`.
+{{/PROFILE_WEB}}
+{{#PROFILE_MCP}}
+2. **Lint/type** — `uv run ruff check .` and `uv run mypy src/`. Report new errors only.
+3. **Tests (quick)** — `uv run pytest tests/contract tests/unit -x -q`.
+4. **Server smoke** — import the server module and list tools; confirm the
+   expected core tools are registered and no import-time side effects occur.
+{{/PROFILE_MCP}}
+{{#PROFILE_PYTHON}}
+2. **Lint/type** — `uv run ruff check .` and `uv run mypy src/`. Report new errors only.
+3. **Tests (quick)** — `uv run pytest tests/unit -x -q`.
+4. **CLI smoke** — `uv run {{PROJECT_SLUG}} --help` and one `--json` invocation.
+{{/PROFILE_PYTHON}}
+{{#PROFILE_AGENT}}
+2. **Lint/type** — `uv run ruff check .` and `uv run mypy src/`. Report new errors only.
+3. **Tests (quick)** — `uv run pytest tests/unit -x -q -m "not slow and not integration"`.
+4. **Eval smoke** — run the smallest eval suite if one exists; report pass count
+   and threshold.
+{{/PROFILE_AGENT}}
+{{#PROFILE_GODOT}}
+2. **Format/lint** — `gdformat --check .` and `gdlint .` if gdtoolkit is installed.
+3. **Headless tests** — `godot --headless --script res://tests/run_tests.gd`.
+4. **Plugin smoke** — enable and disable the addon headlessly; confirm no errors
+   and a clean exit.
+{{/PROFILE_GODOT}}
 
-3. **Backend type check** — Run `cd {{BACKEND_PATH}} && {{TYPE_BACKEND_CMD}}` and report the error count. Focus on NEW errors in recently changed files.
+## Harness gate
 
-4. **Constitution check** — Run `cd {{BACKEND_PATH}} && {{PKG_MANAGER_BACKEND}} run python scripts/check-constitution.py` and report pass/fail.
-
-5. **Frontend lint** — Run `cd {{FRONTEND_PATH}} && {{LINT_FRONTEND_CMD}}` and report pass/fail.
-
-6. **Frontend type check** — Run `cd {{FRONTEND_PATH}} && {{TYPE_FRONTEND_CMD}}` and report pass/fail. Focus on NEW errors.
-
-7. **Backend contract tests (quick)** — Run `cd {{BACKEND_PATH}} && {{TEST_BACKEND_CMD}} tests/contract/ -x --tb=short -q` with a 120s timeout.
-
-8. **Frontend unit tests (quick)** — Run `cd {{FRONTEND_PATH}} && {{TEST_FRONTEND_CMD}} --reporter=verbose` with a 120s timeout.
+- `python3 .claude/hooks/check-project-drift.py --quiet` — AGENTS.md, rule index,
+  command/skill lists, mirrors and versions still match the tree.
+- `python3 .claude/hooks/check-secrets.py --all --quiet` — no credentials in the
+  tracked or untracked tree.
 
 ## Output
 
-After all checks complete, produce a summary table:
-
 | Check | Status | Details |
 |-------|--------|---------|
-| Suite health (skip scan) | PASS/FAIL | violation count |
-| Backend lint | PASS/FAIL | error count |
-| Backend format | PASS/FAIL | files needing format |
-| Backend types | PASS/FAIL | new errors only |
-| Constitution | PASS/FAIL | violations |
-| Frontend lint | PASS/FAIL | error count |
-| Frontend types | PASS/FAIL | new errors only |
-| Backend contracts | PASS/FAIL | first failure |
-| Frontend units | PASS/FAIL | failure count |
+| Suite health | PASS/FAIL | violation count |
+| Harness | PASS/FAIL | drift/secret findings |
+| Lint | PASS/FAIL | error count |
+| Types | PASS/FAIL | new errors |
+| Tests | PASS/FAIL | first failure |
+| Smoke | PASS/FAIL | what failed |
 
-If any check FAILs, list the specific errors and suggest fixes. If all pass, confirm ready to push.
+If a check fails, list the exact errors and the fix. If all pass, say the tree
+is ready to push.
 
-**Hard stop**: if the suite-health gate fails, do not proceed to the other checks — fix the skip/xfail violations first.
+**Hard stop:** a failing suite-health gate blocks the other checks; fix the
+skip/xfail first.

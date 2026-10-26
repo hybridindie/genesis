@@ -1,10 +1,10 @@
 # Epic Scoping Skills
 
-Reusable prompts, skills, and eval rubrics for building solid epics when
+Reusable prompts, skills, and optional quality passes for building solid epics when
 scoping new work. Migrated from the standalone `prompts-skills` project into
 this repository; the skills, templates, and evals now live alongside the
-harness templates and target the same three AI coding harnesses:
-**Opencode**, **Claude Code**, and **GitHub Copilot**.
+harness templates and target the same two AI coding harnesses:
+**OpenCode** and **Claude Code**.
 
 This is the full usage guide. `AGENTS.md` holds the concise cross-harness
 entrypoint; the constitutional harness-generation system is documented in the
@@ -23,12 +23,11 @@ rather than restated — this is what keeps the skills from drifting apart.
    │  ├── skills/     epic-* skills (procedure + doctrine pointers)
    │  ├── doctrine/   shared rules referenced by multiple skills and rubrics
    │  ├── templates/  epic/story/traceability shells
-   │  └── evals/      readiness rubrics (assess against doctrine, don't restate)
+   │  └── evals/      optional quality passes (reuse doctrine, don't restate)
    │
    │  wrapped by thin, frontmatter-only pointers per harness:
    ├── Opencode        .opencode/skills/<name>/SKILL.md   + opencode.json commands
-   ├── Claude Code     .claude/skills/<name>/SKILL.md     (skills double as /commands)
-   └── GitHub Copilot  .github/skills/<name>/SKILL.md
+   └── Claude Code     .claude/skills/<name>/SKILL.md     (skills double as /commands)
 ```
 
 The full file tree is under [Layout](#layout).
@@ -57,11 +56,12 @@ once; all references inherit.
     context-discovery.md           # Greenfield/brownfield probe
   templates/epic/
     epic-shell.md                  # Epic structural skeleton
-    story-shell.md                 # Story backlog structural skeleton
-    traceability-template.md       # Traceability table template
+    story-shell.md                 # Story issue body (AC, owns, wave, contract)
+    task-breakdown-shell.md        # Contract → tracks → integration checklist
+    traceability-template.md       # Optional traceability table
   evals/
-    epic-rubric.md                 # Epic readiness rubric
-    story-rubric.md                # Story readiness rubric (INVEST)
+    epic-rubric.md                 # Optional Epic quality pass
+    story-rubric.md                # Optional story/task quality pass
 
 AGENTS.md                          # Cross-harness entrypoint
 
@@ -89,77 +89,42 @@ AGENTS.md                          # Cross-harness entrypoint
     log-instructions-loaded.sh
     warn-pointer-edit.sh
 
-.github/
-  copilot-instructions.md         # Copilot pointer (auto-loaded)
-  skills/                          # Copilot skill wrappers
-    epic-composer/SKILL.md
-    epic-acceptance-linter/SKILL.md
-    epic-interview/SKILL.md
-    story-decomposer/SKILL.md
-    task-decomposer/SKILL.md
-  hooks/                           # Copilot hooks
-    warn-pointer-edit.json         # Hook config (bash + powershell)
-    scripts/
-      warn-pointer-edit.sh         # Shell implementation (macOS/Linux)
-      warn-pointer-edit.ps1        # PowerShell implementation (Windows)
 ```
 
 ## Workflow
 
-Three skills hand off in sequence — epic-composer → story-decomposer →
-task-decomposer — with each story fanning out into parallel-structured tasks.
+Source material → **Epic issue** → **story issues** → **task checklist inside
+each story**. Parallelism is planned at every level, so a wave can be handed to
+subagents or teams without re-reading the whole plan.
 
 ```mermaid
 flowchart TD
-    src(["Source material: transcripts, docs, notes, codebase"]) --> compose
-
-    subgraph P1["Phase 1 — epic-composer"]
-        compose["Synthesize sources (Phase 0–2)"] --> gaps{"Critical gaps?"}
-        gaps -->|yes| interview["epic-interview: question waves"]
-        interview --> compose
-        gaps -->|no| draft["Draft Epic: shell + linter + traceability (Phase 4)"]
-        draft --> ready{"Rubric: ready?"}
-        ready -->|no| interview
-        ready -->|yes| review1["Stakeholder review (Phase 6)"]
-    end
-
-    review1 --> epic(["Ready Epic + traceability + readiness"])
-    epic --> decompose
-
-    subgraph P2["Phase 2 — story-decomposer"]
-        decompose["Coverage matrix → INVEST stories + BDD (Phase 1–3)"] --> stories["Story backlog"]
-    end
-
-    stories --> td
-
-    subgraph P3["Phase 3.5 — task-decomposer (runs per story)"]
-        td["Analyze one story's ACs"] --> contract["Define shared contract: API / type / interface"]
-        contract --> trackA["Track A tasks — e.g. backend"]
-        contract --> trackB["Track B tasks — e.g. frontend"]
-        trackA --> integ["Integration task"]
-        trackB --> integ
-    end
-
-    integ --> waves
-
-    subgraph P4["Phases 4–6 — story-decomposer"]
-        waves["Execution waves + sprint plan"] --> review2["Story rubric + stakeholder review"]
-    end
-
-    review2 --> backlog(["Parallel story backlog + tasks + BDD criteria"])
-    backlog -.->|"refine / split / add"| decompose
+    src(["Transcripts, docs, notes, codebase"]) --> compose["epic-composer"]
+    compose --> blockers{"Blocking gaps?"}
+    blockers -->|yes| interview["epic-interview: smallest set of questions"]
+    interview --> compose
+    blockers -->|no| epic["Epic issue: outcome, 3–8 ACs, scope, story map + waves"]
+    epic --> stories["story-decomposer: one issue per story<br/>ACs, owns, wave, shared contract"]
+    stories --> tasks["task-decomposer: checklist in each story<br/>contract → parallel tracks → integration"]
+    tasks --> dispatch["Dispatch Wave 1 → Wave 2 …<br/>one track per agent/team; integrate last"]
+    epic -.optional.-> linter["epic-acceptance-linter"]
+    epic -.optional.-> er["epic-rubric (quality pass)"]
+    stories -.optional.-> sr["story-rubric (quality pass)"]
 ```
 
-### Response states
+**Outputs**
 
-Each skill labels its output with one of these states (`→` marks a progression;
-`/` marks alternatives):
+- **Epic issue** — `Epic: <outcome>` with outcome, 3–8 observable criteria,
+  scope, constraints, risks, success measures, a story map and a parallel map.
+- **Story issues** — `Story N: <outcome>` (or `story(scope): …`) with
+  acceptance criteria, estimate, `owns`, `depends_on`, `parallel_with`, wave,
+  shared contract, and files.
+- **Task checklist** — inside each story: shared contract → parallel tracks
+  with disjoint file ownership → integration, each task naming `owns`,
+  `depends`, and `verify`.
 
-- **epic-composer:** `SYNTHESIS_ONLY` → `INTERVIEW_REQUIRED` → `PARTIAL_EPIC` → `FINAL_EPIC`
-- **epic-acceptance-linter:** `PASS` / `NEEDS_REVISION` / `BLOCKED`
-- **epic-interview:** `QUESTIONS_PENDING` / `PARTIALLY_RESOLVED` / `RESOLVED`
-- **story-decomposer:** `EPIC_NOT_READY` / `DECOMPOSITION_PLANNED` / `STORIES_DRAFTED` / `TASKS_ADDED` / `READY_FOR_IMPLEMENTATION` / `NEEDS_REVISION` / `REFINEMENT_IN_PROGRESS`
-- **task-decomposer:** `NEEDS_ACCEPTANCE_CRITERIA` / `PARALLELIZATION_PLANNED` / `TASKS_DRAFTED` / `TASKS_LINTED` / `READY`
+The acceptance linter and rubrics are optional quality passes; a verdict
+(`Ready`, `Needs work`, `Blocked`) is advice, not a gate.
 
 ## Harness setup
 
@@ -195,24 +160,12 @@ Every skill can be invoked **two ways**:
   Frontmatter is `name`, `description`, `when_to_use`.
 - Docs: [Claude Code Skills](https://code.claude.com/docs/en/skills)
 
-### GitHub Copilot
-
-- **Directly:** in Copilot Chat, type `/` and pick a skill (`/epic-composer`,
-  `/epic-interview`, `/epic-acceptance-linter`, `/story-decomposer`,
-  `/task-decomposer`) — skills appear in the `/` menu.
-- **Automatically:** skills in `.github/skills/<name>/SKILL.md` also auto-load
-  when your request matches their `description`; `.github/copilot-instructions.md`
-  is always in context. (Set `user-invocable: false` or
-  `disable-model-invocation: true` on a skill to restrict it to one mode.)
-- Config: skill frontmatter is `name`/`description`.
-- Docs: [Agent Skills](https://code.visualstudio.com/docs/agent-customization/agent-skills)
-
 ## Hooks
 
 The hooks matter only when **editing this repo** — they don't affect using the
 skills. Each harness ships a non-blocking "pointer-edit" guardrail that
 enforces the golden rule: it fires a reminder (warns; never blocks) if you try
-to edit a thin wrapper (in `.opencode/`, `.claude/`, or `.github/`) instead of
+to edit a thin wrapper (in `.opencode/` or `.claude/`) instead of
 the canonical content in `.agents/`, **or** if you edit a load-bearing file
 under `.agents/doctrine/` — those are referenced by path from multiple
 skills and rubrics, so edits there propagate everywhere.
@@ -221,15 +174,13 @@ skills and rubrics, so edits there propagate everywhere.
 |---|---|---|---|
 | Opencode | `.opencode/plugins/warn-pointer-edit.ts` | `tool.execute.before` | TS plugin; logs a warning via `client.app.log` |
 | Claude Code | `.claude/hooks/warn-pointer-edit.sh` | `PreToolUse` (Edit\|Write) | Shell script; returns an `additionalContext` reminder |
-| GitHub Copilot | `.github/hooks/warn-pointer-edit.json` + `scripts/*.sh`/`*.ps1` | `preToolUse` | JSON config + bash/PowerShell script; warns to stderr |
 
 Claude Code additionally runs an `InstructionsLoaded` hook that logs which
 instruction files load (to `.claude/hooks/instructions-loaded.log`) — purely for
 observability; safe to remove.
 
 Docs: [Opencode plugins](https://opencode.ai/docs/plugins) ·
-[Claude Code hooks](https://code.claude.com/docs/en/hooks) ·
-[Copilot hooks](https://docs.github.com/en/copilot/reference/hooks-reference)
+[Claude Code hooks](https://code.claude.com/docs/en/hooks)
 
 ## Example workflows
 
@@ -246,7 +197,7 @@ Each task uses the **same slash command in every harness** — the skill's name:
 Type the command from the `/` menu, then paste your content after it — or just
 describe your goal and let the matching skill auto-load from its `description`.
 (In Opencode these names are `command` entries in `opencode.json`; in Claude
-Code and Copilot they are the skills themselves.)
+Code they are the skills themselves.)
 
 To adapt any example, replace the **[bracketed placeholder]** with your own
 material and keep the rest.
@@ -274,7 +225,7 @@ applies to standard report templates."
 ```
 
 **You get** a drafted Epic — current/future state, MVP vs. Phase-2 scope, NFRs,
-outcome-focused acceptance criteria, a traceability map, and a readiness score
+outcome-focused acceptance criteria, a story map with parallel waves, and a short risk list
 — after the skill asks the 2–3 critical questions it couldn't answer from your
 material.
 
@@ -328,28 +279,26 @@ AC4: The system handles errors gracefully.
 
 **You get** a per-criterion review flagging vague terms ("fast" — no
 threshold), unobservable outcomes ("gracefully"), and scope conflicts (AC3 vs.
-a 500-row limit), plus strengthened rewrites and a `PASS` / `NEEDS_REVISION` /
-`BLOCKED` verdict.
+a 500-row limit), plus strengthened rewrites and an optional
+`Ready` / `Needs work` / `Blocked` verdict.
 
 ---
 
 ### 4. Decompose a ready Epic into stories
 
-**Use when** your Epic passed readiness and you want an implementable,
-parallel-first backlog. The Epic's acceptance criteria are what get decomposed.
+**Use when** your Epic has an outcome and acceptance criteria and you want
+shippable stories plus a parallel execution map. The Epic's acceptance criteria are what get decomposed.
 
 Run the **Decompose Epic** command and paste the Epic:
 
 ```
 Epic: [title]
-Readiness: Ready for Decomposition
 AC1: When [trigger], then [observable outcome], so that [value].
 AC2: ...
 NFR: [any performance / security / etc. constraints]
 
 --- example ---
 Epic: PDF Export for Reports
-Readiness: Ready for Decomposition
 AC1: When a user exports a report under 500 rows, then the system produces a
 PDF within 10 seconds, so that the user does not wait or retry.
 AC2: When a user selects PDF format, then the export uses the standard report
@@ -359,10 +308,10 @@ so that they can recover without losing context.
 NFR: PDF generation < 10s p95 for reports under 500 rows.
 ```
 
-**You get** a coverage matrix (every AC mapped to stories), INVEST-compliant
-stories with BDD criteria and traceability, a wave-grouped execution sequence
-(what runs in parallel vs. what must wait), a sprint plan, and a readiness
-score. Task breakdowns are added automatically via task-decomposer (Phase 3.5).
+**You get** one story issue body per story with acceptance criteria, an
+estimate, the files it owns, its wave, and a shared contract where needed; plus
+an execution map (Wave · Story · Owns · Depends on · Parallel with · Verify) and
+a coverage note mapping every AC to a story.
 
 ---
 
@@ -393,10 +342,11 @@ Estimate: S
 Feature flag: pdf_export_enabled
 ```
 
-**You get** tasks structured for parallelism: a shared contract (e.g. the
-`POST /api/reports/{id}/export` response shape), independent backend and
-frontend tracks with named files and test paths, and a final integration task
-— each with Context / Verify / AC fields, plus a parallelization assessment.
+**You get** a task checklist structured for delegation: a shared contract
+first (e.g. the `POST /api/reports/{id}/export` response shape), independent
+tracks with disjoint file ownership and a verify command each, and an
+integration task last — every task naming `owns`, `depends`, `verify`, and the
+AC it serves.
 
 ---
 
@@ -405,15 +355,18 @@ frontend tracks with named files and test paths, and a final integration task
 The skills hand off in sequence; run them in order and review at each
 checkpoint:
 
-1. **Compose** → a structured Epic (the skill pauses for your review at Phase 6).
-2. **Decompose** the ready Epic → a story backlog grouped into parallel waves.
-3. **Tasks** — task lists are already attached to each story from step 2.
-4. Dispatch parallel stories and tracks to AI agents simultaneously.
+1. **Compose** → an Epic issue with a parallel story map; review it and close
+   blockers with the interview if needed.
+2. **Decompose** → story issues, each with `owns`, waves, and a shared contract.
+3. **Tasks** → run task-decomposer on the stories you are about to dispatch;
+   it appends the checklist to each story.
+4. **Dispatch** Wave 1 stories/tracks to different agents; integrate each
+   story's tracks before moving on.
 
-You rarely run all five commands by hand: epic-composer offers the decompose
-handoff automatically once an Epic scores "Ready for Decomposition," and
-story-decomposer runs task-decomposer as part of Phase 3.5 — so one decompose
-run already includes task breakdowns.
+You rarely run all five commands by hand: epic-composer can hand off to
+story-decomposer, and story-decomposer can invoke task-decomposer per story.
+Optional quality passes (linter, rubrics) are there when you want a stricter
+review.
 
 ### Refining a backlog later
 

@@ -1,9 +1,8 @@
 <!--
   ai-readable-spec-rules.md — Shared rules for AI-readable writing
   Referenced by: story-decomposer (AI-Readable Writing Guidelines),
-                 task-decomposer (AI-Readable Task Writing Rules),
-                 story-rubric dimension 19
-  version: 1.0.0, owner: John D
+                 task-decomposer (AI-Readable Task Writing Rules)
+  version: 1.1.0, owner: John D
   Single source of truth for the "name specifics, state exists-vs-new, no
   pronouns, executable specs" rules previously restated in both decomposers.
 -->
@@ -46,5 +45,4 @@ be unambiguous enough that an agent can execute without asking "what file?",
 - `story-decomposer` references this for the AI-readable writing of stories.
 - `task-decomposer` references this for task-level writing (and applies the
   one-task-one-PR rule).
-- `story-rubric` dimension 19 (AI-readable language) assesses against these
-  rules (Pass/Gap) without restating them.
+- The optional quality passes reuse these rules without restating them.

@@ -1,4 +1,4 @@
-# Epic Scoping Skills — Skills, Templates, Evals, Doctrine, Wrappers, Response States
+# Epic Scoping Skills — Skills, Templates, Doctrine, Wrappers
 
 On-demand section — read when invoking a skill or checking its references.
 
@@ -6,54 +6,59 @@ On-demand section — read when invoking a skill or checking its references.
 
 | Skill | Shared content | Purpose |
 |---|---|---|
-| epic-composer | `.agents/skills/epic-composer.md` | Transforms source material into a complete Epic |
-| epic-acceptance-linter | `.agents/skills/epic-acceptance-linter.md` | Lints acceptance criteria quality |
-| epic-interview | `.agents/skills/epic-interview.md` | Guided interview to close gaps |
-| story-decomposer | `.agents/skills/story-decomposer.md` | Decomposes a ready Epic into INVEST-compliant stories |
-| task-decomposer | `.agents/skills/task-decomposer.md` | Breaks down stories into AI-executable tasks with parallelization assessment |
-| bootstrap-harness | `.agents/skills/bootstrap-harness.md` | The install/tailor flow: fetch genesis → detect stack → plan review → render via `bootstrap.sh` → validate → report. Also exposed as the `install-harness` agent and the `install.sh` shortcut. |
+| epic-composer | `.agents/skills/epic-composer.md` | Draft an Epic issue from source material, with a parallel story map |
+| epic-interview | `.agents/skills/epic-interview.md` | Ask the smallest set of questions that unblocks the Epic |
+| epic-acceptance-linter | `.agents/skills/epic-acceptance-linter.md` | Review acceptance criteria; suggest concrete rewrites |
+| story-decomposer | `.agents/skills/story-decomposer.md` | Turn an Epic into story issues with waves, contracts and file ownership |
+| task-decomposer | `.agents/skills/task-decomposer.md` | Break one story into a parallel task checklist for delegation |
+| bootstrap-harness | `.agents/skills/bootstrap-harness.md` | Install/tailor a project harness (also `install-harness` and `install.sh`) |
 
 ## Templates and evals
 
-- Epic skeleton: `.agents/templates/epic/epic-shell.md`
-- Story backlog: `.agents/templates/epic/story-shell.md`
+- Epic issue body: `.agents/templates/epic/epic-shell.md`
+- Story issue body: `.agents/templates/epic/story-shell.md`
+- Task breakdown block (pasted under the story's `**Tasks**`):
+  `.agents/templates/epic/task-breakdown-shell.md`
 - Traceability table: `.agents/templates/epic/traceability-template.md`
-- Epic readiness rubric: `.agents/evals/epic-rubric.md`
-- Story readiness rubric: `.agents/evals/story-rubric.md`
+- Optional Epic quality pass: `.agents/evals/epic-rubric.md`
+- Optional story/task quality pass: `.agents/evals/story-rubric.md`
 
 ## Doctrine (shared rules)
 
 | Module | Referenced by | Purpose |
 |---|---|---|
-| `acceptance-criteria-rules.md` | epic-acceptance-linter, epic-composer, story-decomposer, epic-rubric dim 8, story-rubric dim 13 | The six AC linting rules + examples — single source |
-| `parallelization-doctrine.md` | story-decomposer, task-decomposer, story-rubric dims 11 & 15 | Contract → parallel tracks/waves → integration |
-| `ai-readable-spec-rules.md` | story-decomposer, task-decomposer, story-rubric dim 19 | Name files/APIs, exists-vs-new, no pronouns, executable specs |
-| `source-discipline.md` | epic-composer, epic-interview, epic-acceptance-linter, story-decomposer, task-decomposer, epic-rubric dim 11 | Don't invent / surface unknowns / prefer unknown / label inferred |
-| `review-checkpoint.md` | epic-composer Phase 6, story-decomposer Phase 6 | Present → ask → incorporate → declare-or-loop |
-| `context-discovery.md` | epic-composer Phase 0, task-decomposer Phase 1 | Greenfield/brownfield probe |
+| `parallelization-doctrine.md` | story-decomposer, task-decomposer | Contract → parallel tracks → integration; the metadata (`owns`, `depends_on`, `parallel_with`, `verify`) that makes work dispatchable |
+| `acceptance-criteria-rules.md` | epic-composer, epic-interview, epic-acceptance-linter, story-decomposer | What makes a criterion observable and testable |
+| `ai-readable-spec-rules.md` | story-decomposer, task-decomposer | Name files/APIs, exists-vs-new, no pronouns, executable specs |
+| `source-discipline.md` | all epic skills | Separate stated/inferred/unknown; never invent; surface contradictions |
+| `context-discovery.md` | epic-composer, story-decomposer, task-decomposer | Greenfield vs brownfield probes |
+| `review-checkpoint.md` | epic-composer, story-decomposer (optional) | Present a draft → ask → incorporate |
 
-When a rule is shared by two or more skills/rubrics, it belongs in `doctrine/`.
-Edit there once; all references inherit.
+When a rule is shared by two or more skills, it belongs in `doctrine/`. Edit
+there once; all references inherit.
 
 ## Harness-specific wrappers
 
 | Harness | Skill location | Commands | Hooks | Frontmatter fields |
 |---|---|---|---|---|
-| Opencode | `.opencode/skills/<name>/SKILL.md` | `opencode.json` command entries: `/epic-composer`, `/epic-interview`, `/epic-acceptance-linter`, `/story-decomposer`, `/task-decomposer` | `.opencode/plugins/*.ts` | `name`, `description` |
+| OpenCode | `.opencode/skills/<name>/SKILL.md` | `opencode.json` command entries: `/epic-composer`, `/epic-interview`, `/epic-acceptance-linter`, `/story-decomposer`, `/task-decomposer` | `.opencode/plugins/*.ts` | `name`, `description` |
 | Claude Code | `.claude/skills/<name>/SKILL.md` | skills double as `/epic-composer`, `/epic-acceptance-linter`, `/epic-interview`, `/story-decomposer`, `/task-decomposer` (accept `$ARGUMENTS`) | `.claude/hooks/*.sh` | `name`, `description`, `when_to_use` |
-| GitHub Copilot | `.github/skills/<name>/SKILL.md` | skills appear in the Copilot Chat `/` menu under the same names | `.github/hooks/*.json` + `scripts/` | `name`, `description` |
 
-The command names are identical across harnesses (the skill names). Each skill
-wrapper is a one-line body referencing `.agents/skills/<name>.md`; the Opencode
-and Claude Code wrappers also take `$ARGUMENTS` for user-provided input.
+Profile-only assets: `migration-check` and the `create-migration` /
+`e2e-assertion-audit` skills ship with the `web` profile. The other profiles get
+the core commands and skills only.
 
-## Response states
+The command names are identical across both harnesses. Each wrapper is a short
+pointer to `.agents/skills/<name>.md`; keep the body thin.
 
-Each skill labels its output with one of these states (`→` marks a progression;
-`/` marks alternatives):
+## Output shape
 
-- **epic-composer:** `SYNTHESIS_ONLY` → `INTERVIEW_REQUIRED` → `PARTIAL_EPIC` → `FINAL_EPIC`
-- **epic-acceptance-linter:** `PASS` / `NEEDS_REVISION` / `BLOCKED`
-- **epic-interview:** `QUESTIONS_PENDING` / `PARTIALLY_RESOLVED` / `RESOLVED`
-- **story-decomposer:** `EPIC_NOT_READY` / `DECOMPOSITION_PLANNED` / `STORIES_DRAFTED` / `TASKS_ADDED` / `READY_FOR_IMPLEMENTATION` / `NEEDS_REVISION` / `REFINEMENT_IN_PROGRESS`
-- **task-decomposer:** `NEEDS_ACCEPTANCE_CRITERIA` / `PARALLELIZATION_PLANNED` / `TASKS_DRAFTED` / `TASKS_LINTED` / `READY`
+- **Epic** — an issue body (`Epic: <outcome>`) with a story map and a
+  parallelization map.
+- **Stories** — one issue body each (`Story N: <outcome>`), with `owns`, waves,
+  and a shared contract where needed.
+- **Tasks** — a checklist block inside the story: shared contract → parallel
+  tracks → integration, each task naming its ownership and verify step.
+
+Optional verdicts (`Ready`, `Needs work`, `Blocked`) come from the linter or a
+quality pass. They are advice, not a gate.

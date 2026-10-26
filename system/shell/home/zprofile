@@ -1,0 +1,2 @@
+# Loader only — real configuration lives in ~/.config/zsh (XDG layout).
+[[ -r "$HOME/.config/zsh/zprofile" ]] && source "$HOME/.config/zsh/zprofile"
