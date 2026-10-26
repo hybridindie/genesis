@@ -271,10 +271,13 @@ install_zed() {
 
 install_bin() {
   say "== bin"
-  install_file "$SELF_DIR/bin/zed-wait" "$TARGET_HOME/.local/bin/zed-wait"
-  if [[ -e $TARGET_HOME/.local/bin/zed-wait ]]; then
-    chmod +x "$TARGET_HOME/.local/bin/zed-wait"
-  fi
+  local tool
+  for tool in zed-wait graphify-gdscript; do
+    install_file "$SELF_DIR/bin/$tool" "$TARGET_HOME/.local/bin/$tool"
+    if [[ -e $TARGET_HOME/.local/bin/$tool ]]; then
+      chmod +x "$TARGET_HOME/.local/bin/$tool"
+    fi
+  done
 }
 
 install_brewfile() {

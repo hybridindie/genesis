@@ -41,6 +41,8 @@ jobs:
           test -f /tmp/syshome/.claude/settings.json
           test -f /tmp/syshome/.config/system/gitconfig
           test -x /tmp/syshome/.local/bin/zed-wait
+          test -x /tmp/syshome/.local/bin/graphify-gdscript
+          bash -n system/bin/graphify-gdscript
 
       - name: Scaffold a new project
         run: |
