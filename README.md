@@ -19,7 +19,7 @@ The end-to-end flow (new machine → new project → tailoring) is in
 
 ## Archetypes
 
-Each generated harness gets the nine core rules plus one profile's rules. The
+Each generated harness gets the core rules plus one profile's rules. The
 profile is selected with `--profile` or inferred from the project.
 
 | Profile | Selected for | Adds |
@@ -48,6 +48,9 @@ Or from a clone:
 # new project: git init + auto-detect + render + next steps
 ./new-project.sh ../my-service
 
+# new project with README, LICENSE, .gitignore, Makefile and a Python skeleton
+./new-project.sh ../my-service --profile mcp --scaffold
+
 # existing project with an explicit profile
 bash templates/scripts/bootstrap.sh --profile mcp --output-dir .
 ```
@@ -74,10 +77,27 @@ Both commands are idempotent and edit the rendered harness in place.
 - `.claude/rules/` — core rules + the selected profile's rules
 - `.claude/{commands,agents,skills,hooks}/` — profile-appropriate set
 - `.opencode/{commands,agents,skills}/` — mirrored from the Claude sources
+- `.claude/harness.json` — profile, paths and versions used by the drift gate
+- `.githooks/` — tracked pre-commit/pre-push guardrails (installed per clone)
+- `.github/workflows/ci.yml` — minimal profile CI, only when the project has none
 - `my-workflows.md` — your cross-project conventions (loaded automatically)
 - `docs/harness-eval.md` — the evaluation prompt
 - `/ship-pr` — open/watch/triage a PR and merge with `--merge` once green
-- **no `.github/`** — projects own their CI workflows
+
+## Enforcement, not only advice
+
+The harness ships deterministic gates; none of them add context at session start.
+
+- **`pre-commit`** scans the staged diff for credentials, forbidden skips/xfails,
+  and project drift. **`pre-push`** scans tracked files and runs `make check`
+  when the project defines it.
+- **`check-project-drift.py`** verifies that `AGENTS.md` still matches the tree:
+  rule index, command and skill lists, Claude/OpenCode mirrors, thin `CLAUDE.md`,
+  the profile's rule set, and the Python version in `pyproject.toml`.
+- **CI** runs the drift gate, the secret scan, and the profile's lint/type/test
+  jobs. The generated workflow is skipped if the project already has one.
+- Git hooks are per-clone: run `bash .claude/hooks/install-git-hooks.sh` once
+  (or let `new-project.sh` do it). CI remains the backstop if a hook is skipped.
 
 ## Context, not a rule dump
 
@@ -99,6 +119,8 @@ templates/
     AGENTS.md           canonical project context template (rule-index marker)
     core/articles/      rules shipped for every profile
     agents/ commands/ skills/ doctrine/
+    ci/                 minimal profile CI workflows
+    githooks/           tracked pre-commit / pre-push gates
     profiles/
       mcp/ python/ agent/ web/ godot/
         articles/ commands/ agents/ skills/

@@ -11,8 +11,9 @@
   frontmatter are scoped to matching files and load lazily; files without
   `paths:` load at launch. The `AGENTS.md` rule index still says which rule is
   relevant to a task.
-- **Hooks:** `.claude/hooks/*.sh` run the skip-scan and drift gates. Use
-  `/preflight` before pushing. Never bypass hooks with `--no-verify`.
+- **Hooks:** `.claude/hooks/` holds the skip, secret and drift gates; the tracked
+  `.githooks/` run the fast ones locally. Use `/preflight` before pushing. Never
+  bypass hooks with `--no-verify`.
 - **Agents:** `.claude/agents/*.md` are read-only routers; delegate design
   questions to them instead of duplicating their guidance.
 - **Skills and commands:** `.claude/skills/` and `.claude/commands/`; names are

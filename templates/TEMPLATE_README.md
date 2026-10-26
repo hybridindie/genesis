@@ -49,7 +49,14 @@ An article with the same relative path in a profile overrides the core one
 - **Skills** — `_shared/skills/<name>/SKILL.md` and profile variants; rendered
   into both `.claude/skills/` and `.opencode/skills/`.
 
-.github/ belongs to the project; this repo only keeps its own CI workflow.
+## Enforcement
+
+`.githooks/` holds the tracked fast gates (secret scan, skipped-test scan, project
+drift); install them once per clone with
+`bash .claude/hooks/install-git-hooks.sh`. `.github/workflows/ci.yml` is rendered
+only when the project has no workflow yet; the project owns it afterwards.
+`.claude/harness.json` records the profile, paths and versions the drift gate
+checks.
 
 ## Checks
 
@@ -58,9 +65,10 @@ for p in mcp python agent web godot; do
   bash templates/scripts/bootstrap.sh --profile "$p" \
     --project-name Test --project-slug test --output-dir "/tmp/render-$p"
   python3 templates/scripts/check-harness-sync.py templates "/tmp/render-$p"
+  python3 "/tmp/render-$p/.claude/hooks/check-project-drift.py" --root "/tmp/render-$p"
 done
 ```
 
 CI additionally verifies: no orphan placeholders, profile isolation, the rule
 index matches the rendered rules, OpenCode mirrors match their Claude sources,
-hook syntax, and valid JSON/YAML.
+project drift, the secret scan, hook syntax, and valid JSON/YAML.

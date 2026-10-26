@@ -22,6 +22,8 @@ templates/
     commands/                 ← shared commands (preflight, graphify, sessions)
     doctrine/                 ← referenced rules (rendered to rules/doctrine/)
     skills/                   ← shared skills (customize-harness, gen-contract-test, …)
+    ci/                       ← per-profile CI workflow templates
+    githooks/                 ← tracked pre-commit / pre-push gates
     profiles/
       mcp/                    ← articles/ commands/ agents/ skills/
       python/
@@ -37,6 +39,7 @@ templates/
     generate-harness-mirrors.py ← mirrors Claude agents/commands into .opencode/
     inspect-project.py        ← stack/version detection (feeds --auto-detect)
     process-conditionals.py   ← strips {{#FLAG}} blocks (profile + feature)
+    scaffold.py               ← optional README/LICENSE/Makefile/Python skeleton
 ```
 
 ### How article rendering works

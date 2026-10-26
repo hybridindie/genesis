@@ -41,11 +41,19 @@ Run the project's CI-equivalent checks locally and report the result.
    and a clean exit.
 {{/PROFILE_GODOT}}
 
+## Harness gate
+
+- `python3 .claude/hooks/check-project-drift.py --quiet` — AGENTS.md, rule index,
+  command/skill lists, mirrors and versions still match the tree.
+- `python3 .claude/hooks/check-secrets.py --all --quiet` — no credentials in the
+  tracked or untracked tree.
+
 ## Output
 
 | Check | Status | Details |
 |-------|--------|---------|
 | Suite health | PASS/FAIL | violation count |
+| Harness | PASS/FAIL | drift/secret findings |
 | Lint | PASS/FAIL | error count |
 | Types | PASS/FAIL | new errors |
 | Tests | PASS/FAIL | first failure |

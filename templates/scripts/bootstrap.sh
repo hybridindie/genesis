@@ -46,6 +46,9 @@ ZOD_VALIDATION="yes"
 CUSTOM_INSTRUCTIONS=""
 CUSTOM_TECH_STACK=""
 OUTPUT_DIR=""
+WITH_CI=1
+FORCE_CI=0
+FORCE_HOOKS=0
 
 # ── Auto-detect support ──
 MODE="full"
@@ -90,6 +93,9 @@ while [[ $# -gt 0 ]]; do
     --profile) PROFILE="$2"; PROFILE_GIVEN=1; shift 2 ;;
     --auto-detect) AUTO_DETECT=1; shift 1 ;;
     --output-dir) OUTPUT_DIR="$2"; shift 2 ;;
+    --no-ci) WITH_CI=0; shift 1 ;;
+    --force-ci) FORCE_CI=1; shift 1 ;;
+    --force-hooks) FORCE_HOOKS=1; shift 1 ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
 done
@@ -432,6 +438,76 @@ substitute_placeholders "$TEMPLATES_DIR/../docs/harness-eval.md" "$OUTPUT_DIR/do
   cp "$TEMPLATES_DIR/../docs/harness-eval.md" "$OUTPUT_DIR/docs/harness-eval.md" 2>/dev/null || \
   echo "  (harness-eval.md not found in genesis repo — skipping)"
 
+echo "=== Rendering Git Hooks ==="
+if [[ -d "$TEMPLATES_DIR/_shared/githooks" ]]; then
+  mkdir -p "$OUTPUT_DIR/.githooks"
+  for src in "$TEMPLATES_DIR/_shared/githooks/"*; do
+    [[ -f "$src" ]] || continue
+    dst="$OUTPUT_DIR/.githooks/$(basename "$src")"
+    if [[ -e "$dst" && $FORCE_HOOKS -ne 1 ]]; then
+      echo "  Skipped (existing): .githooks/$(basename "$src")"
+      continue
+    fi
+    substitute_placeholders "$src" "$dst"
+    chmod +x "$dst"
+  done
+  echo "  Git hooks rendered (use --force-hooks to replace existing ones)"
+fi
+
+echo "=== Rendering CI Workflow ==="
+if [[ $WITH_CI -eq 1 && -f "$TEMPLATES_DIR/_shared/ci/$PROFILE.yml" ]]; then
+  mkdir -p "$OUTPUT_DIR/.github/workflows"
+  existing=$(find "$OUTPUT_DIR/.github/workflows" -maxdepth 1 -type f \( -name '*.yml' -o -name '*.yaml' \) | sed -n '1p')
+  if [[ -n "$existing" && $FORCE_CI -ne 1 ]]; then
+    echo "  Skipped (existing): ${existing#"$OUTPUT_DIR/"}"
+  else
+    substitute_placeholders "$TEMPLATES_DIR/_shared/ci/$PROFILE.yml" "$OUTPUT_DIR/.github/workflows/ci.yml"
+    echo "  Wrote .github/workflows/ci.yml"
+  fi
+else
+  echo "  Skipped (disabled or no template for profile: $PROFILE)"
+fi
+
+echo "=== Writing Harness Manifest ==="
+python3 - "$OUTPUT_DIR" "$PROFILE" "$PROJECT_NAME" "$PROJECT_SLUG" \
+  "$BACKEND_PATH" "$FRONTEND_PATH" "$PYTHON_VERSION" "$FASTAPI_VERSION" \
+  "$REACT_VERSION" "$TYPESCRIPT_VERSION" "$VITE_VERSION" \
+  "$PKG_MANAGER_BACKEND" "$PKG_MANAGER_FRONTEND" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+out, profile, name, slug, backend, frontend, py, fastapi, react, ts, vite, pkg_b, pkg_f = sys.argv[1:]
+jobs = {
+    "mcp": ["guardrails", "lint", "types", "tests"],
+    "python": ["guardrails", "lint", "types", "tests"],
+    "agent": ["guardrails", "lint", "types", "tests"],
+    "web": ["guardrails", "backend", "frontend"],
+    "godot": ["guardrails", "gdscript"],
+}
+manifest = {
+    "schema": 1,
+    "profile": profile,
+    "project_name": name,
+    "project_slug": slug,
+    "backend_path": backend,
+    "frontend_path": frontend,
+    "python_version": py,
+    "fastapi_version": fastapi,
+    "react_version": react,
+    "typescript_version": ts,
+    "vite_version": vite,
+    "package_manager_backend": pkg_b,
+    "package_manager_frontend": pkg_f,
+    "ci_jobs": jobs.get(profile, ["validate"]),
+    "generated_by": "templates/scripts/bootstrap.sh",
+}
+path = Path(out) / ".claude" / "harness.json"
+path.parent.mkdir(parents=True, exist_ok=True)
+path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+print(f"  Wrote .claude/harness.json ({profile})")
+PY
+
 echo "=== Processing Conditional Blocks ==="
 python3 "$SCRIPT_DIR/process-conditionals.py" "$OUTPUT_DIR" \
   "HAS_MLFLOW=$HAS_MLFLOW" \
@@ -454,5 +530,6 @@ echo ""
 echo "Next steps:"
 echo "  1. cd $OUTPUT_DIR"
 echo "  2. Review and customize rendered files"
-echo "  3. Run drift checker: bash .claude/hooks/check-primitive-drift.sh"
-echo "  4. Commit the harness"
+echo "  3. Install git hooks: bash .claude/hooks/install-git-hooks.sh"
+echo "  4. Run drift checker: python3 .claude/hooks/check-project-drift.py"
+echo "  5. Commit the harness"

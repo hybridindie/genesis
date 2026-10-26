@@ -7,16 +7,19 @@
 # Without extra flags the harness is tailored with --auto-detect (it probes the
 # directory). Pass any bootstrap flag to override, e.g.:
 #   ./new-project.sh ../mcp-server --profile mcp
-#   ./new-project.sh ../api --project-name "My API" --profile fastapi
+#   ./new-project.sh ../api --project-name "My API" --profile web
+#   ./new-project.sh ../cli --profile python --scaffold
 #
 # The script creates the directory, initialises git (main) when needed, renders
-# the harness, and prints the next steps. It never commits and never pushes.
+# the harness, installs the tracked git hooks (unless --no-hooks), optionally
+# writes the repo-hygiene skeleton (--scaffold), and prints the next steps. It
+# never commits and never pushes.
 set -euo pipefail
 
 REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
-  sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 target="${1:-}"
@@ -29,15 +32,36 @@ shift
 mkdir -p -- "$target"
 target="$(cd -- "$target" && pwd)"
 
+install_hooks=1
+scaffold=0
+args=()
+for arg in "$@"; do
+  case "$arg" in
+    --no-hooks) install_hooks=0 ;;
+    --scaffold) scaffold=1 ;;
+    *) args+=("$arg") ;;
+  esac
+done
+
 if [[ ! -d $target/.git ]]; then
   git -C "$target" init -q -b main
   printf 'initialised git repository in %s\n' "$target"
 fi
 
-if (( $# )); then
-  bash "$REPO_ROOT/templates/scripts/bootstrap.sh" --output-dir "$target" "$@"
+if (( ${#args[@]} )); then
+  bash "$REPO_ROOT/templates/scripts/bootstrap.sh" --output-dir "$target" "${args[@]}"
 else
   bash "$REPO_ROOT/templates/scripts/bootstrap.sh" --auto-detect --output-dir "$target"
+fi
+
+if (( scaffold )); then
+  python3 "$REPO_ROOT/templates/scripts/scaffold.py" --root "$target"
+fi
+
+if (( install_hooks )) && [[ -d $target/.githooks ]]; then
+  if ! (cd "$target" && bash .claude/hooks/install-git-hooks.sh); then
+    printf 'git hooks not installed; run: cd %s && bash .claude/hooks/install-git-hooks.sh\n' "$target"
+  fi
 fi
 
 cat <<EOF

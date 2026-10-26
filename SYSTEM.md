@@ -39,11 +39,14 @@ platform. It never installs anything on its own.
 cd ~/Development
 ~/genesis/new-project.sh myapp            # git init + auto-detect + render
 ~/genesis/new-project.sh mcp-server --profile mcp
+~/genesis/new-project.sh cli --profile python --scaffold  # + README/LICENSE/Makefile/skeleton
 ```
 
 `new-project.sh` creates the directory, runs `git init -b main`, renders the
-harness with `templates/scripts/bootstrap.sh`, and prints the next steps. To
-patch an existing repository instead:
+harness with `templates/scripts/bootstrap.sh`, installs the tracked `.githooks`
+unless `--no-hooks`, and prints the next steps. Bootstrap adds
+`.github/workflows/ci.yml` only when the project has no workflow yet. To patch
+an existing repository instead:
 
 ```bash
 bash ~/genesis/install.sh            # from inside the project (auto-detect)

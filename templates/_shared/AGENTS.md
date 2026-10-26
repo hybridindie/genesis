@@ -135,17 +135,18 @@ Run `/preflight` before pushing; never bypass a hook.
 | Commands | `.claude/commands/*.md` | `.opencode/commands/*.md` |
 | Subagents | `.claude/agents/*.md` | `.opencode/agents/*.md` (read-only) |
 | Skills | `.claude/skills/*/SKILL.md` | `.opencode/skills/*/SKILL.md` |
-| Gates | `.claude/hooks/*.sh` | CI + `/preflight` |
+| Gates | `.githooks/*` + `.claude/hooks/*` | CI + `/preflight` |
 
 ### Commands
 
-`/preflight`, `/start-session`, `/end-session`, `/fix`, `/migration-check`,
-`/harness-eval`, `/graphify`, `/ship-pr`.
+`/preflight`, `/start-session`, `/end-session`, `/fix`, `/harness-eval`,
+`/graphify`, `/ship-pr`{{#PROFILE_WEB}}, `/migration-check`{{/PROFILE_WEB}}.
 
 ### Skills
 
-`customize-harness`, `gen-contract-test`, `create-migration`,
-`test-hygiene-scanner`, `e2e-assertion-audit`.
+`customize-harness`, `gen-contract-test`, `ship-pr`,
+`test-hygiene-scanner`{{#PROFILE_WEB}}, `create-migration`,
+`e2e-assertion-audit`{{/PROFILE_WEB}}.
 
 ## Agent Notes
 

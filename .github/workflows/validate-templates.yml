@@ -16,6 +16,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Scan tracked files for secrets
+        run: python3 templates/claude-code/.claude/hooks/check-secrets.py --all
+
       - name: Install shell
         run: sudo apt-get update -qq && sudo apt-get install -y -qq zsh
 
@@ -30,6 +33,38 @@ jobs:
           test -f /tmp/syshome/.claude/settings.json
           test -f /tmp/syshome/.config/system/gitconfig
           test -x /tmp/syshome/.local/bin/zed-wait
+
+      - name: Scaffold a new project
+        run: |
+          rm -rf /tmp/scaffold
+          ./new-project.sh /tmp/scaffold --profile python \
+            --project-name "Scaffold" --project-slug scaffold --scaffold --no-hooks
+          test -f /tmp/scaffold/pyproject.toml
+          test -f /tmp/scaffold/src/scaffold/__init__.py
+          test -f /tmp/scaffold/Makefile
+          python3 /tmp/scaffold/.claude/hooks/check-project-drift.py --root /tmp/scaffold
+
+      - name: Guardrail regression
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("/tmp/scaffold/AGENTS.md")
+          lines = [line for line in path.read_text().splitlines()
+                   if ".claude/rules/testing.md" not in line]
+          path.write_text("\n".join(lines) + "\n")
+          PY
+          if python3 /tmp/scaffold/.claude/hooks/check-project-drift.py \
+              --root /tmp/scaffold --quiet; then
+            echo "drift gate accepted a broken rule index"
+            exit 1
+          fi
+
+          token="ghp_$(printf 'a%.0s' {1..36})"
+          printf 'TOKEN=%s\n' "$token" > /tmp/scaffold/leak.txt
+          if python3 /tmp/scaffold/.claude/hooks/check-secrets.py /tmp/scaffold/leak.txt; then
+            echo "secret gate accepted a GitHub token"
+            exit 1
+          fi
 
       - name: Validate rendered system layer
         run: |
@@ -79,7 +114,11 @@ jobs:
           for f in $(git ls-files '*.sh'); do
             bash -n "$f" || { echo "INVALID SHELL: $f"; fail=1; }
           done
-          python3 -m py_compile templates/scripts/*.py || fail=1
+          for f in templates/_shared/githooks/*; do
+            bash -n "$f" || { echo "INVALID GIT HOOK: $f"; fail=1; }
+          done
+          python3 -m py_compile templates/scripts/*.py \
+            templates/claude-code/.claude/hooks/*.py || fail=1
           exit "$fail"
 
       - name: Render the ${{ matrix.profile }} harness
@@ -167,12 +206,19 @@ jobs:
                    .claude/skills/ship-pr/SKILL.md .opencode/skills/ship-pr/SKILL.md \
                    .claude/skills/ship-pr/scripts/watch_pr.py \
                    .claude/hooks/check-primitive-drift.sh \
+                   .claude/hooks/check-project-drift.py .claude/hooks/check-secrets.py \
+                   .claude/hooks/install-git-hooks.sh .claude/harness.json \
+                   .githooks/pre-commit .githooks/pre-push \
+                   .github/workflows/ci.yml \
                    .claude/skills/customize-harness/SKILL.md \
                    .opencode/skills/customize-harness/SKILL.md; do
             test -f "$RENDER/$f" || { echo "MISSING: $f"; fail=1; }
           done
           for h in "$RENDER"/.claude/hooks/*.sh; do
             bash -n "$h" || { echo "INVALID HOOK: $h"; fail=1; }
+          done
+          for h in "$RENDER"/.claude/hooks/*.py; do
+            python3 -m py_compile "$h" || { echo "INVALID PYTHON HOOK: $h"; fail=1; }
           done
           exit "$fail"
 
@@ -207,6 +253,9 @@ jobs:
 
       - name: Cross-harness sync
         run: python3 templates/scripts/check-harness-sync.py templates "$RENDER"
+
+      - name: Project drift guard
+        run: python3 "$RENDER/.claude/hooks/check-project-drift.py" --root "$RENDER"
 
       - name: Check file count
         run: |

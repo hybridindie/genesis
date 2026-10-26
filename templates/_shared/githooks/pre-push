@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Push gate: the same consistency checks plus the project's `make check` when
+# one exists. Keep the expensive suite in CI; this catches the obvious drift.
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+fail() {
+  echo "pre-push: $1" >&2
+  exit 1
+}
+
+if [[ -f .claude/hooks/check-secrets.py ]]; then
+  python3 .claude/hooks/check-secrets.py --all --quiet || fail "secret scan failed"
+fi
+
+if [[ -f .claude/hooks/check-no-skipped-tests.sh ]]; then
+  if ! output=$(bash .claude/hooks/check-no-skipped-tests.sh 2>&1); then
+    printf '%s\n' "$output" >&2
+    fail "suite-health scan failed"
+  fi
+fi
+
+if [[ -f .claude/hooks/check-project-drift.py ]]; then
+  python3 .claude/hooks/check-project-drift.py --quiet || fail "project drift"
+fi
+
+if [[ -f Makefile ]] && grep -qE '^check:' Makefile; then
+  make check
+fi
