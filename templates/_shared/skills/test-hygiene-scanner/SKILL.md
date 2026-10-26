@@ -48,7 +48,8 @@ Use judgment only for:
 - writing a concrete replacement;
 - deciding whether a hit is ERROR vs WARNING.
 
-Do not add new categories or scan production code.
+Do not add new categories or scan production code. If a test hit reveals a
+production defect, add a one-line out-of-scope note; do not expand the scan.
 
 ## Output
 
@@ -84,5 +85,6 @@ Use `No <category> found.` when a search is empty.
 ## Token Budget
 
 - Run the five searches exactly once; do not re-scan with variations.
-- Open at most 20 surrounding-line windows.
-- Report ≤ 700 words; cite file:line, not full files.
+- Default: open at most 20 surrounding-line windows. If there are more hits,
+  triage the highest-severity 20 and report the remaining count as untriaged.
+- Target ≤ 700 words; cite file:line, not full files. Summarize repeated hits.

@@ -38,24 +38,38 @@ Use judgment for:
 - problem/outcome synthesis and prioritization;
 - resolving genuine contradictions or missing intent;
 - semantic review (fit, quality, risk, trade-offs);
-- planning waves and ownership when the constraints conflict.
+- planning waves and ownership when the constraints conflict;
+- diagnosing a failed script or a surprising result;
+- reporting an out-of-scope correctness risk as a note.
 
-Do not use judgment for:
+Use scripts first for discovery, parsing, scaffolding, and validation. Do not
+ask the model to do mechanical work a script can do; do not use a script as an
+excuse to suppress a correctness concern.
 
-- finding files, symbols, or existing tests;
-- choosing a command or a timestamp format;
-- parsing JSON/TOML/YAML that a script can parse;
-- validating required headings, counts, links, or placeholders;
-- repeating source text in the output.
+## Judgment escape hatch
+
+Deterministic steps are the default path, not a prohibition on needed context.
+If a named input or script cannot answer a correctness-critical question:
+
+- read the smallest relevant file or command output and state why;
+- report the out-of-scope risk as a note instead of expanding into a repo tour;
+- diagnose and fix a validation failure, but never bypass it;
+- ask one blocking question when the missing fact is the user's to provide.
+
+Do not invent a fact to keep the workflow moving.
 
 ## Token budget
 
-- Read at most the files named in `Inputs`; no repository tours.
+Budgets are targets, not correctness limits.
+
+- Read the files named in `Inputs`; no repository tours.
 - Prefer `rg`, `sed -n`, `jq`, and project scripts over broad reads.
 - Do not load a directory to find one file.
 - Do not restate a template or doctrine file; cite it and follow it.
 - Keep the emitted artifact within the budget named by the skill. If it is
-  longer, split the work rather than padding.
+  longer, split the work rather than padding — or state why the extra length is
+  needed for correctness.
+- Never truncate a correctness-critical read to satisfy a budget.
 
 ## Stop conditions
 

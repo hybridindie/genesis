@@ -86,6 +86,7 @@ Do not invent routes or implementation details.
 
 ## Token Budget
 
-- Read the target and at most one existing contract test.
+- Default: read the target and at most one existing contract test. Read a second
+  only when the first does not show the project's contract style, and say why.
 - Do not list the whole test tree; use the named `rg` command.
-- Output ≤ 250 words plus the test file.
+- Target ≤ 250 words plus the test file; summarize repeated cases.

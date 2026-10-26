@@ -87,6 +87,8 @@ Validation: PASS | FAIL
 
 ## Token Budget
 
-- Read `AGENTS.md`, `CLAUDE.md`, `my-workflows.md`, and the domain manifest only.
-- Open at most five rule files per run; never load `.claude/rules/**` wholesale.
-- Plan and report ≤ 300 words each.
+- Default: read `AGENTS.md`, `CLAUDE.md`, `my-workflows.md`, and the domain
+  manifest.
+- Open at most five rule files per pass; never load `.claude/rules/**` wholesale.
+  If a sixth rule is needed for a correctness decision, include it and say why.
+- Plan and report ≤ 300 words each; use a table when more files change.

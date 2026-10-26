@@ -49,7 +49,8 @@ Use judgment only for:
 - whether a negative case is material to the journey;
 - the concrete replacement assertion.
 
-Do not invent tests or rewrite clean assertions.
+Do not invent tests or rewrite clean assertions. If a hit reveals an
+out-of-scope product bug, add a one-line note; do not expand the audit.
 
 ## Output
 
@@ -80,5 +81,6 @@ Do not invent tests or rewrite clean assertions.
 ## Token Budget
 
 - Run the four searches once; no per-file rescans.
-- Open at most 20 assertion blocks.
-- Report ≤ 700 words; cite file:line and one replacement, not full files.
+- Default: open at most 20 assertion blocks. If there are more hits, triage the
+  highest-severity 20 and report the remaining count as untriaged.
+- Target ≤ 700 words; cite file:line and one replacement, not full files.

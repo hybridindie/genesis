@@ -86,6 +86,8 @@ Include a one-line summary of tables changed and the validation result.
 
 ## Token Budget
 
-- Read ≤ 2 files: `sql-standards.md` and at most one existing migration.
+- Default: read ≤ 2 files (`sql-standards.md` and one existing migration). Read a
+  referenced type/table definition when needed to avoid an invalid FK or type,
+  and say why.
 - Do not scan the migrations directory.
-- Emit SQL only; no prose beyond the one-line summary and checklist result.
+- Emit SQL only; add prose only for a blocker or a standards conflict.

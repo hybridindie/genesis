@@ -74,6 +74,8 @@ detail.
 
 ## Token Budget
 
-- Read only the criteria, the Epic/story around them, and the doctrine file.
-- Target ≤ 700 words; list only criteria that need attention.
+- Default: read the criteria, the Epic/story around them, and the doctrine file.
+  Read a referenced contract only when a criterion cannot be judged without it.
+- Target ≤ 700 words; list criteria that need attention. If there are more than
+  10 findings, group the lowest-severity ones.
 - Do not restate good criteria or the full source.

@@ -77,7 +77,8 @@ even when the stories do not have issue numbers yet (`#TBD`).
 
 ## Token Budget
 
-- Read the named sources, `epic-shell.md`, and the three doctrine files only.
+- Default: read the named sources, `epic-shell.md`, and the three doctrine files.
 - Do not enumerate the repository or load unrelated rules.
-- Target ≤ 1,200 words in the Epic body; if longer, split the Epic.
+- Target ≤ 1,200 words in the Epic body. If it is longer, split the Epic or
+  state why the extra length is needed; do not pad.
 - Reuse the template headings; do not restate them in prose.

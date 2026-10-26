@@ -74,6 +74,9 @@ would add overhead.
 
 ## Token Budget
 
-- Read the story, the task shell, and the doctrine files; open only named files.
-- Target ≤ 600 words for the task block; do not repeat the story.
+- Default: read the story, the task shell, and the doctrine files; open only
+  named files. Read an additional file when a task would otherwise invent a
+  path or API, and say why.
+- Target ≤ 600 words for the task block; do not repeat the story. Exceed only
+  for a real dependency or contract detail.
 - One checklist per story; no separate task issues.
