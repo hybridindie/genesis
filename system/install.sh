@@ -269,11 +269,29 @@ install_zed() {
   fi
 }
 
+# A Godot project (a project.godot) within 4 levels of <dir>.
+godot_project_under() {
+  [[ -d $1 ]] || return 1
+  [[ -n $(find "$1" -maxdepth 4 \( -name .git -o -name node_modules -o -name .godot \) -prune \
+    -o -name project.godot -print -quit 2>/dev/null) ]]
+}
+
+install_tool() { # <name>
+  install_file "$SELF_DIR/bin/$1" "$TARGET_HOME/.local/bin/$1"
+  if [[ -e $TARGET_HOME/.local/bin/$1 ]]; then
+    chmod +x "$TARGET_HOME/.local/bin/$1"
+  fi
+}
+
 install_bin() {
   say "== bin"
-  install_file "$SELF_DIR/bin/zed-wait" "$TARGET_HOME/.local/bin/zed-wait"
-  if [[ -e $TARGET_HOME/.local/bin/zed-wait ]]; then
-    chmod +x "$TARGET_HOME/.local/bin/zed-wait"
+  install_tool zed-wait
+  # The GDScript patch for graphify: only where graphify is installed and a
+  # project under the dev root calls for it (a Godot project).
+  if (( INSTALL_ALL )) || { command -v graphify >/dev/null 2>&1 && godot_project_under "$DEV_ROOT"; }; then
+    install_tool graphify-gdscript
+  else
+    say "skipped graphify-gdscript (needs graphify and a Godot project under $DEV_ROOT; use --all to force)"
   fi
 }
 
