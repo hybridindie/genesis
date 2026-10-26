@@ -1,6 +1,6 @@
 <!--
   test-discipline-rules.md — Shared test discipline doctrine
-  Referenced by: testing.md (Article III), enforcement.md (checklist),
+  Referenced by: testing.md, enforcement.md (checklist),
                  backend-architect.md, frontend-architect.md
   Rendered into target projects at .claude/rules/doctrine/test-discipline-rules.md
   version: 1.0.0, owner: John D
@@ -11,7 +11,7 @@
 # Test Discipline Rules
 
 The test-discipline rules referenced by multiple articles and agents live
-here. The full Article III (`testing.md`) holds the TDD mandate, coverage
+here. The full `testing.md` rule holds the TDD mandate, coverage
 tiers, and Suite Health definition; this file holds only the rules restated
 across enforcement and the architect agents.
 
@@ -24,7 +24,7 @@ across enforcement and the architect agents.
 
 ## Coverage tier rule
 
-Coverage minimums (from Article III, referenced by the CI coverage gate):
+Coverage minimums (from `testing.md`, referenced by the CI coverage gate):
 
 - Security-critical code: 90%+
 - Business logic: 70%+ ({{COVERAGE_AGGREGATE_BACKEND}} aggregate backend)
@@ -36,7 +36,7 @@ branch).
 
 ## How callers use this file
 
-- `testing.md` is the canonical Article III source; this doctrine holds
+- `testing.md` is the canonical source; this doctrine holds
   the rules enforcement and the agents restate.
 - `enforcement.md` references this for the checklist's test items instead
   of restating them.

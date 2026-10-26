@@ -4,8 +4,8 @@ Cross-Harness Policy Checker — validates that the Claude and OpenCode harnesse
 remain consistent with the single source of truth (mirror-pairs.json).
 
 Checks:
-  1. All article/agent/command sources from mirror-pairs.json exist
-  2. Rendered rule files exist in the target project
+  1. Every source article declares read_when
+  2. Every rendered rule is indexed in AGENTS.md (and the index has no extras)
   3. Opencode agents/skills are semantically aligned with Claude rules
   4. No orphaned placeholders in rendered harnesses
   5. Agent version claims match AGENTS.md canonical versions
@@ -37,8 +37,7 @@ class HarnessSyncChecker:
         self.warnings: list[str] = []
 
         self.mirror_json = self.templates_dir / "_shared" / "mirror-pairs.json"
-        self.entries: list[dict] = []
-        self.pairs: dict[str, dict] = {}
+        self.agent_entries: list[dict] = []
         self._load_mirror_pairs()
 
         self._stack_versions: dict[str, str] = {}
@@ -48,85 +47,70 @@ class HarnessSyncChecker:
     def _load_mirror_pairs(self) -> None:
         with open(self.mirror_json, "r", encoding="utf-8") as f:
             data = json.load(f)
-        self.entries = data.get("entries", [])
-        for entry in self.entries:
-            self.pairs[entry["claude_file"]] = entry
+        self.agent_entries = data.get("agent_entries", [])
 
-    def _find_shared_source(self, rel_path: str) -> Path | None:
-        """Map output path under .claude/rules/ to shared source under templates/_shared/."""
-        shared_dir = self.templates_dir / "_shared"
-        direct = shared_dir / rel_path
-        if direct.is_file():
-            return direct
-        # Most articles live under articles/<flat> e.g. articles/enforcement.md
-        basename = Path(rel_path).name
-        for sub in ("articles", "database", "frontend"):
-            candidate = shared_dir / sub / rel_path
-            if candidate.is_file():
-                return candidate
-            candidate = shared_dir / sub / basename
-            if candidate.is_file():
-                return candidate
-        for candidate in shared_dir.rglob(basename):
-            if candidate.is_file():
-                return candidate
-        return None
+    def check_article_sources(self) -> None:
+        """Every source article must declare read_when (used by the rule index)."""
+        roots = [self.templates_dir / "_shared" / "core" / "articles"]
+        profiles = self.templates_dir / "_shared" / "profiles"
+        if profiles.is_dir():
+            roots += sorted(profiles.glob("*/articles"))
+        if not roots[0].is_dir():
+            self.errors.append("FAIL: core/articles directory missing")
+        for root in roots:
+            if not root.is_dir():
+                continue
+            for path in sorted(root.rglob("*.md")):
+                text = path.read_text(encoding="utf-8")
+                fm = re.match(r"^---\n(.*?)\n---", text, re.DOTALL)
+                if not fm or "read_when:" not in fm.group(1):
+                    self.errors.append(
+                        f"FAIL: {path.relative_to(self.templates_dir)} needs read_when frontmatter"
+                    )
 
-    def check_mirrors_exist(self) -> None:
-        """Check that every entry in mirror-pairs.json has a shared source file."""
-        for entry in self.entries:
-            src = self._find_shared_source(entry["claude_file"])
-            if src is None:
-                self.errors.append(
-                    f"FAIL: Missing shared source for {entry['title']}: {entry['claude_file']}"
-                )
-
-    def check_rendered_mirrors(self) -> None:
-        """If output_dir is given, verify every rendered rule file exists."""
+    def check_rendered_rules(self) -> None:
+        """Rendered rules must all be indexed in AGENTS.md, and vice versa."""
         if not self.output_dir:
             return
-        for entry in self.entries:
-            claude_path = self.output_dir / ".claude" / "rules" / entry["claude_file"]
-            if not claude_path.exists():
-                self.errors.append(
-                    f"FAIL: Missing rendered rule: {claude_path}"
-                )
+        rules = self.output_dir / ".claude" / "rules"
+        if not rules.is_dir():
+            self.errors.append("FAIL: rendered .claude/rules directory missing")
+            return
+        files = [
+            p for p in rules.rglob("*.md")
+            if not p.relative_to(rules).as_posix().startswith("doctrine/")
+        ]
+        for path in files:
+            fm = re.match(r"^---\n(.*?)\n---", path.read_text(encoding="utf-8"), re.DOTALL)
+            if not fm or "read_when:" not in fm.group(1):
+                self.errors.append(f"FAIL: rendered rule missing read_when: {path.relative_to(self.output_dir)}")
+        agents = self.output_dir / "AGENTS.md"
+        text = agents.read_text(encoding="utf-8") if agents.exists() else ""
+        rows = len(re.findall(r"^\| `\.claude/rules/", text, re.MULTILINE))
+        if rows != len(files):
+            self.errors.append(
+                f"FAIL: AGENTS.md rule index has {rows} rows for {len(files)} rendered rules"
+            )
 
     # ── 2. Opencode alignment -------------------------------------------
 
     def check_opencode_alignment(self) -> None:
-        opencode_dir = self.output_dir or self.templates_dir / "opencode"
-        for name in ("backend-architect.md", "frontend-architect.md"):
-            path = opencode_dir / "agents" / name
-            if not path.exists():
+        if self.output_dir:
+            base = self.output_dir / ".opencode"
+        else:
+            base = self.templates_dir / "opencode" / ".opencode"
+        expected_agents = ["article-compliance-reviewer.md"]
+        expected_commands = ["preflight.md", "harness-eval.md", "graphify.md"]
+        web = self.output_dir and (self.output_dir / ".claude" / "rules" / "api-design.md").exists()
+        if web:
+            expected_agents += ["backend-architect.md", "frontend-architect.md"]
+            expected_commands += ["migration-check.md"]
+        for name in expected_agents:
+            if not (base / "agents" / name).exists():
                 self.warnings.append(f"WARN: Opencode agent missing: {name}")
-
-        # Semantic sniff: key phrases from first two core articles must appear
-        # in at least one Opencode agent file
-        if not (self.output_dir and (self.output_dir / ".opencode").exists()):
-            return
-
-        agents_dir = self.output_dir / ".opencode" / "agents"
-        if not agents_dir.exists():
-            return
-
-        for entry in self.entries[:2]:
-            src = self._find_shared_source(entry["claude_file"])
-            if src is None:
-                continue
-            phrases = self._extract_key_phrases(src)
-            for phrase in phrases:
-                found_in_any = False
-                for md in agents_dir.glob("*.md"):
-                    body = md.read_text(encoding="utf-8")
-                    if phrase in body:
-                        found_in_any = True
-                        break
-                if not found_in_any:
-                    self.warnings.append(
-                        f"WARN: Opencode agents do not reference '{phrase}' "
-                        f"from {entry['claude_file']}"
-                    )
+        for name in expected_commands:
+            if not (base / "commands" / name).exists():
+                self.warnings.append(f"WARN: Opencode command missing: {name}")
 
     # ── 3. Placeholder check -------------------------------------------
 
@@ -260,8 +244,8 @@ class HarnessSyncChecker:
     # ── Runner ----------------------------------------------------------
 
     def run(self) -> int:
-        self.check_mirrors_exist()
-        self.check_rendered_mirrors()
+        self.check_article_sources()
+        self.check_rendered_rules()
         self.check_opencode_alignment()
         self.check_placeholders()
         self.check_version_consistency()

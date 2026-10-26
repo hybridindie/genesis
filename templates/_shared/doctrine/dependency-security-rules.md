@@ -1,6 +1,6 @@
 <!--
   dependency-security-rules.md — Shared dependency security doctrine
-  Referenced by: security.md (Article VII "Dependency & Configuration Hygiene"),
+  Referenced by: security.md ("Dependency & Configuration Hygiene"),
                  cicd.md (dependency audit gate)
   Rendered into target projects at .claude/rules/doctrine/dependency-security-rules.md
   version: 1.0.0, owner: John D
@@ -35,7 +35,7 @@ ANTI-PATTERNS; this file is the short reference other articles cite.
 
 ## How callers use this file
 
-- `security.md` (Article VII) references this instead of restating the
+- `security.md` references this instead of restating the
   "Dependency & Configuration Hygiene" subsection.
 - `cicd.md` references this for the dependency-audit gate.
 - The full detailed article `dependency-security.md` remains the canonical

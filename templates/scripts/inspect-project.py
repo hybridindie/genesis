@@ -18,7 +18,7 @@ Output (JSON examples):
   Full SaaS (default):
   {
     "mode": "full",
-    "profile": "fastapi+react",
+    "profile": "web",
     "project_name": "acme",
     "project_slug": "acme",
     "python_version": "3.12",
@@ -368,15 +368,25 @@ class ProjectInspector:
         has_frontend = self.sniff_frontend()
         has_nextjs = self.sniff_nextjs() if has_frontend else False
 
-        # Profile selection: FastAPI takes priority; MCP alone is secondary
-        if has_fastapi:
-            profile = "fastapi"
-        elif has_mcp and not has_fastapi:
+        has_godot = (self.root / "project.godot").is_file()
+        has_mlflow = "mlflow" in self.py_deps or (self.root / "mlruns").is_dir()
+        has_langgraph = "langgraph" in self.py_deps
+
+        # Profile selection: one archetype per project. A full-stack app is
+        # `web` even if it also exposes MCP endpoints; agent systems take
+        # precedence over a bare MCP server.
+        if has_godot:
+            profile = "godot"
+        elif has_fastapi and has_frontend:
+            profile = "web"
+        elif has_langgraph or has_mlflow:
+            profile = "agent"
+        elif has_mcp:
             profile = "mcp"
-        elif has_flask:
-            profile = "flask"
+        elif has_frontend:
+            profile = "web"
         else:
-            profile = "generic-python"
+            profile = "python"
 
         # Mode selection
         if has_frontend:

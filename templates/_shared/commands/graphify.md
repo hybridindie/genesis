@@ -2,7 +2,8 @@
 description: Build or update the graphify knowledge graph for a path
 ---
 
-Run the `graphify` CLI for `$ARGUMENTS` (a source directory; default `{{BACKEND_PATH}}/src`).
+Run the `graphify` CLI for `$ARGUMENTS` (a source directory; default: the
+project's source root — `src/`, `backend/src/`, or `.` depending on layout).
 
 1. `command -v graphify` — if it is missing, say so and stop. Do not install it.
 2. `graphify --help` once to confirm the current build/update and labeling subcommands.

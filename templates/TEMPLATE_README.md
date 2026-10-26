@@ -1,197 +1,66 @@
-# Template System Configuration
+# Template System
 
-## Overview
+How `templates/` produces a project harness. For the product view, see the
+top-level [`README.md`](../README.md); for the file tree, see
+[`docs/agents-sections/source-structure.md`](../docs/agents-sections/source-structure.md).
 
-This repository contains a unified template system for bootstrapping project-specific AI harnesses across two code-assistant platforms:
+## Pipeline
 
-- **Claude Code** — `CLAUDE.md`, `AGENTS.md`, `.claude/rules/`, `.claude/commands/`, `.claude/agents/`, `.claude/skills/`, `.claude/hooks/`, `.claude/scripts/`
-- **Opencode** — `.opencode/` ecosystem with skills, commands, and plugins
-
-## Quick Start
-
-### 1. Bootstrap a New Project
-
-**Option A: Interactive Skill (Recommended)**
-
-```bash
-# Claude Code
-/bootstrap-harness --output-dir "../myproject"
-
-# Opencode
-/bootstrap-harness --output-dir "../myproject"
+```
+templates/_shared/core/articles/          → .claude/rules/        (all profiles)
+templates/_shared/profiles/<p>/articles/  → .claude/rules/        (overrides by path)
+templates/_shared/AGENTS.md               → AGENTS.md             (rule index filled in)
+templates/claude-code/                    → CLAUDE.md, .claude/
+templates/opencode/                       → .opencode/            (config)
+shared commands/agents/skills + profile    → .claude/* + .opencode/* (mirrored)
+shared my-workflows.md                    → my-workflows.md
+process-conditionals.py                   → strips profile/feature blocks
 ```
 
-The skill will:
-1. Scan the project (package.json, pyproject.toml, git repo, directory structure)
-2. Show you what it discovered
-3. Ask only the questions it couldn't answer automatically (domain, compliance, custom rules)
-4. Render the harness and validate it
+`generate-rule-index.py` rebuilds the `<!-- RULE_INDEX -->` table in `AGENTS.md`
+from each rendered rule's `read_when:` frontmatter. `generate-harness-mirrors.py`
+mirrors Claude agents/commands into `.opencode/` (frontmatter adapted, body
+identical).
 
-**Option B: CLI Script (Fast, Deterministic)**
+## Profiles
 
-```bash
-bash templates/scripts/bootstrap.sh \
-  --project-name "MyProject" \
-  --project-slug "myproject" \
-  --backend-path "backend" \
-  --frontend-path "frontend" \
-  --repo-org "myorg" \
-  --repo-name "myproject" \
-  --db-provider "supabase" \
-  --state-manager "zustand" \
-  --output-dir "../myproject"
-```
+| Profile | Rules added |
+|---------|-------------|
+| `mcp` | MCP contract, safety, transport, fake-peer testing |
+| `python` | CLI behaviour, packaging |
+| `agent` | Agent system + ACD workflow |
+| `web` | API, database, frontend, auth, operational articles |
+| `godot` | Addon lifecycle, serialization, headless testing |
 
-**Option C: AI Customization Prompt**
+An article with the same relative path in a profile overrides the core one
+(e.g. `profiles/web/articles/architecture.md` replaces
+`core/articles/architecture.md`).
 
-Use `templates/scripts/customize-harness.md` as a prompt for deep semantic tailoring (removing articles, adjusting tiers, adding custom rules).
+## Templates
 
-### 2. Render Templates
+- **Core articles** — `_shared/core/articles/*.md`. Every rule starts with
+  `read_when:` (required) and optionally `paths:` (Claude scoping).
+- **Profile articles** — `_shared/profiles/<profile>/articles/**`.
+- **Agents** — `_shared/agents/*.md` (shared) or `profiles/<p>/agents/*.md`.
+  OpenCode mirrors are generated; never edit `.opencode/agents/` by hand.
+- **Commands** — same split; body is the prompt, `$ARGUMENTS` is user input.
+- **Doctrine** — `_shared/doctrine/*.md`, routed by `mirror-pairs.json` to
+  `.claude/rules/doctrine/`; referenced by rules, not indexed.
+- **Skills** — `_shared/skills/<name>/SKILL.md` and profile variants; rendered
+  into both `.claude/skills/` and `.opencode/skills/`.
 
-Templates use `{{PLACEHOLDER}}` syntax. The bootstrap script performs simple string substitution. The AI customization skill performs semantic tailoring (removing irrelevant articles, adjusting coverage tiers, etc.).
+.github/ belongs to the project; this repo only keeps its own CI workflow.
 
-### 3. Sync OpenCode mirrors
-
-After customizing, run the drift checker to ensure the OpenCode agents/commands still match their Claude sources:
-
-```bash
-bash scripts/check-primitive-drift.sh
-```
-
-## Placeholder Schema
-
-| Placeholder | Description | Example |
-|---|---|---|
-| `{{PROJECT_NAME}}` | Human-readable project name | `NomikaiList` |
-| `{{PROJECT_SLUG}}` | URL-safe slug | `nomikailist` |
-| `{{BACKEND_PATH}}` | Backend directory name | `backend` |
-| `{{FRONTEND_PATH}}` | Frontend directory name | `frontend` |
-| `{{REPO_ORG}}` | GitHub organization / user | `hybridindie` |
-| `{{REPO_NAME}}` | Repository name | `nomikailist` |
-| `{{PYTHON_VERSION}}` | Python minor version | `3.12` |
-| `{{FASTAPI_VERSION}}` | FastAPI version | `0.119+` |
-| `{{REACT_VERSION}}` | React major version | `19` |
-| `{{TYPESCRIPT_VERSION}}` | TypeScript version | `5.9` |
-| `{{VITE_VERSION}}` | Vite version | `7.3` |
-| `{{DB_PROVIDER}}` | Database provider (`supabase` or `postgres`) | `supabase` |
-| `{{STATE_MANAGER}}` | Frontend state manager | `zustand` |
-| `{{TEST_BACKEND_CMD}}` | Backend test command | `uv run pytest` |
-| `{{TEST_FRONTEND_CMD}}` | Frontend test command | `npx vitest run` |
-| `{{LINT_BACKEND_CMD}}` | Backend lint command | `uv run ruff check .` |
-| `{{LINT_FRONTEND_CMD}}` | Frontend lint command | `npm run lint` |
-| `{{TYPE_BACKEND_CMD}}` | Backend type check | `uv run mypy src/` |
-| `{{TYPE_FRONTEND_CMD}}` | Frontend type check | `npm run type-check` |
-| `{{PKG_MANAGER_BACKEND}}` | Backend package manager | `uv` |
-| `{{PKG_MANAGER_FRONTEND}}` | Frontend package manager | `npm` |
-| `{{COVERAGE_AGGREGATE_BACKEND}}` | Aggregate backend coverage | `70` |
-| `{{COVERAGE_AGGREGATE_FRONTEND}}` | Aggregate frontend coverage | `60` |
-| `{{CALVER_VERSION}}` | Initial CalVer version | `2026.05.09` |
-| `{{ARTICLE_I_SERVICE_EXAMPLES}}` | Example library names (comma list) | `auth_manager, analytics_engine, content_manager` |
-| `{{FRONTEND_STORE_EXAMPLES}}` | Example Zustand store names | `auth, analytics, content` |
-| `{{DB_EXTENSIONS}}` | PostgreSQL extensions | `pgvector, pgmq, HSTORE` |
-| `{{HAS_MLFLOW}}` | Include MLflow article (`yes`/`no`) | `no` |
-| `{{HAS_LANGGRAPH}}` | Include LangGraph article (`yes`/`no`) | `no` |
-| `{{CICD_PLATFORM}}` | CI/CD platform | `github-actions` |
-| `{{E2E_TOOL}}` | E2E testing tool | `playwright` |
-| `{{UI_LIBRARY}}` | UI component library | `shadcn/ui` |
-| `{{TAILWIND}}` | Uses Tailwind CSS (`yes`/`no`) | `yes` |
-| `{{ZOD_VALIDATION}}` | Uses Zod validation (`yes`/`no`) | `yes` |
-| `{{CUSTOM_INSTRUCTIONS}}` | Freeform custom rules block | *(empty or project-specific)* |
-| `{{CUSTOM_TECH_STACK}}` | Freeform tech stack additions | *(empty or project-specific)* |
-
-## File Manifest
-
-### Shared Constitutional Articles (rendered for both harnesses)
-
-| File | Description | Target Paths |
-|---|---|---|
-| `_shared/articles/architecture.md` | Article I & II: Library-first, service isolation | `.claude/rules/backend/architecture.md` |
-| `_shared/articles/testing.md` | Article III: TDD mandate, coverage tiers | `.claude/rules/backend/testing.md` |
-| `_shared/articles/error-handling.md` | Article IV: Structured errors | `.claude/rules/backend/error-handling.md` |
-| `_shared/articles/async-patterns.md` | Article V: Async-first | `.claude/rules/backend/async-patterns.md` |
-| `_shared/articles/api-design.md` | Article VI: OpenAPI & Pydantic | `.claude/rules/backend/api-design.md` |
-| `_shared/articles/security.md` | Article VII: Secure-by-default | `.claude/rules/backend/security.md` |
-| `_shared/articles/cicd.md` | Article VIII: CI/CD integrity | `.claude/rules/cicd.md` |
-| `_shared/articles/enforcement.md` | Article IX: Enforcement gates, PR checklist, versioning | `.claude/rules/enforcement.md` |
-| `_shared/database/sql-standards.md` | PostgreSQL schema standards | `.claude/rules/database/sql-standards.md` |
-| `_shared/database/infrastructure.md` | PostgreSQL-only infra | `.claude/rules/database/infrastructure.md` |
-| `_shared/frontend/conventions.md` | React/TypeScript conventions | `.claude/rules/frontend/conventions.md` |
-
-### Harness-Specific Templates
-
-| Harness | File | Description |
-|---|---|---|
-| Claude Code | `CLAUDE.md` | Thin `@AGENTS.md` + `@my-workflows.md` import, Claude-only notes |
-| Claude Code | `AGENTS.md` | Canonical project context (shared with every harness) |
-| Claude Code | `.claude/commands/preflight.md` | Local CI checks command |
-| Claude Code | `.claude/commands/migration-check.md` | Migration validation command |
-| Claude Code | `.claude/agents/backend-architect.md` | Backend architect agent |
-| Claude Code | `.claude/agents/frontend-architect.md` | Frontend architect agent |
-| Claude Code | `.claude/agents/article-compliance-reviewer.md` | Compliance reviewer agent |
-| Claude Code | `.claude/skills/gen-contract-test/SKILL.md` | Contract test generator skill |
-| Claude Code | `.claude/skills/create-migration/SKILL.md` | Migration scaffolder skill |
-| Claude Code | `.claude/skills/test-hygiene-scanner/SKILL.md` | Test hygiene scanner skill |
-| Claude Code | `.claude/skills/e2e-assertion-audit/SKILL.md` | E2E assertion audit skill |
-| Claude Code | `.claude/hooks/check-no-skipped-tests.sh` | Skip/xfail pre-commit hook |
-| Claude Code | `.claude/hooks/check-primitive-drift.sh` | Mirror drift hook |
-| Claude Code | `.claude/hooks/check-agent-drift.sh` | Agent version drift hook |
-| Claude Code | `.claude/scripts/bash/bootstrap.sh` | Feature bootstrap script |
-| Claude Code | `.claude/scripts/bash/check-task-prerequisites.sh` | Task prerequisite checker |
-| Opencode | `.opencode/opencode.json` | Opencode config (instructions + v2 permissions) |
-| Opencode | `.opencode/commands/graphify.md` | Graphify CLI command |
-| Opencode | `.opencode/skills/gen-contract-test/SKILL.md` | Contract test generator |
-| Opencode | `.opencode/skills/create-migration/SKILL.md` | Migration scaffolder |
-| Opencode | `.opencode/skills/test-hygiene-scanner/SKILL.md` | Test hygiene scanner |
-| Opencode | `.opencode/skills/e2e-assertion-audit/SKILL.md` | E2E assertion audit |
-| Opencode | `.opencode/commands/preflight.md` | Local CI checks command |
-| Opencode | `.opencode/commands/migration-check.md` | Migration validation command |
-| Opencode | `.opencode/agents/backend-architect.md` | Backend architect agent |
-| Opencode | `.opencode/agents/frontend-architect.md` | Frontend architect agent |
-| Opencode | `.opencode/agents/article-compliance-reviewer.md` | Compliance reviewer agent |
-| Opencode | `AGENTS.md` | Canonical context (auto-discovered) |
-
-## Customization Modes
-
-### Mode A: Bootstrap Script (Fast, Deterministic)
-
-Best for: Standard TypeScript/React + Python/FastAPI projects with no special infrastructure.
-
-Replaces placeholders with provided values. Does NOT remove optional articles.
-
-### Mode B: AI Customization Skill (Semantic, Adaptive)
-
-Best for: Projects with special infrastructure (MLflow, LangGraph, custom queues), unusual constraints, or non-default stacks.
-
-The AI reads the full template, asks clarifying questions, then:
-1. Removes irrelevant articles (e.g., drops MLflow article if `{{HAS_MLFLOW}}=no`)
-2. Adjusts coverage tiers based on project criticality
-3. Rewrites example library names to match domain
-4. Adds custom rules block
-5. Suggests additional hooks or agents
-
-## Post-Customization Drift Checks
-
-After rendering templates into a project, always run:
+## Checks
 
 ```bash
-# OpenCode mirror sync (agents/commands vs Claude sources)
-bash .claude/hooks/check-primitive-drift.sh
-
-# Agent version sync (stack versions in agents vs AGENTS.md)
-bash .claude/hooks/check-agent-drift.sh
-
-# Test hygiene scan
-bash .claude/hooks/check-test-hygiene.sh
+for p in mcp python agent web godot; do
+  bash templates/scripts/bootstrap.sh --profile "$p" \
+    --project-name Test --project-slug test --output-dir "/tmp/render-$p"
+  python3 templates/scripts/check-harness-sync.py templates "/tmp/render-$p"
+done
 ```
 
-## Updating the Templates
-
-When a rule changes across all projects:
-1. Edit the `_shared/` source of truth.
-2. Run `bash templates/scripts/sync-to-projects.sh` to propagate to `influencer-sync`, `nomikailist`, etc.
-3. Verify with drift checker.
-
-## Versioning
-
-Templates follow CalVer: `YYYY.MM.DD[-N]`.
-Current: {{CALVER_VERSION}}.
+CI additionally verifies: no orphan placeholders, profile isolation, the rule
+index matches the rendered rules, OpenCode mirrors match their Claude sources,
+hook syntax, and valid JSON/YAML.

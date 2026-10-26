@@ -6,44 +6,20 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
-  validate:
-    name: Validate Template System
+  system:
+    name: System layer
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq python3 python3-pip sed grep zsh
-          pip install -q --user yq pyyaml
+      - name: Install shell
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq zsh
 
-      - name: Validate tracked JSON and YAML
-        run: |
-          fail=0
-          while IFS= read -r f; do
-            python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$f" \
-              || { echo "INVALID JSON: $f"; fail=1; }
-          done < <(git ls-files '*.json')
-          while IFS= read -r f; do
-            python3 -c 'import sys,yaml; yaml.safe_load(open(sys.argv[1]))' "$f" \
-              || { echo "INVALID YAML: $f"; fail=1; }
-          done < <(git ls-files '*.yml' '*.yaml')
-          exit "$fail"
-
-      - name: Validate shell and Python syntax
-        run: |
-          fail=0
-          while IFS= read -r f; do
-            bash -n "$f" || { echo "INVALID SHELL: $f"; fail=1; }
-          done < <(git ls-files '*.sh')
-          python3 -m py_compile templates/scripts/*.py || fail=1
-          exit "$fail"
-
-      - name: Render the system layer into a temp home
+      - name: Render into a temp home
         run: |
           rm -rf /tmp/syshome
           bash system/install.sh --home /tmp/syshome --dev-root /tmp/dev \
@@ -55,206 +31,182 @@ jobs:
           test -f /tmp/syshome/.config/system/gitconfig
           test -x /tmp/syshome/.local/bin/zed-wait
 
-      - name: Validate the rendered system layer
+      - name: Validate rendered system layer
         run: |
           fail=0
-          while IFS= read -r f; do
+          for f in $(find /tmp/syshome -type f \( -name '*.zsh' -o -name 'zshenv' -o -name 'zprofile' -o -name 'zshrc' -o -name 'profile' \)); do
             zsh -n "$f" || { echo "INVALID ZSH: $f"; fail=1; }
-          done < <(find /tmp/syshome -type f \( -name '*.zsh' -o -name 'zshenv' -o -name 'zprofile' -o -name 'zshrc' -o -name 'profile' \))
-          while IFS= read -r f; do
+          done
+          for f in $(find /tmp/syshome -type f \( -name '*.json' -o -name '*.jsonc' \)); do
             python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$f" \
               || { echo "INVALID JSON: $f"; fail=1; }
-          done < <(find /tmp/syshome -type f \( -name '*.json' -o -name '*.jsonc' \))
+          done
           if grep -rn '{{[A-Z_]*}}' /tmp/syshome; then
-            echo "FAIL: unrendered placeholders in the rendered system layer"
+            echo "FAIL: unrendered placeholders in the system layer"
             fail=1
           fi
           exit "$fail"
 
-      - name: Render templates to temp directory
-        run: |
-          bash templates/scripts/bootstrap.sh \
-            --project-name "ValidateTest" \
-            --project-slug "validatetest" \
-            --backend-path "backend" \
-            --frontend-path "frontend" \
-            --repo-org "testorg" \
-            --repo-name "validatetest" \
-            --db-provider "supabase" \
-            --state-manager "zustand" \
-            --python-version "3.12" \
-            --fastapi-version "0.119+" \
-            --react-version "19" \
-            --typescript-version "5.9" \
-            --vite-version "7.3" \
-            --pkg-manager-backend "uv" \
-            --pkg-manager-frontend "npm" \
-            --coverage-aggregate-backend "70" \
-            --coverage-aggregate-frontend "60" \
-            --calver-version "$(date +%Y.%m.%d)" \
-            --article-i-services "auth_manager, analytics_engine, content_manager" \
-            --frontend-stores "auth, analytics, content" \
-            --db-extensions "pgvector, pgmq, HSTORE" \
-            --has-mlflow "yes" \
-            --has-langgraph "yes" \
-            --cicd-platform "github-actions" \
-            --e2e-tool "playwright" \
-            --ui-library "shadcn/ui" \
-            --tailwind "yes" \
-            --zod-validation "yes" \
-            --custom-instructions "Custom rule 1\nCustom rule 2" \
-            --output-dir "/tmp/validate-render"
+  templates:
+    name: Harness / ${{ matrix.profile }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [mcp, python, agent, web, godot]
+    env:
+      RENDER: /tmp/render-${{ matrix.profile }}
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: Check harness loading contract
+      - name: Install dependencies
         run: |
-          grep -q '@AGENTS.md' /tmp/validate-render/CLAUDE.md
-          grep -q 'Rule Index' /tmp/validate-render/AGENTS.md
-          grep -q 'my-workflows.md' /tmp/validate-render/AGENTS.md
-          ! grep -q '.claude/rules' /tmp/validate-render/.opencode/opencode.json
-          ! grep -rq 'npx graphify' /tmp/validate-render/.opencode
-          ! grep -Rq '^permission:' /tmp/validate-render/.opencode/agents
-          grep -Rq '^permissions:' /tmp/validate-render/.opencode/agents
-          test -f /tmp/validate-render/.opencode/commands/graphify.md
-          test -f /tmp/validate-render/.claude/commands/graphify.md
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq python3 python3-pip
+          pip install -q --user pyyaml
 
-      - name: Check rendered JSON is valid
+      - name: Validate tracked JSON, YAML, shell and Python
         run: |
           fail=0
-          while IFS= read -r f; do
+          for f in $(git ls-files '*.json'); do
             python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$f" \
-              || { echo "INVALID RENDERED JSON: $f"; fail=1; }
-          done < <(find /tmp/validate-render -type f -name '*.json')
+              || { echo "INVALID JSON: $f"; fail=1; }
+          done
+          for f in $(git ls-files '*.yml' '*.yaml'); do
+            python3 -c 'import sys,yaml; yaml.safe_load(open(sys.argv[1]))' "$f" \
+              || { echo "INVALID YAML: $f"; fail=1; }
+          done
+          for f in $(git ls-files '*.sh'); do
+            bash -n "$f" || { echo "INVALID SHELL: $f"; fail=1; }
+          done
+          python3 -m py_compile templates/scripts/*.py || fail=1
           exit "$fail"
 
-      - name: Check zero orphaned placeholders
+      - name: Render the ${{ matrix.profile }} harness
         run: |
-          orphans=$(grep -ro '{{[A-Z_]*}}' /tmp/validate-render | sort | uniq -c)
-          if [[ -n "$orphans" ]]; then
-            echo "FAIL: Found orphaned placeholders:"
-            echo "$orphans"
-            exit 1
+          rm -rf "$RENDER"
+          extra=()
+          if [[ "${{ matrix.profile }}" == "agent" ]]; then
+            extra=(--has-mlflow yes --has-langgraph yes)
           fi
-          echo "PASS: Zero orphaned placeholders"
+          bash templates/scripts/bootstrap.sh \
+            --profile "${{ matrix.profile }}" \
+            --project-name "Validate${{ matrix.profile }}" \
+            --project-slug "validate-${{ matrix.profile }}" \
+            "${extra[@]}" \
+            --output-dir "$RENDER"
 
-      - name: Check MLflow section present when enabled
+      - name: Check harness contract
         run: |
-          count=$(grep -c 'Prompt Registry' /tmp/validate-render/.claude/rules/backend/architecture.md || true)
-          if [[ "$count" -lt 1 ]]; then
-            echo "FAIL: MLflow Prompt Registry section missing from architecture.md (has-mlflow=yes)"
-            exit 1
-          fi
-          echo "PASS: MLflow Prompt Registry section present in architecture.md"
+          set -e
+          grep -q '@AGENTS.md' "$RENDER/CLAUDE.md"
+          grep -q '### Rule Index\|## Rule Index' "$RENDER/AGENTS.md"
+          grep -q 'my-workflows.md' "$RENDER/AGENTS.md"
+          ! grep -q '.claude/rules' "$RENDER/.opencode/opencode.json"
+          ! grep -rq '^permission:' "$RENDER/.opencode/agents"
+          grep -Rq '^permissions:' "$RENDER/.opencode/agents"
+          ! grep -rqi 'copilot' "$RENDER"
+
+      - name: Check rule index is complete
+        run: |
+          rules=$(find "$RENDER/.claude/rules" -name '*.md' -not -path '*/doctrine/*' | wc -l | tr -d ' ')
+          rows=$(grep -c '^| `\.claude/rules/' "$RENDER/AGENTS.md" || true)
+          echo "rules=$rules index_rows=$rows"
+          [[ "$rules" == "$rows" ]]
+
+      - name: Check profile isolation
+        run: |
+          fail=0
+          case "${{ matrix.profile }}" in
+            mcp)
+              test -f "$RENDER/.claude/rules/mcp-contract.md" || fail=1
+              test -f "$RENDER/.claude/rules/mcp-transport.md" || fail=1
+              test ! -e "$RENDER/.claude/rules/rate-limiting.md" || fail=1
+              test ! -e "$RENDER/.claude/rules/frontend" || fail=1
+              test ! -e "$RENDER/.claude/agents/frontend-architect.md" || fail=1
+              test ! -e "$RENDER/.claude/commands/migration-check.md" || fail=1
+              ;;
+            python)
+              test -f "$RENDER/.claude/rules/cli.md" || fail=1
+              test -f "$RENDER/.claude/rules/packaging.md" || fail=1
+              test ! -e "$RENDER/.claude/rules/mcp-contract.md" || fail=1
+              test ! -e "$RENDER/.claude/rules/api-design.md" || fail=1
+              test ! -e "$RENDER/.claude/agents/frontend-architect.md" || fail=1
+              ;;
+            agent)
+              test -f "$RENDER/.claude/rules/agent-system.md" || fail=1
+              test -f "$RENDER/.claude/rules/agentic-workflow.md" || fail=1
+              test ! -e "$RENDER/.claude/rules/mcp-contract.md" || fail=1
+              test ! -e "$RENDER/.claude/agents/frontend-architect.md" || fail=1
+              ;;
+            web)
+              test -f "$RENDER/.claude/rules/api-design.md" || fail=1
+              test -f "$RENDER/.claude/rules/frontend/conventions.md" || fail=1
+              test -f "$RENDER/.claude/rules/database/sql-standards.md" || fail=1
+              test -f "$RENDER/.claude/agents/frontend-architect.md" || fail=1
+              test -f "$RENDER/.claude/commands/migration-check.md" || fail=1
+              test ! -e "$RENDER/.claude/rules/mcp-contract.md" || fail=1
+              ;;
+            godot)
+              test -f "$RENDER/.claude/rules/godot-serialization.md" || fail=1
+              test -f "$RENDER/.claude/rules/godot-testing.md" || fail=1
+              test ! -e "$RENDER/.claude/rules/cli.md" || fail=1
+              test ! -e "$RENDER/.claude/rules/mcp-contract.md" || fail=1
+              test ! -e "$RENDER/.claude/agents/frontend-architect.md" || fail=1
+              ;;
+          esac
+          exit "$fail"
+
+      - name: Check required files and hooks
+        run: |
+          fail=0
+          for f in AGENTS.md CLAUDE.md .claude/settings.json .opencode/opencode.json \
+                   .claude/rules/architecture.md .claude/rules/testing.md \
+                   .claude/commands/graphify.md .opencode/commands/graphify.md \
+                   .claude/hooks/check-primitive-drift.sh \
+                   .claude/skills/customize-harness/SKILL.md \
+                   .opencode/skills/customize-harness/SKILL.md; do
+            test -f "$RENDER/$f" || { echo "MISSING: $f"; fail=1; }
+          done
+          for h in "$RENDER"/.claude/hooks/*.sh; do
+            bash -n "$h" || { echo "INVALID HOOK: $h"; fail=1; }
+          done
+          exit "$fail"
 
       - name: Check OpenCode agent/command mirrors
         run: |
           fail=0
           for kind in agents commands; do
-            for cf in /tmp/validate-render/.claude/$kind/*.md; do
+            for cf in "$RENDER/.claude/$kind"/*.md; do
               [[ -f "$cf" ]] || continue
-              rel="${cf#/tmp/validate-render/.claude/$kind/}"
-              of="/tmp/validate-render/.opencode/$kind/$rel"
-              if [[ ! -f "$of" ]]; then
-                echo "FAIL: Missing OpenCode mirror: $kind/$rel"
-                fail=1
-                continue
-              fi
-              claude_body=$(awk '/^---$/{if (++count == 2) nextfile} count >= 2' "$cf")
-              opencode_body=$(awk '/^---$/{if (++count == 2) nextfile} count >= 2' "$of")
-              if [[ "$claude_body" != "$opencode_body" ]]; then
-                echo "DRIFT: $kind/$rel (body differs from the Claude source)"
-                fail=1
-              fi
+              rel="${cf#"$RENDER/.claude/$kind/"}"
+              of="$RENDER/.opencode/$kind/$rel"
+              test -f "$of" || { echo "MISSING mirror: $kind/$rel"; fail=1; continue; }
+              cb=$(awk '/^---$/{if (++c == 2) nextfile} c >= 2' "$cf")
+              ob=$(awk '/^---$/{if (++c == 2) nextfile} c >= 2' "$of")
+              [[ "$cb" == "$ob" ]] || { echo "DRIFT: $kind/$rel"; fail=1; }
             done
           done
           exit "$fail"
 
-      - name: Check hook syntax
+      - name: Check rendered JSON and placeholders
         run: |
-          errors=0
-          for hook in /tmp/validate-render/.claude/hooks/*.sh; do
-            [[ -f "$hook" ]] || continue
-            if ! bash -n "$hook"; then
-              echo "FAIL: Syntax error in $hook"
-              errors=$((errors + 1))
-            fi
+          fail=0
+          for f in $(find "$RENDER" -name '*.json' -type f); do
+            python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$f" \
+              || { echo "INVALID RENDERED JSON: $f"; fail=1; }
           done
-          
-          if [[ $errors -gt 0 ]]; then
-            exit 1
+          if grep -rn '{{[A-Z_]*}}' "$RENDER"; then
+            echo "FAIL: orphaned placeholders"
+            fail=1
           fi
-          echo "PASS: All hooks have valid syntax"
+          exit "$fail"
 
-      - name: Check key files exist
-        run: |
-          files=(
-            "CLAUDE.md"
-            "AGENTS.md"
-            ".claude/rules/backend/architecture.md"
-            ".claude/rules/backend/testing.md"
-            ".claude/rules/backend/error-handling.md"
-            ".claude/rules/backend/async-patterns.md"
-            ".claude/rules/backend/api-design.md"
-            ".claude/rules/backend/security.md"
-            ".claude/rules/enforcement.md"
-            ".claude/rules/workflow.md"
-            ".claude/rules/database/sql-standards.md"
-            ".claude/rules/frontend/conventions.md"
-            ".claude/hooks/check-no-skipped-tests.sh"
-            ".claude/hooks/check-primitive-drift.sh"
-            ".claude/skills/gen-contract-test/SKILL.md"
-            ".opencode/skills/gen-contract-test/SKILL.md"
-            ".opencode/opencode.json"
-            ".claude/settings.json"
-          )
-          
-          missing=0
-          for f in "${files[@]}"; do
-            if [[ ! -f "/tmp/validate-render/$f" ]]; then
-              echo "FAIL: Missing required file: $f"
-              missing=$((missing + 1))
-            fi
-          done
-          
-          if [[ $missing -gt 0 ]]; then
-            find /tmp/validate-render -type f | sort
-            exit 1
-          fi
-          echo "PASS: All required files present"
+      - name: Cross-harness sync
+        run: python3 templates/scripts/check-harness-sync.py templates "$RENDER"
 
-      - name: Check template file count sanity
+      - name: Check file count
         run: |
-          total=$(find /tmp/validate-render -type f | wc -l | tr -d ' ')
-          if [[ "$total" -lt 50 ]]; then
-            echo "FAIL: Expected at least 50 files, got $total"
-            find /tmp/validate-render -type f | sort
-            exit 1
-          fi
-          echo "PASS: Generated $total files"
-
-      - name: Check script executability
-        run: |
-          if [[ ! -x templates/scripts/bootstrap.sh ]]; then
-            chmod +x templates/scripts/bootstrap.sh
-          fi
-          if [[ ! -x templates/scripts/generate-harness-mirrors.py ]]; then
-            chmod +x templates/scripts/generate-harness-mirrors.py
-          fi
-          if [[ ! -x templates/scripts/process-conditionals.py ]]; then
-            chmod +x templates/scripts/process-conditionals.py
-          fi
-          if [[ ! -x templates/scripts/check-harness-sync.py ]]; then
-            chmod +x templates/scripts/check-harness-sync.py
-          fi
-          echo "PASS: Scripts executable"
-
-      - name: Run cross-harness sync check
-        run: |
-          python3 templates/scripts/check-harness-sync.py templates /tmp/validate-render
-
-      - name: Final summary
-        run: |
-          echo ""
-          echo "=== Validation Complete ==="
-          echo "Project: ValidateTest"
-          echo "Files:   $(find /tmp/validate-render -type f | wc -l) generated"
-          echo "Status:  ALL CHECKS PASSED"
+          total=$(find "$RENDER" -type f | wc -l | tr -d ' ')
+          echo "rendered $total files"
+          [[ "$total" -ge 40 ]]

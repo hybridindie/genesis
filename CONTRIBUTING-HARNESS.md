@@ -10,12 +10,13 @@ sessions — open it on demand when editing.
   `bash system/install.sh --home /tmp/syshome --all --no-tools` then run
   `zsh -n` on the rendered files. Never put machine-specific paths in `system/`;
   they come from `--dev-root` / `--machine-label` / `--wiki-fabric-dir`.
-- **Add a new article**: add `.md` to `templates/_shared/articles/`, add an entry in `mirror-pairs.json`, run bootstrap to test.
+- **Add a core rule**: add `.md` to `templates/_shared/core/articles/` with `read_when:` frontmatter (required; the AGENTS.md rule index is generated from it) and optional `paths:` for Claude scoping. Re-render to test.
+- **Add a profile rule**: add `.md` under `templates/_shared/profiles/<profile>/articles/`; a file with the same relative path overrides the core rule.
 - **Canonical context**: edit `templates/_shared/AGENTS.md`. Keep `templates/claude-code/CLAUDE.md` thin (`@AGENTS.md` + Claude-only notes); never copy the project context into it.
-- **Add a new agent**: add `.md` to `templates/_shared/agents/`, add an `agent_entries` entry in `mirror-pairs.json`.
-- **Add a new command**: add `.md` to `templates/_shared/commands/`, add a `command_entries` entry in `mirror-pairs.json`.
+- **Add a new agent**: add `.md` to `templates/_shared/agents/` (all profiles) or `profiles/<profile>/agents/`, and add an `agent_entries` entry in `mirror-pairs.json`.
+- **Add a new command**: add `.md` to `templates/_shared/commands/` (all profiles) or `profiles/<profile>/commands/`, and add a `command_entries` entry in `mirror-pairs.json`.
 - **Add shared doctrine**: add `.md` to `templates/_shared/doctrine/`, add a `doctrine_entries` entry in `mirror-pairs.json` (with `source_file` + `render_dir` = `.claude/rules/doctrine`). Doctrine is referenced by articles/agents, not mirrored.
-- **Check for drift**: `bash templates/claude-code/.claude/hooks/check-primitive-drift.sh` (must be run from repo root with a bootstrapped harness in scope).
+- **Check for drift**: `bash .claude/hooks/check-primitive-drift.sh` in a rendered project (or run the cross-harness checker from the repo), then `python3 templates/scripts/check-harness-sync.py templates <rendered-project>`.
 - **Test a bootstrap**: `bash templates/scripts/bootstrap.sh --project-name Test --project-slug test --output-dir /tmp/test-harness`.
 
 ## Versioning

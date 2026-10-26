@@ -7,7 +7,7 @@ trims what doesn't apply, and suggests rules the project needs but doesn't
 have.
 
 This is the semantic complement to bootstrap's deterministic rendering:
-bootstrap does placeholder substitution and profile overlays; this does
+bootstrap does placeholder substitution and adds the selected profile's rules; this does
 stack-fit analysis and gap detection. Run it with `/harness-eval` or
 reference this file with `@docs/harness-eval.md`.
 
@@ -17,7 +17,7 @@ reference this file with `@docs/harness-eval.md`.
 
 You are a harness engineer evaluating an already-installed AI harness against
 the project it was installed into. The bootstrap render is deterministic — it
-substitutes placeholders and applies profile overlays, but it cannot read the
+substitutes placeholders and adds the profile's rules, but it cannot read the
 project's actual code or understand semantics. You can. Your job is to close
 the gap between what bootstrap rendered and what the project actually needs.
 
@@ -184,12 +184,12 @@ Every rule file in `.claude/rules/` follows this shape:
 
 ```markdown
 ---
-paths:
-  - "{{BACKEND_PATH}}/src/libs/**/*.py"
-  - "{{BACKEND_PATH}}/app/**/*.py"
+read_when: "One short sentence: when an agent should open this rule"
+paths:                      # optional; Claude Code uses it for path scoping
+  - "backend/src/**/*.py"
 ---
 
-# <Title> (Article <N>)
+# <Title>
 
 ## MUST
 - <hard rules>
@@ -200,13 +200,13 @@ paths:
 ## ANTI-PATTERNS (BLOCKING)
 - <forbidden patterns>
 
-## Enforcement Checklist
+## Checklist
 - [ ] <checklist items>
 ```
 
-Not every article has all four sections (MUST/SHOULD/ANTI-PATTERNS/
-Enforcement Checklist), but the sections that exist use these exact
-headings. Preserve them when trimming.
+`read_when` is required: `AGENTS.md` is rebuilt from it and CI fails if a rule
+lacks one. `paths` is optional and only meaningful to Claude Code. Preserve the
+MUST / SHOULD / ANTI-PATTERNS / Checklist headings when trimming.
 
 ### Frontmatter paths
 
