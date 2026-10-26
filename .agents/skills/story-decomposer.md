@@ -80,8 +80,10 @@ Do not invent requirements, file paths, or dependencies.
 
 ## Token Budget
 
-- Read the Epic and the three doctrine files only; open code only for paths named
-  in the Epic.
+- Default: read the Epic and the three doctrine files; open code only for paths
+  named in the Epic. Read one more file only when an ownership/size decision is
+  otherwise a guess, and say why.
 - Target ≤ 900 words for the execution map plus story metadata; story bodies use
-  the template, not prose expansion.
+  the template, not prose expansion. Exceed only for a real dependency or
+  ownership ambiguity.
 - Do not restate the Epic or load unrelated rules.

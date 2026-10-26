@@ -142,7 +142,9 @@ rewritten.
 ## Token Budget
 
 - One inspector run; no manual probe list, no repository tour.
-- Read at most five target files, and only when the inspector leaves a field
-  empty.
-- At most three interview questions; report ≤ 250 words.
+- Default: read at most five target files, and only when the inspector leaves a
+  field empty. If a required field is still unresolved, read the smallest
+  additional manifest/config and say why.
+- Aim for three interview questions; report ≤ 250 words. If a fourth answer
+  changes the profile, ask it rather than guess.
 - Reuse the plan/report templates; do not restate the skill.

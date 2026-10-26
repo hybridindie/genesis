@@ -113,7 +113,9 @@ Follow-ups: <links or none>
 
 ## Token Budget
 
-- Read PR metadata, checks, and unresolved threads only; open the diff for a
-  thread only when needed.
+- Default: read PR metadata, checks, and unresolved threads; open the diff for a
+  thread only when needed. Read the full thread when a truncated body would make
+  the triage a guess.
 - Do not re-fetch the same threads after a push; watch once, then fetch.
-- Output ≤ 250 words; no full review-thread dumps or CI logs.
+- Target ≤ 250 words; use a compact table if there are more than five threads.
+- Do not dump full review threads or CI logs.

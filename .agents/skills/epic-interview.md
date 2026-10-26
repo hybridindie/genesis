@@ -70,6 +70,7 @@ Use `None` under a heading when it is empty.
 
 ## Token Budget
 
-- Read the Epic, named sources, and `source-discipline.md` only.
-- At most five questions and ≤ 400 words of output.
+- Default: read the Epic, named sources, and `source-discipline.md`.
+- Aim for five questions and ≤ 400 words. If a sixth question is truly blocking,
+  list it under **Blocked** instead of asking more.
 - Do not repeat the Epic or re-list resolved facts.
