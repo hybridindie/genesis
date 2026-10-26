@@ -277,7 +277,9 @@ install_zed() {
 install_bin() {
   say "== bin"
   install_file "$SELF_DIR/bin/zed-wait" "$TARGET_HOME/.local/bin/zed-wait"
-  [[ -e $TARGET_HOME/.local/bin/zed-wait ]] && chmod +x "$TARGET_HOME/.local/bin/zed-wait"
+  if [[ -e $TARGET_HOME/.local/bin/zed-wait ]]; then
+    chmod +x "$TARGET_HOME/.local/bin/zed-wait"
+  fi
 }
 
 install_brewfile() {

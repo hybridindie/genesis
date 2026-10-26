@@ -17,7 +17,11 @@ export XDG_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"
 export ZSHDIR="$XDG_CONFIG_HOME/zsh"
 
 # Machine values (dev root, optional vault path, label) are rendered into
-# conf.d/98-machine.zsh by system/install.sh.
+# conf.d/98-machine.zsh by system/install.sh. Load them here as well so
+# non-interactive `zsh -c` shells (agents, editors, MCP servers) see them.
+if [[ -r "$ZSHDIR/conf.d/98-machine.zsh" ]]; then
+  source "$ZSHDIR/conf.d/98-machine.zsh"
+fi
 
 # ---- PATH: one source of truth, de-duplicated --------------------------------
 # `typeset -U` keeps the first occurrence, so repeated entries (inherited from a
