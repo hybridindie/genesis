@@ -34,14 +34,14 @@ the model designs the table columns and constraints.
 
 ## Deterministic Steps
 
-1. **Generate the filename.**
+1. **Create the skeleton.**
    ```bash
-   ts="$(date -u +%Y%m%d%H%M%S)"
-   file="supabase/migrations/${ts}_{{description}}.sql"
-   test ! -e "$file" || { echo "exists: $file"; exit 1; }
+   python3 .claude/skills/create-migration/scripts/new_migration.py \
+     --description "{{description}}" --tables "{{tables}}"
    ```
-2. **Create the file** at that exact path; never invent a timestamp.
-3. **Scaffold each table** with:
+   The script owns the timestamp, filename, table skeleton, and overwrite guard.
+2. **Fill the skeleton** at the printed path; never invent a timestamp or path.
+3. **Use this table checklist** for the columns/constraints you add:
    - `CREATE TABLE IF NOT EXISTS public.{table} (...)`;
    - `id UUID DEFAULT gen_random_uuid() PRIMARY KEY`;
    - `created_at` and `updated_at` as `TIMESTAMPTZ DEFAULT now()`;

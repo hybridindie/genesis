@@ -19,8 +19,11 @@ change scope, stories, or acceptance. Do not draft or rewrite the Epic.
 
 ## Deterministic Steps
 
-1. **Extract knowns.** Run `rg -n 'AC[0-9]+|Outcome|Scope|Constraint' <epic> 2>/dev/null || true` and
-   list the stated problem, actors, outcome, constraints, and existing decisions.
+1. **Extract knowns.** Run `rg -n 'AC[0-9]+|Outcome|Scope|Constraint' <epic> 2>/dev/null || true`
+   and list the stated problem, actors, outcome, constraints, and existing
+   decisions. When an Epic file exists, also run
+   `python3 .agents/scripts/validate_artifact.py --kind epic --summary <epic>`;
+   record shape failures as gaps, not as facts to invent.
 2. **Classify every gap** as one of:
    - **Blocker** — scope, actors, or acceptance cannot be settled.
    - **Shaper** — changes story boundaries, ownership, or sequencing.

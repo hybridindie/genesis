@@ -28,8 +28,9 @@ skill owns semantic fit and workflow weaving. It never needs the genesis repo.
 
 ## Deterministic Steps
 
-1. **Inventory.** Run `find .claude/rules .claude/agents .claude/commands -type f`
-   and `find .opencode -type f`; report counts only.
+1. **Inventory.** Run
+   `python3 .claude/skills/customize-harness/scripts/inventory.py --root .`;
+   use its JSON counts and workflow-section status.
 2. **Read domain facts.** Use `README.md` and the manifest fields; if the domain
    is still unclear, ask one question.
 3. **Read workflows.** Open `my-workflows.md`; ignore every section that is still

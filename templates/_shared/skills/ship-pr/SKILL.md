@@ -53,19 +53,9 @@ caller asked for `--merge`.
    blocked/draft/conflict, `40` timeout, `50` merged/closed. It never merges.
 5. **Fetch unresolved threads.**
    ```bash
-   gh api graphql -f query='
-   query($owner: String!, $repo: String!, $pr: Int!) {
-     repository(owner: $owner, name: $repo) {
-       pullRequest(number: $pr) {
-         reviewThreads(first: 100) {
-           nodes { id isResolved isOutdated path line
-                   comments(first: 5) { nodes { author { login } body } } }
-         }
-       }
-     }
-   }' -F owner="$OWNER" -F repo="$REPO" -F pr="$PR"
+   python3 .claude/skills/ship-pr/scripts/pr_threads.py --pr "$PR"
    ```
-   Ignore resolved/outdated threads.
+   The script owns the GraphQL query, repo lookup, and resolved/outdated filter.
 6. **Triage each.** Real defect → fix + test + rerun preflight + push. Misread →
    reply with evidence. Separate concern → linked follow-up issue + reply.
    Ambiguous → leave open and list for the human.

@@ -12,6 +12,7 @@ system/                       ← machine layer (SYSTEM.md, system/README.md)
 
 new-project.sh                ← create a repo + render the harness
 scripts/lint-skills.py        ← enforce the deterministic skill contract
+.agents/scripts/validate_artifact.py ← validate Epic/story/task/AC shapes
 
 templates/
   _shared/

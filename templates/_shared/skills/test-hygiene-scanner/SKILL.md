@@ -28,36 +28,17 @@ production code.
 
 ## Deterministic Steps
 
-1. **Hardcoded dates.** Run:
+1. **Scan once.**
    ```bash
-   rg -n '20[0-9]{2}-[0-9]{2}-[0-9]{2}|Date\.parse\("|grace_expires_at' \
-     {{BACKEND_PATH}}/tests {{FRONTEND_PATH}}/tests 2>/dev/null || true
+   python3 .claude/skills/test-hygiene-scanner/scripts/scan.py \
+     {{BACKEND_PATH}}/tests {{FRONTEND_PATH}}/tests
    ```
-2. **AsyncMock misuse.** Run:
-   ```bash
-   rg -n 'AsyncMock|__getitem__|__enter__|\.json\(\)' \
-     {{BACKEND_PATH}}/tests {{FRONTEND_PATH}}/tests 2>/dev/null || true
-   ```
-3. **Cross-tier truncates.** Run:
-   ```bash
-   rg -n 'autouse=True|\.delete\(\)\.neq|truncate_all_tables' \
-     {{BACKEND_PATH}}/tests {{FRONTEND_PATH}}/tests 2>/dev/null || true
-   ```
-4. **Envelope assertions.** Run:
-   ```bash
-   rg -n 'assert "detail" in|\["detail"\]|error_data' \
-     {{BACKEND_PATH}}/tests {{FRONTEND_PATH}}/tests 2>/dev/null || true
-   ```
-5. **Singleton leaks.** Run:
-   ```bash
-   rg -n 'get_prompt_loader|get_async_supabase|mlflow|@patch' \
-     {{BACKEND_PATH}}/tests {{FRONTEND_PATH}}/tests 2>/dev/null || true
-   ```
-6. **Triage every hit.** For each, open only the surrounding lines and assign:
+   The script owns the categories and regexes; do not run alternate searches.
+2. **Triage every hit.** For each, open only the surrounding lines and assign:
    - `ERROR` — definitely wrong for this project.
    - `WARNING` — may cause flakes or false confidence.
    - `CLEAN` — the hit is a legitimate fixture or already patched.
-7. **Emit the report.** Do not edit tests unless the caller explicitly asks.
+3. **Emit the report.** Do not edit tests unless the caller explicitly asks.
 
 ## LLM Judgment
 

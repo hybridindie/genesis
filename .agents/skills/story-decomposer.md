@@ -37,7 +37,12 @@ uses `.agents/templates/epic/story-shell.md`; the execution map is fixed.
 7. **Define the shared contract** and integration story when tracks share an
    interface, type, schema, or file format.
 8. **Validate the map.** Confirm no duplicate ownership, no story without an AC,
-   and no later wave without a named dependency.
+   and no later wave without a named dependency. Write each story to a temporary
+   file and run:
+   ```bash
+   python3 .agents/scripts/validate_artifact.py --kind story "$story_file"
+   ```
+   Stop on `FAIL`.
 9. **Emit the stories and map.** Do not create task checklists here; invoke the
    task decomposer for each story that will be implemented.
 

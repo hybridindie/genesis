@@ -75,18 +75,15 @@ review, not for file discovery.
 
    Capture stdout; stop on a non-zero exit.
 
-7. **Validate.** Run all checks and report only failures:
+7. **Validate.** Run the single deterministic validator and report only failures:
 
    ```bash
-   python3 "$TARGET/.claude/hooks/check-project-drift.py" --root "$TARGET"
-   python3 "$GENESIS/templates/scripts/check-harness-sync.py" \
-     "$GENESIS/templates" "$TARGET"
-   find "$TARGET/.claude/hooks" -name '*.sh' -exec bash -n {} \;
-   test -f "$TARGET/AGENTS.md" -a -f "$TARGET/CLAUDE.md"
-   test -d "$TARGET/.claude/rules" -a -d "$TARGET/.opencode/skills"
+   python3 "$GENESIS/templates/scripts/validate-render.py" \
+     --genesis "$GENESIS" --target "$TARGET"
    ```
 
-   If drift or sync fails, stop; do not paper over it.
+   It owns the required files, project drift, harness sync, and hook syntax
+   checks. If it fails, stop; do not paper over it.
 
 8. **Semantic pass (interactive only).** Run the shipped `/harness-eval`, then
    `/customize-harness` against `$TARGET`, showing each plan and getting

@@ -42,9 +42,13 @@ synthesizes and plans; the shape, order, and checks are fixed.
 7. **Gap gate.** If a gap changes scope, actors, or acceptance, run
    `.agents/skills/epic-interview.md` and ask only its blockers. If the criteria
    need review, run `.agents/skills/epic-acceptance-linter.md`.
-8. **Validate the shape.** Check that every heading from `epic-shell.md` exists,
-   the AC count is 3–8, every story has an owner and a wave, and every AC maps to a
-   story or an explicit constraint.
+8. **Validate the shape.** Write the draft to a temporary file and run:
+   ```bash
+   draft="$(mktemp)"
+   # write the Epic body to "$draft"
+   python3 .agents/scripts/validate_artifact.py --kind epic "$draft"
+   ```
+   Stop on `FAIL`; fix the shape, not the validator.
 
 ## LLM Judgment
 
