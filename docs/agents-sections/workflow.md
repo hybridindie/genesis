@@ -1,41 +1,40 @@
 # Epic Scoping Skills — Workflow
 
-On-demand section — read when running the epic/story pipeline.
+On-demand section — read when running the epic/story/task pipeline.
 
 ```
-Phase 1: Epic Creation
-──────────────────────
-Source material (transcripts, docs, notes, existing codebase)
-  |
-  v
-epic-composer  -- Phase 0: Context Discovery (greenfield vs brownfield)
-  |            -- Phase 1: Source Synthesis
-  |            -- Phase 2: Contradiction & Completeness Review
-  |            -- Phase 3: Guided Interview (invokes epic-interview, waves)
-  |            -- Phase 4: Epic Draft (epic-shell + linter + traceability)
-  v
-epic-composer  -- Phase 5: Readiness Assessment (applies epic-rubric)
-  |
-  v
-epic-composer  -- Phase 6: Stakeholder Review Checkpoint
-  |
-  v
-Ready Epic artifact + traceability map + readiness level
+Source material, notes, or a problem statement
+  │
+  ▼
+epic-composer ──────────────► Epic issue
+  • one outcome, 3–8 observable acceptance criteria
+  • scope in/out, constraints, risks, success measures
+  • story map: stories sized S/M/L, grouped into parallel waves
+  • shared contract named when tracks would otherwise collide
+      ↳ epic-interview        (only if a blocker changes the plan)
+      ↳ epic-acceptance-linter (optional criteria quality pass)
 
-Phase 2: Story Decomposition
-─────────────────────────────
-story-decomposer -- Phase 1: Epic Validation
-  |              -- Phase 2: Decomposition Planning (coverage matrix)
-  |              -- Phase 3: Story Drafting (story-shell + BDD + INVEST + linter)
-  v
-story-decomposer -- Phase 4: Dependency Mapping (ordered backlog)
-  |
-  v
-story-decomposer -- Phase 5: Story Readiness Assessment (story-rubric)
-  |
-  v
-story-decomposer -- Phase 6: Stakeholder Review Checkpoint
-  |
-  v
-Ready story backlog with INVEST-compliant stories + BDD acceptance criteria
+  ▼
+story-decomposer ───────────► one issue per story
+  • vertical slice, checkable acceptance criteria, estimate
+  • owns <paths>, depends_on, parallel_with, wave
+  • shared contract + integration for the tracks
+  • execution map: Wave → story → owns → depends → verify
+
+  ▼
+task-decomposer ────────────► task checklist inside each story
+  • shared contract task first
+  • parallel tracks with disjoint file ownership
+  • integration task last (merge + end-to-end verify)
+  • each task: verb + file, owns, depends, verify, AC
+
+  ▼
+Dispatch
+  • Wave 1 can start now; Wave 2 after its contract lands
+  • one track per subagent or team, with its owns/verify brief
+  • integration runs after all tracks; no overlapping edits
 ```
+
+Artifacts are GitHub issues: `Epic: <outcome>`, `Story N: <outcome>` (or
+`story(scope): …`), with the task checklist embedded in the story. The optional
+quality passes (`epic-rubric`, `story-rubric`) advise; they do not gate.

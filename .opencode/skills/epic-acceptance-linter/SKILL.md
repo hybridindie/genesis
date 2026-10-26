@@ -1,14 +1,11 @@
 ---
 name: epic-acceptance-linter
 description: >
-  Reviews and strengthens Epic acceptance criteria for observability,
-  specificity, testability, outcome focus, and coverage. Trigger words: lint
-  acceptance criteria, review AC, validate acceptance criteria, check epic
-  quality, strengthen criteria, check testability, acceptance criteria review.
+  Review acceptance criteria for observability, testability, specificity, and coverage; suggests concrete rewrites and an optional verdict. Trigger words: lint these acceptance criteria, review the AC, check if my criteria are testable, validate acceptance criteria, strengthen the criteria on this epic.
 ---
 
 Read and follow the complete instructions at `.agents/skills/epic-acceptance-linter.md`.
 
-Apply the linting rules to the following acceptance criteria:
+Apply the workflow to the following material:
 
 $ARGUMENTS

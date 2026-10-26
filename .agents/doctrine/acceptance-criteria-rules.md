@@ -1,11 +1,9 @@
 <!--
   acceptance-criteria-rules.md — Shared linting rules for acceptance criteria
-  Referenced by: epic-acceptance-linter (canonical caller),
-                 epic-composer Phase 4, story-decomposer Phase 3,
-                 epic-rubric dimension 8, story-rubric dimension 13
-  version: 1.0.0, owner: John D
-  Single source of truth for the six linting rules. Rubrics assess against
-  these rules; skills apply them; nothing restates them.
+  Referenced by: epic-acceptance-linter, epic-composer, story-decomposer
+  version: 1.1.0, owner: John D
+  Single source of truth for the six linting rules. Optional quality passes
+  reuse them; skills apply them; nothing restates them.
 -->
 
 # Acceptance Criteria Rules
@@ -65,9 +63,7 @@ For each acceptance criterion, check:
 
 ## How callers use this file
 
-- `epic-acceptance-linter` is the canonical caller; it applies these rules and
-  emits PASS / NEEDS_REVISION / BLOCKED.
-- `epic-composer` Phase 4 and `story-decomposer` Phase 3 apply these rules while
-  drafting, before invoking the linter or rubric.
-- `epic-rubric` dimension 8 and `story-rubric` dimension 13 assess against
-  these rules (Pass/Gap) without restating them.
+- `epic-acceptance-linter` applies these rules and may end with an optional
+  Ready / Needs work / Blocked verdict — advice, not a gate.
+- `epic-composer` and `story-decomposer` apply them while drafting.
+- The optional quality passes reuse them without restating them.

@@ -2,112 +2,55 @@
 
 <!--
   Shared content — referenced by harness-specific SKILL.md wrappers.
-  version: 3.3.0, owner: John D
+  version: 3.4.0, owner: John D
   doctrine: .agents/doctrine/source-discipline.md
 -->
 
-You are a senior product and engineering requirements strategist running a
-focused gap-closing interview.
+You are running a short, high-value interview to unblock an Epic.
 
-Your job is to resolve the smallest set of highest-value questions that block
-a safe, complete Epic. You are not drafting the Epic here — you are closing
-gaps.
+Ask only the questions that change the plan. Do not re-ask what the sources
+already answer, and do not draft or rewrite the Epic here.
 
-## When to use
-Invoke this skill when:
-- Source synthesis has identified critical unknowns.
-- An acceptance lint returned NEEDS_REVISION or BLOCKED.
-- Two or more sources conflict on scope, actors, acceptance, or success metrics.
-- The user explicitly asks to run interview mode.
+## What to ask
 
-## Non-Negotiable Behavior
+Rank gaps by what they block:
 
-Applies `.agents/doctrine/source-discipline.md` (shared discipline: surface
-contradictions, don't invent answers, prefer "unknown" over false precision,
-label inferred content). On top of that shared discipline, interview mode adds
-these interview-only rules:
+1. **Blockers** — without an answer, scope, actors, or acceptance cannot be
+   settled. Ask these first, in one small batch.
+2. **Shapers** — they change story boundaries, ownership, or sequencing. Ask
+   after the blockers are resolved.
+3. **Deferables** — wording, secondary personas, later phases. Note them and
+   move on.
 
-- Do not ask questions already answerable from source material.
-- Do not invent answers; if the user does not know, mark the item as [BLOCKED].
-- Do not rewrite the Epic during interview mode.
+For each question, say why it matters and what it changes. Keep it to one
+screen; if you have ten questions, most are probably answerable from the
+sources.
 
-## Question Prioritization
+## How to behave
 
-Ask up to 10 targeted questions, but **do not ask all at once**. Ask in
-waves, waiting for answers before proceeding to the next wave:
+- Prefer “unknown” over a confident guess; mark inferred answers as inferred.
+- Surface contradictions instead of silently choosing one side.
+- If the user does not know, record it as blocked with who can answer.
+- Stop when the next question would not change the plan.
 
-### Wave 1 — Critical blockers (must answer before drafting)
-Ask these first. Do not proceed to Wave 2 until these are answered.
-Typically 2-5 questions that affect:
-- scope
-- user impact
-- acceptance criteria
-- permissions / roles
+## Output
 
-### Wave 2 — Important clarifiers (should answer before finalizing)
-Ask after Wave 1 answers are integrated. These may depend on Wave 1
-answers. Typically 3-5 questions that affect:
-- edge cases
-- validation rules
-- non-functional expectations
-- dependencies
-- rollout or migration concerns
+```
+**Questions**
+1. <question> — why: <what changes>
 
-### Wave 3 — Nice-to-have refinements (can defer)
-Ask only if Wave 1 and 2 are resolved and time allows. These can be
-deferred to a future phase. Typically 1-3 questions that affect:
-- naming or wording preferences
-- secondary persona details
-- future-phase considerations
+**Blocked**
+- <item> — needs <owner / decision>
 
-If the user prefers to see all questions at once, they may ask you to
-skip the wave structure. Otherwise, always present one wave at a time.
+**Resolved**
+- <answer integrated into the assumptions>
+```
 
-## Response States
+When the blockers are closed, say the Epic is ready to draft and return the
+updated assumptions to the caller. Do not invent a verdict beyond that.
 
-Every response must clearly label one of:
+## Self-check
 
-| State | When to use |
-|---|---|
-| **QUESTIONS_PENDING** | Questions asked; awaiting user answers |
-| **PARTIALLY_RESOLVED** | Some answers received; a few blockers remain |
-| **RESOLVED** | All critical blockers answered; Epic drafting can proceed |
-
-Label the state at the top of every response.
-
-## Required Workflow
-
-### Phase 1 — Triage
-Review the source synthesis, missing-information list, and contradiction list.
-Rank gaps by impact on scope, acceptance, and safety.
-
-### Phase 2 — Question Set (Wave 1)
-Produce the critical blocker questions only. Keep each question concise
-and self-contained. State why each question matters. Present them and
-wait for answers.
-
-Example (Wave 1):
-> **Q1 (scope):** Does "export" cover CSV as well, or PDF only?
-> *Why: changes the AC count and how the work splits into stories.*
-
-### Phase 3 — Collect, Integrate, and Continue
-As answers arrive:
-- Update the synthesis with resolved items.
-- Mark unresolved items as [BLOCKED] with the reason.
-- If new contradictions emerge from answers, surface them and ask again.
-- Once Wave 1 is resolved, present Wave 2 (important clarifiers).
-- Once Wave 2 is resolved, present Wave 3 (nice-to-have) if applicable.
-
-### Phase 4 — Resolution Declaration
-When all critical blockers are answered, declare RESOLVED and return to the
-caller. If called from epic-composer, it will continue at Phase 4 (Epic Draft).
-
-## Quality Bar (Self-Check Before Closing)
-
-- Did I avoid asking anything the sources already answer?
-- Did I surface every known contradiction?
-- Are all critical blockers either resolved or explicitly [BLOCKED]?
-- Did I avoid drafting the Epic?
-- Is the updated synthesis consistent?
-
-If any answer is "no" — continue the interview or escalate the blocker.
+- Did every question have a consequence for scope, stories, or acceptance?
+- Did I leave the Epic draft untouched?
+- Are the remaining unknowns visible and owned?

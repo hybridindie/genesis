@@ -1,51 +1,43 @@
 <!--
-  review-checkpoint.md — Shared stakeholder-review pattern
-  Referenced by: epic-composer Phase 6, story-decomposer Phase 6
-  version: 1.0.0, owner: John D
-  Single source of truth for the present → ask → incorporate → declare-or-loop
-  pattern previously duplicated as Phase 6 in both skills.
+  review-checkpoint.md — optional stakeholder-review pattern
+  Referenced by: docs and any skill that wants a review step
+  version: 2.0.0, owner: John D
+  Present → ask → incorporate → loop. Use it when the user wants a checkpoint;
+  it is not a mandatory phase.
 -->
 
-# Stakeholder Review Checkpoint
+# Stakeholder Review Checkpoint (optional)
 
-Before declaring work final, present it to the user for review. This step is
-not skippable.
+Before calling the work final, put the draft in front of the user.
 
 ## The pattern
 
-1. **Present** the artifact and its quality assessment to the user.
-2. **Ask** a focused set of review questions.
-3. **Incorporate** the feedback.
-4. **Declare final, or loop back** to an earlier phase if the feedback
-   introduces new gaps or changes.
+1. **Present** the artifact and the decisions behind it.
+2. **Ask** a small, focused set of review questions.
+3. **Incorporate** the answers.
+4. **Finish, or loop back** if the feedback changes the outcome, scope, or
+   acceptance.
 
 ## What to present
 
-- The complete draft (Epic or story backlog, as applicable).
-- The readiness assessment with dimension scores.
-- Any remaining [PROVISIONAL] or [BLOCKED] items.
-- A summary of what was inferred vs. explicitly stated in sources.
+- The draft itself (Epic body, story issues, task checklist).
+- The parallel plan: waves, the shared contract, ownership, and what can be
+  dispatched today.
+- Anything inferred, unknown, or blocked, and who owns it.
 
-## What to ask (minimum set)
+## What to ask
 
-- Does the draft accurately reflect the intended scope?
-- Are there corrections to the problem statement, outcomes, or stories?
-- Are the acceptance criteria correct and complete?
-- Are the [BLOCKED] items acceptable to defer, or must they be resolved?
+- Does the outcome match what you intend?
+- Are the acceptance criteria right and complete?
+- Are the wave boundaries and file ownership correct for how you will
+  dispatch the work?
+- Which open items can we defer, and which must be resolved?
 
-A skill may add skill-specific questions on top of this minimum set.
+## When to loop
 
-## Loop-back rules
+- New scope or a changed outcome → return to shaping the Epic.
+- A story is still ambiguous → return to story decomposition.
+- The parallel plan has overlapping ownership → fix the contract or split the
+  story before dispatch.
 
-- If the user confirms and the readiness assessment scores ready → declare
-  the final state.
-- If the user's feedback introduces new gaps → loop back to the gap-closing
-  phase (e.g. epic-composer Phase 3, which invokes interview mode).
-- If the user requests changes to the draft → loop back to the drafting phase.
-
-## How callers use this file
-
-- `epic-composer` Phase 6 applies this before declaring FINAL_EPIC.
-- `story-decomposer` Phase 6 applies this before declaring
-  READY_FOR_IMPLEMENTATION.
-- Both keep their own final-state label; the checkpoint pattern is shared.
+Skills may add their own questions; keep the set short and decide.

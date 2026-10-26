@@ -6,8 +6,8 @@ into a target project.
 
 This one flow backs every entry point:
 
-- `/bootstrap-harness` — Claude Code & Opencode slash command (interactive, run from the target project)
-- `install-harness` — Claude Code / Copilot agent (same flow, autonomous via @mention)
+- `/bootstrap-harness` — Claude Code / OpenCode slash command (interactive, run from the target project)
+- `install-harness` — Claude Code agent (same flow, autonomous via @mention)
 - `install.sh` — non-interactive shortcut (fetch + auto-detect render, no interview)
 
 The flow: **locate/fetch genesis → identify target → discover stack → review plan
@@ -163,14 +163,16 @@ to strip `{{#FLAG}}…{{/FLAG}}` blocks when a flag is `no`.
 ```bash
 # 1. Zero orphaned placeholders (must print 0)
 grep -ro '{{[A-Z_]*}}' "$TARGET" | wc -l
-# 2. Copilot mirrors present with frontmatter
-python3 "$GENESIS/templates/scripts/generate-copilot-mirrors.py" "$TARGET"
-# 3. Hooks parse without syntax errors
+# 2. Rule index rows match the rendered rules
+test "$(find "$TARGET/.claude/rules" -name '*.md' -not -path '*/doctrine/*' | wc -l)" \
+   -eq "$(grep -c '^| `\.claude/rules/' "$TARGET/AGENTS.md")"
+# 3. OpenCode mirrors regenerate cleanly (body-identical)
+python3 "$GENESIS/templates/scripts/generate-harness-mirrors.py" "$TARGET"
+# 4. Hooks parse without syntax errors
 find "$TARGET/.claude/hooks" -name '*.sh' -exec bash -n {} \;
-# 4. Key files present
+# 5. Key files present
 test -f "$TARGET/CLAUDE.md" && test -f "$TARGET/AGENTS.md" \
-  && test -f "$TARGET/.github/copilot-instructions.md" \
-  && test -d "$TARGET/.claude/rules/backend" && test -d "$TARGET/.opencode/skills"
+  && test -d "$TARGET/.claude/rules" && test -d "$TARGET/.opencode/skills"
 ```
 
 If placeholders remain, list the files and missing substitutions — that is a bug
@@ -222,11 +224,11 @@ here is simply its first pass.
 ✅ Harness installed in: <TARGET>
 
 Created:
-  CLAUDE.md, AGENTS.md
-  .claude/rules/ (<N>), .claude/agents/ (<N>), .claude/commands/ (<N>)
-  .github/instructions/ (<N>), .github/agents/ (<N>), .github/prompts/ (<N>), copilot-instructions.md
-  .opencode/skills/ (<N>)
-  docs/harness-eval.md (evaluation prompt for /harness-eval)
+  AGENTS.md (canonical, with generated rule index), CLAUDE.md (thin import)
+  .claude/rules/ (<N>), .claude/agents/ (<N>), .claude/commands/ (<N>), .claude/skills/ (<N>)
+  .opencode/{agents,commands,skills}/ (mirrored)
+  my-workflows.md, docs/harness-eval.md
+  No .github/ (projects own their CI)
 
 Next steps:
   1. cd <TARGET>
@@ -260,7 +262,7 @@ Update plan:
   ~ <N> rule files refreshed from source
   ~ <N> agents regenerated
   ~ <N> commands regenerated
-  ~ Copilot mirrors (.github/instructions/, agents/, prompts/) regenerated
+  ~ OpenCode mirrors (.opencode/agents, .opencode/commands) regenerated
   ! Any manual edits to generated files will be overwritten
 ```
 
