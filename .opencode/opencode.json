@@ -45,10 +45,5 @@
       "description": "Evaluate the installed harness against the project's actual stack.",
       "template": "Read and follow the complete evaluation prompt at docs/harness-eval.md.\n\nThat file is the canonical evaluation workflow. Follow all five phases: stack discovery, stack-fit evaluation, trim, suggest missing rules, and report. Present the plan before executing any edits.\n\n$ARGUMENTS"
     }
-  },
-  "watcher": {
-    "ignore": [
-      ".obsidian/**"
-    ]
   }
 }
