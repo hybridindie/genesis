@@ -19,6 +19,14 @@ jobs:
       - name: Scan tracked files for secrets
         run: python3 templates/claude-code/.claude/hooks/check-secrets.py --all
 
+      - name: Typecheck local OpenCode plugin
+        run: |
+          cd .opencode
+          npm ci --ignore-scripts --silent
+          npx --yes -p typescript@5.9.3 tsc --noEmit --skipLibCheck \
+            --moduleResolution bundler --module esnext --target es2022 \
+            plugins/warn-pointer-edit.ts
+
       - name: Install shell
         run: sudo apt-get update -qq && sudo apt-get install -y -qq zsh
 
