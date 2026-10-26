@@ -396,10 +396,10 @@ if [[ -d "$TEMPLATES_DIR/_shared/skills" ]]; then
     sname=$(basename "$skill_dir")
     for dest in ".claude/skills" ".opencode/skills"; do
       mkdir -p "$OUTPUT_DIR/$dest/$sname"
-      for src in "$skill_dir"*; do
-        [[ -f "$src" ]] || continue
-        substitute_placeholders "$src" "$OUTPUT_DIR/$dest/$sname/$(basename "$src")"
-      done
+      while IFS= read -r src; do
+        rel="${src#$skill_dir}"
+        substitute_placeholders "$src" "$OUTPUT_DIR/$dest/$sname/$rel"
+      done < <(find "$skill_dir" -name '__pycache__' -prune -o -type f -print | sort)
     done
   done
 fi
@@ -410,10 +410,10 @@ if [[ -d "$TEMPLATES_DIR/_shared/profiles/$PROFILE/skills" ]]; then
     sname=$(basename "$skill_dir")
     for dest in ".claude/skills" ".opencode/skills"; do
       mkdir -p "$OUTPUT_DIR/$dest/$sname"
-      for src in "$skill_dir"*; do
-        [[ -f "$src" ]] || continue
-        substitute_placeholders "$src" "$OUTPUT_DIR/$dest/$sname/$(basename "$src")"
-      done
+      while IFS= read -r src; do
+        rel="${src#$skill_dir}"
+        substitute_placeholders "$src" "$OUTPUT_DIR/$dest/$sname/$rel"
+      done < <(find "$skill_dir" -name '__pycache__' -prune -o -type f -print | sort)
     done
   done
 fi

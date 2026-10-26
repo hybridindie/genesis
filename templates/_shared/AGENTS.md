@@ -140,7 +140,7 @@ Run `/preflight` before pushing; never bypass a hook.
 ### Commands
 
 `/preflight`, `/start-session`, `/end-session`, `/fix`, `/migration-check`,
-`/harness-eval`, `/graphify`.
+`/harness-eval`, `/graphify`, `/ship-pr`.
 
 ### Skills
 

@@ -26,6 +26,12 @@
   ],
   "command_entries": [
     {
+      "title": "Ship PR",
+      "source_file": "ship-pr.md",
+      "claude_dir": ".claude/commands",
+      "opencode_dir": ".opencode/commands"
+    },
+    {
       "title": "Preflight",
       "source_file": "preflight.md",
       "claude_dir": ".claude/commands",

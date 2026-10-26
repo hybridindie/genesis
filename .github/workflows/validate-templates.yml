@@ -163,6 +163,9 @@ jobs:
           for f in AGENTS.md CLAUDE.md .claude/settings.json .opencode/opencode.json \
                    .claude/rules/architecture.md .claude/rules/testing.md \
                    .claude/commands/graphify.md .opencode/commands/graphify.md \
+                   .claude/commands/ship-pr.md .opencode/commands/ship-pr.md \
+                   .claude/skills/ship-pr/SKILL.md .opencode/skills/ship-pr/SKILL.md \
+                   .claude/skills/ship-pr/scripts/watch_pr.py \
                    .claude/hooks/check-primitive-drift.sh \
                    .claude/skills/customize-harness/SKILL.md \
                    .opencode/skills/customize-harness/SKILL.md; do

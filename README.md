@@ -76,6 +76,7 @@ Both commands are idempotent and edit the rendered harness in place.
 - `.opencode/{commands,agents,skills}/` — mirrored from the Claude sources
 - `my-workflows.md` — your cross-project conventions (loaded automatically)
 - `docs/harness-eval.md` — the evaluation prompt
+- `/ship-pr` — open/watch/triage a PR and merge with `--merge` once green
 - **no `.github/`** — projects own their CI workflows
 
 ## Context, not a rule dump
