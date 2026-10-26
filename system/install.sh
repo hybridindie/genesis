@@ -218,6 +218,7 @@ install_shell() {
   for f in zshenv zprofile zshrc; do
     install_file "$SELF_DIR/shell/$f" "$TARGET_HOME/.config/zsh/$f"
   done
+  install_file "$SELF_DIR/shell/README.md" "$TARGET_HOME/.config/zsh/README.md"
   for f in "$SELF_DIR"/shell/conf.d/*.zsh; do
     [[ -e $f ]] || continue
     base=$(basename "$f")
