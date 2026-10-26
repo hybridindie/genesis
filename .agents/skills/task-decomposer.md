@@ -35,8 +35,12 @@ The checklist lives inside the story issue, not in separate task issues.
    and AC.
 6. **Add integration.** One final task merges the tracks and runs the story-level
    end-to-end check.
-7. **Validate the block.** Confirm every task has a verify step, every track has a
-   disjoint ownership set, and every task traces to an AC or a prerequisite.
+7. **Validate the block.** Write the block to a temporary file and run:
+   ```bash
+   python3 .agents/scripts/validate_artifact.py --kind task "$task_file"
+   ```
+   Confirm every task has a verify step, every track has a disjoint ownership set,
+   and every task traces to an AC or a prerequisite. Stop on `FAIL`.
 8. **Emit the block.** Append the shell output under the story's `**Tasks**`
    section. Do not create task issues.
 

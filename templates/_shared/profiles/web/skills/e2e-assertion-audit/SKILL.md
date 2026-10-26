@@ -27,29 +27,19 @@ confidence gap. Do not edit tests unless asked.
 
 ## Deterministic Steps
 
-1. **No-op assertions.** Run:
+1. **Scan once.**
    ```bash
-   rg -n 'expect\(true\)\.toBe\(true\)|assert 1 == 1|toBeDefined\(\)|toBeTruthy\(\)' \
-     tests/e2e 2>/dev/null || true
+   python3 .claude/skills/e2e-assertion-audit/scripts/scan.py tests/e2e
    ```
-2. **Permissive status/shape checks.** Run:
-   ```bash
-   rg -n 'toBeLessThan\(500\)|toBeGreaterThanOrEqual\(200\)|toContain\("a"\)|expect\([^)]*\)\.toBeTruthy' \
-     tests/e2e 2>/dev/null || true
-   ```
-3. **Fragile selectors.** Run:
-   ```bash
-   rg -n 'click\("button"\)|fill\("input"|locator\("text=|getByText\(' \
-     tests/e2e 2>/dev/null || true
-   ```
-4. **Missing negative cases.** For each journey file, list the tested actions and
+   The script owns the no-op, permissive, and fragile-selector patterns.
+2. **Missing negative cases.** For each journey file, list the tested actions and
    check whether there is at least one rejection, unauthorized, empty, or failure
    assertion. Use `rg -n 'unauthorized|forbidden|404|422|error|invalid' tests/e2e 2>/dev/null || true`.
-5. **Triage each hit** as:
+3. **Triage each hit** as:
    - `ERROR` — the assertion can pass without validating the feature.
    - `WARNING` — it may be too permissive or fragile.
    - `CLEAN` — specific and intentional.
-6. **Emit the report** with a concrete replacement per finding.
+4. **Emit the report** with a concrete replacement per finding.
 
 ## LLM Judgment
 

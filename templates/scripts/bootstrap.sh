@@ -310,7 +310,7 @@ render_harness() {
   local harness_dir="$1"
   local target_dir="$2"
   echo "Rendering $harness_dir -> $target_dir"
-  find "$harness_dir" -type f | while read -r src; do
+  find "$harness_dir" -name '__pycache__' -prune -o -type f ! -name '*.pyc' -print | while read -r src; do
     rel="${src#$harness_dir/}"
     dst="$target_dir/$rel"
     substitute_placeholders "$src" "$dst"

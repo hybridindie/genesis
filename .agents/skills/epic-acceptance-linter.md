@@ -19,8 +19,9 @@ replacements; do not rewrite the whole document.
 
 ## Deterministic Steps
 
-1. **Extract criteria.** Select every line matching `AC\d+` or every item under
-   the acceptance-criteria heading. Preserve their labels.
+1. **Extract criteria.** Run
+   `python3 .agents/scripts/validate_artifact.py --kind acceptance <artifact>`;
+   use its `ACn` labels and text. Stop if it reports no criteria.
 2. **Run the fixed checklist** on each criterion:
    - observable by a user, operator, or test;
    - testable with a clear pass/fail;

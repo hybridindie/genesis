@@ -10,8 +10,9 @@ planning, and semantic judgment.
    Do not guess a path or ask for something a probe can answer.
 2. **Read narrowly.** Open only the files listed under `Inputs`; use the named
    `rg` patterns instead of listing or reading a directory.
-3. **Run the mechanical steps.** Execute the fixed commands in order. Scripts,
-   templates, and checks own discovery, scaffolding, parsing, and validation.
+3. **Run the mechanical steps.** Execute the fixed commands in order. If a step
+   can be a script, it must be a script: scripts own discovery, scaffolding,
+   parsing, searching, and validation. Prose instructions are not deterministic.
 4. **Use the LLM zone.** Only after the deterministic inputs are assembled:
    synthesize, resolve ambiguity, choose trade-offs, plan, and review meaning.
 5. **Validate before emitting.** Run the skill's validation command. A failed

@@ -70,6 +70,8 @@ def check_body(path: Path, rel: Path) -> list[str]:
     steps = sections.get("## Deterministic Steps", "")
     if steps and "`" not in steps:
         errors.append(f"{rel}: Deterministic Steps must name a command/path in backticks")
+    if steps and not re.search(r"\b(?:python3|bash)\b", steps):
+        errors.append(f"{rel}: Deterministic Steps must invoke a script or shell command")
     budget = sections.get("## Token Budget", "")
     if budget and not re.search(r"\d", budget):
         errors.append(f"{rel}: Token Budget must state a numeric limit")
