@@ -40,6 +40,21 @@ Safety rules:
 - `~/.gitconfig` is never rewritten: the installer only appends an `[include]`
   for `~/.config/system/gitconfig` when it is absent.
 
+### One writer per path
+
+The installer writes regular files. If `$HOME/.zshenv`,
+`$HOME/.claude/settings.json` or another target is a symlink into a separate
+dotfiles repo, it keeps the link unless the content differs; `--force` then
+backs up and replaces the link with a regular file. Pick one owner per path —
+either this installer or the dotfiles links — and keep machine-only values in
+`conf.d/99-local.zsh` or the dotfiles overlay. Do not run both update paths over
+the same file.
+
+Project configs carry the portable permission baseline; the machine-level
+OpenCode/Claude configs add the global denies (SSH, cloud credentials, `.env`).
+OpenCode appends global permissions before project permissions, so the machine
+rules remain the outer guardrail.
+
 ## Platforms
 
 macOS and Linux. Homebrew is detected at `/opt/homebrew` or

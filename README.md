@@ -89,11 +89,14 @@ Both commands are idempotent and edit the rendered harness in place.
 The harness ships deterministic gates; none of them add context at session start.
 
 - **`pre-commit`** scans the staged diff for credentials, forbidden skips/xfails,
-  and project drift. **`pre-push`** scans tracked files and runs `make check`
-  when the project defines it.
+  and project drift. **`pre-push`** scans the whole tree and runs `make check`
+  when the project defines it. Both are thin wrappers over
+  `.claude/hooks/guardrails.sh`; CI calls the same script with `--ci`.
 - **`check-project-drift.py`** verifies that `AGENTS.md` still matches the tree:
   rule index, command and skill lists, Claude/OpenCode mirrors, thin `CLAUDE.md`,
   the profile's rule set, and the Python version in `pyproject.toml`.
+  `check-primitive-drift.sh` covers the complementary part: the mirrored command
+  and agent bodies must be identical, not just present.
 - **CI** runs the drift gate, the secret scan, and the profile's lint/type/test
   jobs. The generated workflow is skipped if the project already has one.
 - Git hooks are per-clone: run `bash .claude/hooks/install-git-hooks.sh` once

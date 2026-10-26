@@ -74,6 +74,12 @@ bootstrap.sh        → render (deterministic: placeholders, overlays, condition
 | Project rules (`Articles I–X`, agents, commands, skills) | target repo | this repo, rendered by `bootstrap.sh` |
 | Project-specific tailoring | target repo | the project (never edit `templates/`) |
 
+One path, one writer: if a private dotfiles repo symlinks `~/.zshenv`,
+`~/.claude/settings.json`, `~/.local/bin/zed-wait` or the shared git config, do
+not also update the same path from this installer. Choose the installer or the
+dotfiles links, and keep machine-only values in `99-local.zsh` / the dotfiles
+overlay.
+
 ## Updating
 
 ```bash

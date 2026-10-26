@@ -33,9 +33,9 @@ each repo's `AGENTS.md` and win where they overlap. Rendered by
 ## Config version control
 
 - System config (shell, agent rules, git defaults) is rendered from the genesis
-  repo by `system/install.sh`; keep the rendered copies as the machine source of
-  truth and re-run the installer to adopt upstream changes. A private dotfiles
-  repo may track machine state on top.
+  repo by `system/install.sh`; the rendered copies are what the machine runs, and
+  the installer re-applies upstream changes. A private dotfiles repo may track
+  machine state, but it must not symlink the same paths — one writer per path.
 - Machine-specific values belong in `conf.d/98-machine.zsh` / `99-local.zsh`;
   never fork a numbered module for a local tweak.
 - Never commit secrets: `.env` files, `~/.claude.json`, provider tokens, or

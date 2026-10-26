@@ -47,6 +47,7 @@ SKIP_NAMES = {
     "poetry.lock",
 }
 SKIP_SUFFIXES = {".lock", ".min.js", ".map", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".pdf", ".zip"}
+MAX_BYTES = 1_000_000
 ALLOW = re.compile(
     r"allowlist secret|gitleaks:allow|pragma: allowlist secret|nosec",
     re.IGNORECASE,
@@ -78,6 +79,8 @@ PATTERNS = [
 
 def is_text(path: Path) -> bool:
     try:
+        if path.stat().st_size > MAX_BYTES:
+            return False
         chunk = path.read_bytes()[:8192]
     except OSError:
         return False
@@ -130,6 +133,8 @@ def read_staged(path: str) -> str | None:
             ["git", "show", f":{path}"], stderr=subprocess.DEVNULL
         )
     except (OSError, subprocess.CalledProcessError):
+        return None
+    if len(out) > MAX_BYTES:
         return None
     try:
         return out.decode("utf-8")

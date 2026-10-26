@@ -7,6 +7,10 @@ nothing else should be edited in `$HOME`.
 Edit the source here and re-run the installer. Review with `--diff` first;
 adopt with `--force` (timestamped backups).
 
+Do not also symlink these files from a separate dotfiles repo. The installer and
+a dotfiles `restow.sh` would be two writers for the same path; pick one owner.
+`99-local.zsh` is the intended place for machine-only tweaks.
+
 ## Layers
 
 | File | Loaded by | Contents |

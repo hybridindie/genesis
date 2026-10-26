@@ -478,13 +478,6 @@ import sys
 from pathlib import Path
 
 out, profile, name, slug, backend, frontend, py, fastapi, react, ts, vite, pkg_b, pkg_f = sys.argv[1:]
-jobs = {
-    "mcp": ["guardrails", "lint", "types", "tests"],
-    "python": ["guardrails", "lint", "types", "tests"],
-    "agent": ["guardrails", "lint", "types", "tests"],
-    "web": ["guardrails", "backend", "frontend"],
-    "godot": ["guardrails", "gdscript"],
-}
 manifest = {
     "schema": 1,
     "profile": profile,
@@ -499,7 +492,6 @@ manifest = {
     "vite_version": vite,
     "package_manager_backend": pkg_b,
     "package_manager_frontend": pkg_f,
-    "ci_jobs": jobs.get(profile, ["validate"]),
     "generated_by": "templates/scripts/bootstrap.sh",
 }
 path = Path(out) / ".claude" / "harness.json"

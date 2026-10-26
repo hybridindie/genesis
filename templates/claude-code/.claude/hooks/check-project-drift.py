@@ -3,7 +3,8 @@
 
 This is a deterministic, low-context gate: it reads the small
 `.claude/harness.json` manifest plus the files it names, and prints only drift.
-It does not ask a model to judge prose.
+It does not ask a model to judge prose. The template-source counterpart is
+`templates/scripts/check-harness-sync.py`; this file validates a deployed project.
 
 Checks:
   1. The manifest is present, valid, and its profile matches the rule files.
@@ -312,6 +313,8 @@ class Drift:
             ".claude/hooks/check-project-drift.py",
             ".claude/hooks/check-secrets.py",
             ".claude/hooks/check-no-skipped-tests.sh",
+            ".claude/hooks/check-primitive-drift.sh",
+            ".claude/hooks/guardrails.sh",
             ".claude/hooks/install-git-hooks.sh",
             ".githooks/pre-commit",
             ".githooks/pre-push",

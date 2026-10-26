@@ -207,7 +207,8 @@ jobs:
                    .claude/skills/ship-pr/scripts/watch_pr.py \
                    .claude/hooks/check-primitive-drift.sh \
                    .claude/hooks/check-project-drift.py .claude/hooks/check-secrets.py \
-                   .claude/hooks/install-git-hooks.sh .claude/harness.json \
+                   .claude/hooks/guardrails.sh .claude/hooks/install-git-hooks.sh \
+                   .claude/harness.json \
                    .githooks/pre-commit .githooks/pre-push \
                    .github/workflows/ci.yml \
                    .claude/skills/customize-harness/SKILL.md \

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Cross-Harness Policy Checker — validates that the Claude and OpenCode harnesses
-remain consistent with the single source of truth (mirror-pairs.json).
+Cross-Harness Policy Checker — validates that a freshly rendered harness matches
+the template sources and mirror-pairs.json. This is the genesis-source check; the
+deployed-project counterpart is .claude/hooks/check-project-drift.py.
 
 Checks:
   1. Every source article declares read_when

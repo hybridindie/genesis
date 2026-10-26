@@ -1,29 +1,7 @@
 #!/usr/bin/env bash
-# Fast, local guardrails. Silent on success; the CI jobs run the full suite.
+# Fast local gate. The checks live in .claude/hooks/guardrails.sh so the
+# pre-commit, pre-push and CI paths cannot drift apart.
 set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
-cd "$ROOT"
-
-fail() {
-  echo "pre-commit: $1" >&2
-  exit 1
-}
-
-# 1. No credentials in the staged diff.
-if [[ -f .claude/hooks/check-secrets.py ]]; then
-  python3 .claude/hooks/check-secrets.py --staged --quiet || fail "secret scan failed"
-fi
-
-# 2. No new skips/xfails.
-if [[ -f .claude/hooks/check-no-skipped-tests.sh ]]; then
-  if ! output=$(bash .claude/hooks/check-no-skipped-tests.sh 2>&1); then
-    printf '%s\n' "$output" >&2
-    fail "suite-health scan failed"
-  fi
-fi
-
-# 3. AGENTS.md, rule index, mirrors and versions still describe the project.
-if [[ -f .claude/hooks/check-project-drift.py ]]; then
-  python3 .claude/hooks/check-project-drift.py --quiet || fail "project drift"
-fi
+exec bash "$ROOT/.claude/hooks/guardrails.sh" --staged

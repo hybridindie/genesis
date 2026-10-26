@@ -20,7 +20,7 @@ agents reference this file instead of restating the gates.
 | Constitution Checker | `{{BACKEND_PATH}}/scripts/check-constitution.py` | Structure violations |
 | Test Coverage | CI coverage report | Below tier minimums |
 | Suite Health | `.claude/hooks/check-no-skipped-tests.sh` + CI | Any forbidden skip pattern or failing/erroring test |
-| Agent/Rule Drift | `.claude/hooks/check-agent-drift.sh` + PreToolUse hook | Any stack version claim that contradicts `AGENTS.md` |
+| Agent/Rule Drift | `.claude/hooks/check-project-drift.py` + `.githooks/pre-commit` + CI | Any stack version, rule index, command or mirror that contradicts the tree |
 | Type Check | pyright/mypy | New type errors |
 | Lint | ruff | Lint errors |
 | Security | bandit / dependency audit | High severity unresolved |

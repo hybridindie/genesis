@@ -99,7 +99,7 @@ backup() {
 }
 
 install_file() { # <src> <dst> [generated]
-  local src=$1 dst=$2 mode=${3:-normal} tmp shown
+  local src=$1 dst=$2 mode=${3:-normal} tmp shown target
   tmp=$(mktemp "${TMPDIR:-/tmp}/genesis.XXXXXX")
   render "$src" "$tmp"
   shown=$(display "$dst")
@@ -113,6 +113,22 @@ install_file() { # <src> <dst> [generated]
     fi
   elif cmp -s -- "$tmp" "$dst" 2>/dev/null; then
     say "unchanged $shown"
+  elif [[ -L $dst ]]; then
+    target=$(readlink "$dst")
+    if (( FORCE )) || [[ $mode == generated ]]; then
+      if (( DIFF_ONLY )); then
+        say "would replace symlink $shown -> $target with a regular file"
+        diff -u -- "$dst" "$tmp" || true
+      else
+        say "warning: $shown is a symlink -> $target; replacing it with a regular file"
+        backup "$dst"
+        cp -- "$tmp" "$dst"
+        say "updated $shown"
+      fi
+    else
+      say "differs (symlink kept) $shown -> $target — reconcile the link target or re-run with --force"
+      if (( DIFF_ONLY )); then diff -u -- "$dst" "$tmp" || true; fi
+    fi
   elif (( FORCE )) || [[ $mode == generated ]]; then
     if (( DIFF_ONLY )); then
       say "would update $shown"
