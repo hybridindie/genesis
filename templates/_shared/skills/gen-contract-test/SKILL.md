@@ -1,6 +1,10 @@
 ---
 name: gen-contract-test
-description: Generate a contract test skeleton for a backend or frontend service following TDD Article III
+description: Scaffold one contract test for a backend or frontend service, then confirm the RED phase.
+when_to_use: >
+  Run when adding a contract test before implementation. Trigger phrases:
+  "generate a contract test", "scaffold the API test", "add a service contract
+  test", "start TDD for this endpoint".
 user-invocable: true
 disable-model-invocation: true
 arguments:
@@ -14,122 +18,74 @@ arguments:
 
 # Generate Contract Test
 
-Scaffold a contract test that follows the project's TDD mandate (Article III) and existing test patterns.
+<!--
+  contract: .claude/rules/doctrine/skill-execution.md
+  version: 2.0.0, owner: John D
+-->
 
-## Steps
+Scaffold one contract test with the skill's deterministic asset, then run it to
+prove the RED phase. The model chooses the contract cases; the script owns paths
+and boilerplate.
 
-### 1. Identify the target
+## Inputs
 
-Based on the `target` argument, locate the service/module:
-- **Backend**: Search `{{BACKEND_PATH}}/src/libs/` and `{{BACKEND_PATH}}/app/` for the matching service, router, or module.
-- **Frontend**: Search `{{FRONTEND_PATH}}/src/services/` and `{{FRONTEND_PATH}}/src/contracts/` for the matching service interface.
+- Required: `target`; optional `stack` (`backend` default, or `frontend`).
+- Read: the target's public surface and one existing contract test for style.
+- Do not read: the whole test suite, implementation internals, or unrelated
+  modules.
 
-Read the target's source code to understand its public API surface.
+## Deterministic Steps
 
-### 2. Check for existing tests
+1. **Normalize.** `STACK="${stack:-backend}"`; accept only `backend` or
+   `frontend`.
+2. **Locate the target.** Use `rg -n` for the service/router/module in the
+   stack's source root; record the exact file and public methods.
+3. **Check existing coverage.** Run
+   `rg -n "<target>" {{BACKEND_PATH}}/tests/contract {{FRONTEND_PATH}}/tests/contract 2>/dev/null || true`.
+   If the same contract exists, report it and scaffold only uncovered surface.
+4. **Choose the output path.**
+   - backend: `{{BACKEND_PATH}}/tests/contract/test_<target_snake>_contract.py`
+   - frontend: `{{FRONTEND_PATH}}/tests/contract/<target-kebab>-contract.test.ts`
+5. **Scaffold deterministically.**
+   ```bash
+   python3 .claude/skills/gen-contract-test/scripts/scaffold_contract.py \
+     --stack "$STACK" --target "<target>" --path "<route-or-module>" \
+     --method "<get|post|…>" --status "<expected>" --out "<output path>"
+   ```
+   The script refuses to overwrite an existing file.
+6. **Replace the TODO cases** with the contract surface: success schema,
+   validation error envelope, and auth requirement. Do not add skips.
+7. **Prove RED.** Run the stack's test command for that one file; the test must
+   fail for the missing behavior, not for a syntax/import error. Report the
+   failure output.
+8. **Report** the file path, cases added, and the RED result.
 
-Search `{{BACKEND_PATH}}/tests/contract/` or `{{FRONTEND_PATH}}/tests/contract/` for existing tests. Report what's covered and only scaffold uncovered endpoints.
+## LLM Judgment
 
-### 3. Scaffold the test file
+Use judgment only for:
 
-#### Backend (Python/pytest)
+- the endpoint/module contract and expected status codes;
+- valid/invalid payloads and auth cases;
+- the assertions that prove the envelope.
 
-Create `{{BACKEND_PATH}}/tests/contract/test_{target_snake_case}_contract.py`:
+Do not invent routes or implementation details.
 
-```python
-"""
-Contract test for {Target Description}
-Validates externally visible interface/schema boundary.
-"""
+## Output
 
-import pytest
-from fastapi import status
-from httpx import AsyncClient
+- The created test file path.
+- The RED-phase command and its failure summary.
+- Uncovered surface or an explicit “none”.
 
-pytestmark = pytest.mark.asyncio
+## Stop Conditions
 
+- Stop if the target cannot be located.
+- Stop if the output file already exists; do not overwrite it.
+- Stop if the test passes immediately (not RED) or fails on import/syntax.
+- Do not add `pytest.mark.skip`, `xfail`, `it.skip`, `.todo`, `xit`, or
+  `xdescribe`.
 
-class Test{TargetPascalCase}Contract:
-    """{Target} contract compliance tests"""
+## Token Budget
 
-    async def test_{endpoint}_success_response_schema(self, client: AsyncClient):
-        """Test successful response returns correct schema"""
-        response = await client.{method}("{path}", json={...})
-        assert response.status_code == status.HTTP_{EXPECTED}
-        data = response.json()
-        # Validate field presence and types for the success envelope.
-        ...
-
-    async def test_{endpoint}_validation_errors(self, client: AsyncClient):
-        """Test input validation returns Article IV error envelope"""
-        response = await client.{method}("{path}", json={invalid_input})
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-        data = response.json()
-        assert "error" in data
-        assert "code" in data["error"]
-        assert "message" in data["error"]
-
-    async def test_{endpoint}_unauthorized(self, client: AsyncClient):
-        """Test unauthenticated access returns 401"""
-        response = await client.{method}("{path}")
-        assert response.status_code == status.HTTP_401_UNAUTHORIZED
-        data = response.json()
-        assert "error" in data or "detail" in data
-```
-
-#### Frontend (TypeScript/Vitest)
-
-Create `{{FRONTEND_PATH}}/tests/contract/{target-kebab-case}-contract.test.ts`:
-
-```typescript
-/**
- * {Target} Contract Test - Constitutional Compliance
- * Tests {Target} interface compliance.
- *
- * CRITICAL: This test MUST FAIL initially (RED phase of TDD)
- */
-import { describe, it, expect, beforeEach } from 'vitest'
-
-describe('{Target} Contract Compliance', () => {
-  describe('Service Interface', () => {
-    it('should implement required methods', () => { ... })
-    it('should return correct response shape', async () => { ... })
-  })
-
-  describe('Error Handling Compliance', () => {
-    it('should handle invalid input gracefully', async () => { ... })
-    it('should handle network errors gracefully', async () => { ... })
-  })
-})
-```
-
-### 4. What to test in contract tests
-
-- Response schema shape — required fields, types, nesting
-- Status codes — correct HTTP codes for success, validation errors, auth errors
-- Error envelope format — Article IV compliance
-- Validation boundaries — missing required fields, invalid formats
-- Auth requirements — endpoints that need auth return 401 without it
-
-Do NOT include:
-- Internal implementation details
-- Database state verification
-- Performance assertions
-- Mocked behavior tests
-
-### 5. Verify the test fails (RED phase)
-
-After generating, run the test to confirm it fails:
-- Backend: `cd {{BACKEND_PATH}} && {{TEST_BACKEND_CMD}} tests/contract/test_{name}_contract.py -v`
-- Frontend: `cd {{FRONTEND_PATH}} && {{TEST_FRONTEND_CMD}} tests/contract/test-{name}-contract.test.ts`
-
-Report the failure output. This confirms the RED phase of TDD is working correctly.
-
-## Rules
-
-- One test class/describe block per service or endpoint group.
-- Test names describe the contract being validated, not the implementation.
-- Always include tests for: success schema, validation errors, and auth requirements.
-- **Never add `@pytest.mark.skip` or `@pytest.mark.xfail`.**
-- **Never add `it.skip`, `test.skip`, `describe.skip`, `.todo`, `xit`, or `xdescribe`.**
-- Follow existing naming: `test_{name}_contract.py` (backend), `{name}-contract.test.ts` (frontend).
+- Read the target and at most one existing contract test.
+- Do not list the whole test tree; use the named `rg` command.
+- Output ≤ 250 words plus the test file.

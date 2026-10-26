@@ -16,6 +16,7 @@ sessions — open it on demand when editing.
 - **Add a new agent**: add `.md` to `templates/_shared/agents/` (all profiles) or `profiles/<profile>/agents/`, and add an `agent_entries` entry in `mirror-pairs.json`.
 - **Add a new command**: add `.md` to `templates/_shared/commands/` (all profiles) or `profiles/<profile>/commands/`, and add a `command_entries` entry in `mirror-pairs.json`.
 - **Add shared doctrine**: add `.md` to `templates/_shared/doctrine/`, add a `doctrine_entries` entry in `mirror-pairs.json` (with `source_file` + `render_dir` = `.claude/rules/doctrine`). Doctrine is referenced by articles/agents, not mirrored.
+- **Skills are deterministic**: every body uses the six sections in `templates/_shared/doctrine/skill-execution.md` — Inputs, Deterministic Steps, LLM Judgment, Output, Stop Conditions, Token Budget. Run `python3 scripts/lint-skills.py` before committing; CI runs it too.
 - **Check for drift**: `bash .claude/hooks/check-primitive-drift.sh` in a rendered project (or run the cross-harness checker from the repo), then `python3 templates/scripts/check-harness-sync.py templates <rendered-project>`.
 - **Test a bootstrap**: `bash templates/scripts/bootstrap.sh --project-name Test --project-slug test --output-dir /tmp/test-harness`.
 

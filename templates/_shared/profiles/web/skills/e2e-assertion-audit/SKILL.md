@@ -1,58 +1,94 @@
 ---
 name: e2e-assertion-audit
-description: Scan E2E tests for no-op assertions and overly permissive checks that provide false confidence
+description: Scan E2E tests for no-op assertions, overly permissive checks, missing negative cases, and fragile selectors.
+when_to_use: >
+  Run before trusting an E2E suite or after adding a journey. Trigger phrases:
+  "audit e2e assertions", "find no-op tests", "check test confidence", "review
+  Playwright tests".
 user-invocable: true
 disable-model-invocation: true
 ---
 
 # E2E Assertion Audit
 
-Review E2E tests for assertions that pass without actually validating behavior.
+<!--
+  contract: .claude/rules/doctrine/skill-execution.md
+  version: 2.0.0, owner: John D
+-->
 
-## Anti-Patterns to Find
+Run fixed searches over `tests/e2e/**`, then judge whether each hit is a real
+confidence gap. Do not edit tests unless asked.
 
-### 1. No-Op Assertions
-- `expect(true).toBe(true)`
-- `assert 1 == 1`
-- `expect(page).toBeDefined()` (always true)
-- Assertions that don't exercise the feature under test
+## Inputs
 
-### 2. Overly Permissive Checks
-- `expect(text).toContain("a")` (matches almost anything)
-- `expect(response.status).toBeLessThan(500)` (accepts 404 as success)
-- `expect(data).toBeTruthy()` (accepts `{}`, `[]`, `true`)
-- `expect(error).toBeDefined()` (catches both success and error envelopes)
+- Required: the E2E test root (`tests/e2e/**` or the project's configured path).
+- Read: only the matching file and the surrounding assertion block.
+- Do not read: unit tests, production source, or unrelated repositories.
 
-### 3. Missing Negative Cases
-- No assertion that the wrong action is rejected
-- No assertion that data is NOT present when unauthorized
-- No assertion that the UI shows an error state
+## Deterministic Steps
 
-### 4. Fragile Selectors
-- `page.click("button")` (clicks first button, not the intended one)
-- `page.fill("input", ...)` (fills first input)
-- `expect(page.locator("text=Submit")).toBeVisible()` (may match multiple)
+1. **No-op assertions.** Run:
+   ```bash
+   rg -n 'expect\(true\)\.toBe\(true\)|assert 1 == 1|toBeDefined\(\)|toBeTruthy\(\)' \
+     tests/e2e 2>/dev/null || true
+   ```
+2. **Permissive status/shape checks.** Run:
+   ```bash
+   rg -n 'toBeLessThan\(500\)|toBeGreaterThanOrEqual\(200\)|toContain\("a"\)|expect\([^)]*\)\.toBeTruthy' \
+     tests/e2e 2>/dev/null || true
+   ```
+3. **Fragile selectors.** Run:
+   ```bash
+   rg -n 'click\("button"\)|fill\("input"|locator\("text=|getByText\(' \
+     tests/e2e 2>/dev/null || true
+   ```
+4. **Missing negative cases.** For each journey file, list the tested actions and
+   check whether there is at least one rejection, unauthorized, empty, or failure
+   assertion. Use `rg -n 'unauthorized|forbidden|404|422|error|invalid' tests/e2e 2>/dev/null || true`.
+5. **Triage each hit** as:
+   - `ERROR` — the assertion can pass without validating the feature.
+   - `WARNING` — it may be too permissive or fragile.
+   - `CLEAN` — specific and intentional.
+6. **Emit the report** with a concrete replacement per finding.
+
+## LLM Judgment
+
+Use judgment only for:
+
+- whether a selector is genuinely ambiguous in context;
+- whether a negative case is material to the journey;
+- the concrete replacement assertion.
+
+Do not invent tests or rewrite clean assertions.
 
 ## Output
 
-```
+```markdown
 ## E2E Assertion Audit
 
 ### No-Op Assertions
-- `tests/e2e/checkout.test.ts:45` — `expect(true).toBe(true)` after clicking pay. Assert on receipt page URL or confirmation text instead.
+- ERROR|WARNING `<file>:<line>` — <why> — replace with: <assertion>
 
-### Overly Permissive
-- `tests/e2e/login.test.ts:32` — `expect(response.status).toBeLessThan(500)` accepts 401 as "success". Assert exact status: `expect(response.status).toBe(200)`.
+### Permissive Checks
+- …
 
 ### Missing Negative Cases
-- `tests/e2e/admin.test.ts` — No test that non-admin user is redirected. Add: `await page.goto('/admin'); expect(page.url()).not.toContain('/admin')`.
+- `<file>` — missing <case> — add: <assertion>
 
 ### Fragile Selectors
-- `tests/e2e/signup.test.ts:12` — `page.click('button')` clicks wrong button. Use: `page.click('button[type="submit"]')` or `data-testid`.
+- …
+
+**Clean:** <file list or none>
 ```
 
-## Rules
+## Stop Conditions
 
-- Only audit E2E test files (`tests/e2e/**`).
-- Provide concrete replacement assertions.
-- If a test is clean, note it: "Clean: `tests/e2e/search.test.ts` has specific selectors and negative cases."
+- Stop if `tests/e2e/` does not exist; report the configured path instead.
+- Do not audit unit tests or production code.
+- Do not apply fixes without an explicit request.
+
+## Token Budget
+
+- Run the four searches once; no per-file rescans.
+- Open at most 20 assertion blocks.
+- Report ≤ 700 words; cite file:line and one replacement, not full files.

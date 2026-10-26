@@ -94,6 +94,10 @@
     {
       "source_file": "agent-routing-rules.md",
       "render_dir": ".claude/rules/doctrine"
+    },
+    {
+      "source_file": "skill-execution.md",
+      "render_dir": ".claude/rules/doctrine"
     }
   ]
 }

@@ -133,6 +133,7 @@ templates/
   opencode/             OpenCode config (instructions + v2 permissions)
   scripts/              bootstrap, rule index, mirrors, detection, conditionals
 new-project.sh          create a repo + render the harness
+scripts/lint-skills.py  enforce the deterministic skill contract
 SYSTEM.md               machine → project flow
 ```
 

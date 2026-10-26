@@ -2,40 +2,50 @@
 
 <!--
   Shared content — referenced by harness-specific SKILL.md wrappers.
-  version: 3.4.0, owner: John D
+  contract: templates/_shared/doctrine/skill-execution.md
+  version: 4.0.0, owner: John D
+  invokes: .agents/doctrine/source-discipline.md
   doctrine: .agents/doctrine/source-discipline.md
 -->
 
-You are running a short, high-value interview to unblock an Epic.
+Run a short interview that unblocks an Epic. Ask only questions whose answers
+change scope, stories, or acceptance. Do not draft or rewrite the Epic.
 
-Ask only the questions that change the plan. Do not re-ask what the sources
-already answer, and do not draft or rewrite the Epic here.
+## Inputs
 
-## What to ask
+- Required: the Epic draft, source paths, or problem statement under review.
+- Read: `.agents/doctrine/source-discipline.md` and the existing Epic if one exists.
+- Do not read: unrelated code or repositories.
 
-Rank gaps by what they block:
+## Deterministic Steps
 
-1. **Blockers** — without an answer, scope, actors, or acceptance cannot be
-   settled. Ask these first, in one small batch.
-2. **Shapers** — they change story boundaries, ownership, or sequencing. Ask
-   after the blockers are resolved.
-3. **Deferables** — wording, secondary personas, later phases. Note them and
-   move on.
+1. **Extract knowns.** Run `rg -n 'AC[0-9]+|Outcome|Scope|Constraint' <epic> 2>/dev/null || true` and
+   list the stated problem, actors, outcome, constraints, and existing decisions.
+2. **Classify every gap** as one of:
+   - **Blocker** — scope, actors, or acceptance cannot be settled.
+   - **Shaper** — changes story boundaries, ownership, or sequencing.
+   - **Deferrable** — wording, secondary personas, later phases.
+3. **Deduplicate.** Drop questions already answered by the sources or the Epic.
+4. **Order and cap.** Ask blockers first in one batch; ask at most five questions
+   total. For each, state the consequence: what changes if the answer is X or Y.
+5. **Record outcomes.** Mark each item resolved, blocked with an owner, or
+   deferred. Do not turn a guess into a fact.
+6. **Stop at the gate.** When no blocker remains, say the Epic is ready to draft
+   and return the updated assumptions.
 
-For each question, say why it matters and what it changes. Keep it to one
-screen; if you have ten questions, most are probably answerable from the
-sources.
+## LLM Judgment
 
-## How to behave
+Use judgment only for:
 
-- Prefer “unknown” over a confident guess; mark inferred answers as inferred.
-- Surface contradictions instead of silently choosing one side.
-- If the user does not know, record it as blocked with who can answer.
-- Stop when the next question would not change the plan.
+- deciding whether a gap is genuinely blocking;
+- spotting contradictions between sources;
+- phrasing a question so the answer is actionable.
+
+Do not invent requirements or answer on the user's behalf.
 
 ## Output
 
-```
+```markdown
 **Questions**
 1. <question> — why: <what changes>
 
@@ -46,11 +56,17 @@ sources.
 - <answer integrated into the assumptions>
 ```
 
-When the blockers are closed, say the Epic is ready to draft and return the
-updated assumptions to the caller. Do not invent a verdict beyond that.
+Use `None` under a heading when it is empty.
 
-## Self-check
+## Stop Conditions
 
-- Did every question have a consequence for scope, stories, or acceptance?
-- Did I leave the Epic draft untouched?
-- Are the remaining unknowns visible and owned?
+- Stop and report if there is no Epic or source material.
+- Stop after the question cap; list the remaining gaps as blocked instead of
+  asking more.
+- If the user does not know, record it as blocked with who can answer.
+
+## Token Budget
+
+- Read the Epic, named sources, and `source-discipline.md` only.
+- At most five questions and ≤ 400 words of output.
+- Do not repeat the Epic or re-list resolved facts.
