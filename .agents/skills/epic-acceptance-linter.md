@@ -2,55 +2,77 @@
 
 <!--
   Shared content — referenced by harness-specific SKILL.md wrappers.
-  version: 3.3.0, owner: John D
+  contract: templates/_shared/doctrine/skill-execution.md
+  version: 4.0.0, owner: John D
   doctrine: .agents/doctrine/acceptance-criteria-rules.md
 -->
 
-You are reviewing acceptance criteria for an Epic or a story. Improve them;
-do not rewrite the whole document.
+Review the acceptance criteria of an Epic or story. Report concrete problems and
+replacements; do not rewrite the whole document.
 
-## What to check
+## Inputs
 
-For each criterion:
+- Required: the Epic or story body, or the criteria block.
+- Read: `.agents/doctrine/acceptance-criteria-rules.md`.
+- Do not read: implementation code unless a criterion names a contract that
+  cannot be judged without it.
 
-- **Observable** — can a user, operator, or test see the result?
-- **Testable** — is there a clear pass/fail, without reading the implementation?
-- **Specific** — are the actor, trigger, and condition named?
-- **Outcome-focused** — does it describe behaviour, not a solution?
-- **Consistent** — does it conflict with another criterion or a constraint?
-- **Covered** — are the main edge cases present: empty, invalid, duplicate,
-  permission, timeout, partial failure?
-- **Bounded** — does “done” include the non-functional constraint it depends on
-  (latency, security, data retention)?
+## Deterministic Steps
 
-A criterion that cannot fail is not a criterion.
+1. **Extract criteria.** Select every line matching `AC\d+` or every item under
+   the acceptance-criteria heading. Preserve their labels.
+2. **Run the fixed checklist** on each criterion:
+   - observable by a user, operator, or test;
+   - testable with a clear pass/fail;
+   - specific actor, trigger, and condition;
+   - outcome-focused, not implementation;
+   - consistent with the other criteria and constraints;
+   - covers the relevant empty/invalid/duplicate/permission/timeout/partial-
+     failure edges;
+   - bounded by the non-functional constraint it depends on.
+3. **Classify each finding:** `Blocking`, `Improve`, or `Optional`.
+4. **Write one replacement** per finding. Do not add requirements the sources do
+   not support.
+5. **Check coverage.** Name any Epic outcome or edge case with no criterion.
+6. **Stop.** Return the report; do not edit the source document unless the caller
+   explicitly asks for the edit.
 
-## How to respond
+## LLM Judgment
 
-For each problem, give the current text, why it fails the check, and a concrete
-replacement:
+Use judgment only for:
 
+- whether a criterion is semantically observable and outcome-focused;
+- whether an edge case is material to this Epic;
+- the wording of a replacement criterion.
+
+Do not turn every criterion into Given/When/Then, and do not lint implementation
+detail.
+
+## Output
+
+```markdown
+## Acceptance Criteria Review
+
+| AC | Verdict | Problem | Replacement |
+|----|---------|---------|-------------|
+| AC1 | Blocking/Improve/Optional | <why> | <concrete text> |
+
+**Coverage gaps**
+- <outcome or edge case with no criterion>
+
+**Verdict:** Ready | Needs work | Blocked
+**Top 3 changes**
+1. …
 ```
-AC2 — “Export works”
-  Why: not observable and has no failure mode.
-  Try: “When the user exports a report under 500 rows, then a PDF downloads
-        within 10 seconds; when the service is unavailable, then an error with
-        retry is shown.”
-```
 
-Group findings by severity:
+## Stop Conditions
 
-- **Blocking** — scope or acceptance is ambiguous; a story cannot be written.
-- **Improve** — the criterion is testable but weak (vague actor, missing edge).
-- **Optional** — wording or polish.
+- Stop and ask if there are no acceptance criteria.
+- Stop if the source is not an Epic or story; report the wrong input.
+- Do not invent requirements or silently change scope.
 
-End with an optional verdict — **Ready**, **Needs work**, or **Blocked** — and
-the top three changes. The verdict is advice, not a gate.
+## Token Budget
 
-## Guardrails
-
-- Don't add requirements the sources do not support; ask or mark them unknown.
-- Don't rewrite criteria that are already good.
-- Don't turn every criterion into Given/When/Then when a single observable
-  sentence is clearer.
-- Don't lint implementation detail; this is about acceptance.
+- Read only the criteria, the Epic/story around them, and the doctrine file.
+- Target ≤ 700 words; list only criteria that need attention.
+- Do not restate good criteria or the full source.

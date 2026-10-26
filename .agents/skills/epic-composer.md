@@ -2,9 +2,8 @@
 
 <!--
   Shared content — referenced by harness-specific SKILL.md wrappers.
-  Do not add frontmatter here; harnesses parse frontmatter from their own
-  .opencode/skills/ or .claude/skills/ files.
-  version: 4.0.0, owner: John D
+  contract: templates/_shared/doctrine/skill-execution.md
+  version: 5.0.0, owner: John D
   invokes: .agents/skills/epic-interview.md,
            .agents/skills/epic-acceptance-linter.md,
            .agents/templates/epic/epic-shell.md
@@ -13,72 +12,68 @@
             .agents/doctrine/context-discovery.md
 -->
 
-You are shaping an Epic from real source material: transcripts, notes, docs, a
-problem statement, or a rough idea.
+Shape one Epic from named source material into a GitHub issue body. The model
+synthesizes and plans; the shape, order, and checks are fixed.
 
-Produce a GitHub issue body that a team can review and decompose. Use
-`.agents/templates/epic/epic-shell.md` as the shape; drop or add sections when
-the work demands it, but keep the outcome, acceptance criteria, and story map.
+## Inputs
 
-## Read first
+- Required: the source paths, transcript, note, or problem statement named by the
+  caller.
+- Read: `.agents/templates/epic/epic-shell.md` and the three doctrine files above.
+- Optional: the existing Epic or issue body when refining.
+- Do not read: unrelated repositories, whole directory trees, or generated
+  harness output.
 
-- The source material, all of it. Separate what is **stated**, what is
-  **inferred**, and what is **unknown** (`.agents/doctrine/source-discipline.md`).
-- `.agents/doctrine/acceptance-criteria-rules.md` for what makes a criterion
-  checkable.
-- The project's context: existing modules, constraints, prior decisions
-  (`.agents/doctrine/context-discovery.md`).
+## Deterministic Steps
 
-## What a good Epic looks like
+1. **Inventory the sources.** List each input path once; do not summarize yet.
+2. **Extract facts.** For each source, record only: problem, actors, desired
+   outcome, constraints, prior decisions, and unknowns. Label each as stated,
+   inferred, or unknown per `source-discipline.md`.
+3. **Draft the outcome and scope.** Use the exact headings in `epic-shell.md`.
+   Keep one outcome; list explicit exclusions.
+4. **Draft 3–8 acceptance criteria.** Use the form `When …, then …, so that …`.
+   If the count exceeds 8, split the Epic instead of shrinking the criteria.
+5. **Build the story map.** Assign every story a size (S/M/L), priority (P0–P2),
+   wave, dependency, and ownership scope. Default to parallel; name the real
+   dependency for every later wave.
+6. **Define the shared contract.** If parallel tracks share an interface, type,
+   schema, or file format, name it and its owner. Otherwise write `none`.
+7. **Gap gate.** If a gap changes scope, actors, or acceptance, run
+   `.agents/skills/epic-interview.md` and ask only its blockers. If the criteria
+   need review, run `.agents/skills/epic-acceptance-linter.md`.
+8. **Validate the shape.** Check that every heading from `epic-shell.md` exists,
+   the AC count is 3–8, every story has an owner and a wave, and every AC maps to a
+   story or an explicit constraint.
 
-- **One outcome.** If you can name two unrelated outcomes, split the Epic.
-- **3–8 acceptance criteria**, each observably true or false, written as
-  “When …, then …, so that …”. Outcomes, not implementation.
-- **Explicit scope.** What is in, what is out, and why the exclusions exist.
-- **A story map that can run in parallel.** Stories sized S/M/L, ordered into
-  waves, each naming what it depends on and what it can run beside.
-- **A shared contract** for any work that would otherwise have to be
-  sequential: the interface, type, schema, or file format both sides need.
-- **Honest gaps.** Unknowns, contradictions, and assumptions are visible, not
-  smoothed over.
+## LLM Judgment
 
-## How to work
+Use judgment only for:
 
-1. Synthesize the sources into a short problem statement and outcome.
-2. Draft the acceptance criteria before the stories; stories exist to satisfy
-   them.
-3. Sketch the story map:
-   - vertical slices, one shippable outcome each;
-   - a spike first only if an unknown blocks more than one story;
-   - a contract story only when parallel tracks share an interface;
-   - waves where everything in a wave can be dispatched together.
-4. If a gap blocks scope or acceptance, run `.agents/skills/epic-interview.md`
-   and ask only the questions that change the plan.
-5. Write the Epic body. Link the story issues once they exist; before that,
-   use `#TBD` and keep the story titles stable.
-6. Optionally run `.agents/skills/epic-acceptance-linter.md` on your criteria,
-   and `.agents/evals/epic-rubric.md` as a quality pass when the user asks for
-   a strict review.
+- synthesizing the problem and outcome from conflicting source material;
+- choosing the smallest coherent vertical slices;
+- sizing and wave assignment when dependencies are ambiguous;
+- deciding whether a gap is a blocker or a deferrable.
 
-## Parallelization
+Do not invent facts, metrics, approvals, or acceptance criteria. Mark inferred
+content and unknowns.
 
-Read `.agents/doctrine/parallelization-doctrine.md`. Default to parallel:
-only sequence work when a real dependency exists, and name it. The Epic's
-`Parallelization map` should let a lead say “dispatch Wave 1 now, Wave 2 after
-the contract lands” without re-reading the whole Epic.
+## Output
 
-## Guardrails
+One Epic issue body using `.agents/templates/epic/epic-shell.md`, with the
+stable title `Epic: <outcome>`. Include the story table and parallelization map
+even when the stories do not have issue numbers yet (`#TBD`).
 
-- Don't invent facts, metrics, or approvals. Label inferred content; mark
-  unknowns.
-- Don't write implementation-as-criteria (“the API returns JSON”) when an
-  outcome will do (“the user sees their order history”).
-- Don't decompose into tasks here; that belongs to the story's task breakdown.
-- Keep the Epic reviewable in one sitting. If it sprawls, split it.
+## Stop Conditions
 
-## Self-check (not a gate)
+- Stop and ask if the source has no identifiable problem or outcome.
+- Stop and ask if two sources contradict each other on scope or acceptance.
+- Stop and split if the work has two unrelated outcomes or more than 8 ACs.
+- Do not decompose into tasks; that belongs to the story's task breakdown.
 
-- Would a stakeholder recognise the problem and the outcome?
-- Is every criterion checkable without reading the code?
-- Could Wave 1 be dispatched today with no further questions?
-- Are the unknowns and their owners visible?
+## Token Budget
+
+- Read the named sources, `epic-shell.md`, and the three doctrine files only.
+- Do not enumerate the repository or load unrelated rules.
+- Target ≤ 1,200 words in the Epic body; if longer, split the Epic.
+- Reuse the template headings; do not restate them in prose.

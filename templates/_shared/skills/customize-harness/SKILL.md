@@ -1,68 +1,91 @@
 ---
 name: customize-harness
-description: Semantically tailor this project's already-installed AI harness to the project's domain and your personal workflow conventions. Idempotent — safe to re-run as the project evolves.
+description: Semantically tailor the installed AI harness to the project domain and the user's workflow conventions. Idempotent.
 when_to_use: >
-  Run right after installing the harness, and again whenever the project's
-  domain, stack, or your workflow conventions change. Trigger phrases:
-  "customize the harness", "tailor the rules to this project", "apply my
-  workflows", "re-tailor AGENTS.md", "personalize the harness".
+  Run after installing the harness, or whenever the project domain, stack, or
+  workflow conventions change. Trigger phrases: "customize the harness",
+  "tailor the rules", "apply my workflows", "re-tailor AGENTS.md".
 user-invocable: true
 ---
 
 # Customize Harness
 
-Semantically tailor the **already-installed** harness in the current project.
-Unlike the bootstrap render (string substitution only), this rewrites content to
-fit the project's domain and your personal conventions. It operates **in place**
-on the installed files — it needs no genesis repo or `templates/`, so it is safe
-to re-run anytime. It is **idempotent**: re-running refines, it does not duplicate.
+<!--
+  contract: .claude/rules/doctrine/skill-execution.md
+  version: 2.0.0, owner: John D
+-->
 
-## Phase 1 — Gather context
+Tailor the **installed** harness in place. Rendering owns placeholders; this
+skill owns semantic fit and workflow weaving. It never needs the genesis repo.
 
-- **Domain:** infer from `README`, `package.json` / `pyproject.toml` description,
-  and the top-level module names. If unclear, ask one question.
-- **Your workflows:** read `my-workflows.md` at the project root if present. Skip
-  any section still left as a `<placeholder>` — treat only filled-in content as real.
-- **Installed harness:** list what exists — `AGENTS.md` (canonical context +
-  rule index), `CLAUDE.md` (thin `@AGENTS.md` import), `my-workflows.md`,
-  `.claude/rules/**`, `.claude/agents/**`, `.claude/commands/**`, and the
-  equivalent OpenCode files.
+## Inputs
 
-## Phase 2 — Propose a plan (always show before editing)
+- Required: `AGENTS.md`, `CLAUDE.md`, `my-workflows.md` (if present).
+- Read: `README.md`, `pyproject.toml` / `package.json` description or name.
+- Read only the rule/agent/command files whose names appear in `AGENTS.md` or the
+  requested change; do not open every rule.
+- Do not read: `templates/`, generator source, or unrelated repositories.
 
-Present a concise list of intended edits, grouped:
+## Deterministic Steps
 
-- **Domain fit:** generic example service/library names → this project's terms.
-- **Criticality:** coverage tiers adjusted to the project's risk profile.
-- **Your workflows:** filled-in `my-workflows.md` conventions (commit style,
-  branch/PR flow, review checklist, testing stance, preferred tooling) woven into
-  `AGENTS.md` and the relevant rule files.
-- **Trim:** articles/rules that clearly don't apply → propose removal and the
-  matching rule-index row update.
-- **Special infra:** add custom rule blocks for anything the stack needs.
+1. **Inventory.** Run `find .claude/rules .claude/agents .claude/commands -type f`
+   and `find .opencode -type f`; report counts only.
+2. **Read domain facts.** Use `README.md` and the manifest fields; if the domain
+   is still unclear, ask one question.
+3. **Read workflows.** Open `my-workflows.md`; ignore every section that is still
+   a `<placeholder>`.
+4. **Build the edit plan.** One row per file: current problem, exact change,
+   reason. Group as domain fit, coverage, workflow weaving, trim, or missing rule.
+5. **Stop for approval.** Show the plan and ask “Apply this plan? Reply yes, or
+   adjust.” Do not edit before approval.
+6. **Apply in place.** Preserve headings. Keep `CLAUDE.md` thin, keep the
+   `AGENTS.md` rule index accurate, and never delete user-authored content without
+   confirmation.
+7. **Validate.** Run
+   `python3 .claude/hooks/check-project-drift.py --quiet`; stop on failure.
+8. **Report.** List changed files, removed rules, added rules, and any skipped
+   workflow sections.
 
-Ask: "Apply this plan? Reply yes, or adjust." If `my-workflows.md` is absent or
-entirely placeholders, say so and skip the workflow-weaving items.
+## LLM Judgment
 
-## Phase 3 — Apply
+Use judgment only for:
 
-- Edit the files in place, preserving their existing structure and headings.
-- Weave workflow conventions into `AGENTS.md` (the canonical context), not as a
-  dumped copy. Keep `CLAUDE.md` thin — it imports `AGENTS.md` and holds only
-  Claude-specific notes.
-- Keep the `AGENTS.md` rule index accurate: update rows when a rule is added,
-  removed, or changes scope.
-- Keep `my-workflows.md` as the source of truth — never delete it.
-- Do not touch `templates/` or any genesis files (a target project won't have them).
+- mapping generic examples to the project's actual domain terms;
+- deciding which rules genuinely do not fit;
+- weaving filled-in workflow conventions into `AGENTS.md` without copying.
 
-## Phase 4 — Report
+Do not invent project facts or change the stack.
 
-Summarize the edits per file. Remind the user this is re-runnable: run
-`/customize-harness` again after changing `my-workflows.md` or the project's stack.
+## Output
 
-## Rules
+```markdown
+## Customize Plan
+| File | Change | Reason |
+|------|--------|--------|
 
-- **Idempotent** — re-running must refine existing content, never duplicate blocks.
-- **Never delete user-authored content** without explicit confirmation.
-- **Placeholders are inert** — skip any `<...>` section in `my-workflows.md`.
-- **In place only** — operate on installed files; do not depend on `templates/`.
+Apply this plan? Reply yes, or adjust.
+```
+
+After approval, report:
+
+```markdown
+## Customize Result
+Changed: <file list>
+Rules removed: <list or none>
+Rules added: <list or none>
+Workflow sections skipped: <list or none>
+Validation: PASS | FAIL
+```
+
+## Stop Conditions
+
+- Stop if `AGENTS.md` or `CLAUDE.md` is missing; run bootstrap first.
+- Stop if the plan is not approved.
+- Stop if drift validation fails.
+- Do not touch `templates/` or any genesis file.
+
+## Token Budget
+
+- Read `AGENTS.md`, `CLAUDE.md`, `my-workflows.md`, and the domain manifest only.
+- Open at most five rule files per run; never load `.claude/rules/**` wholesale.
+- Plan and report ≤ 300 words each.

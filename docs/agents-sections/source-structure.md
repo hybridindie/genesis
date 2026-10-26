@@ -11,6 +11,7 @@ system/                       ← machine layer (SYSTEM.md, system/README.md)
   shell/ agents/ git/ herdr/ zed/ bin/ Brewfile
 
 new-project.sh                ← create a repo + render the harness
+scripts/lint-skills.py        ← enforce the deterministic skill contract
 
 templates/
   _shared/
@@ -20,7 +21,8 @@ templates/
       articles/               ← rules shipped for every profile
     agents/                   ← shared agents (article-compliance-reviewer)
     commands/                 ← shared commands (preflight, graphify, sessions)
-    doctrine/                 ← referenced rules (rendered to rules/doctrine/)
+    doctrine/                 ← referenced rules (rendered to rules/doctrine/;
+                                 includes skill-execution.md)
     skills/                   ← shared skills (customize-harness, gen-contract-test, …)
     ci/                       ← per-profile CI workflow templates
     githooks/                 ← tracked pre-commit / pre-push gates

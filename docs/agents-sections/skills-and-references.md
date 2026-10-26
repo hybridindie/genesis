@@ -33,6 +33,7 @@ On-demand section — read when invoking a skill or checking its references.
 | `source-discipline.md` | all epic skills | Separate stated/inferred/unknown; never invent; surface contradictions |
 | `context-discovery.md` | epic-composer, story-decomposer, task-decomposer | Greenfield vs brownfield probes |
 | `review-checkpoint.md` | epic-composer, story-decomposer (optional) | Present a draft → ask → incorporate |
+| `skill-execution.md` | all shipped/body skills | Fixed execution order, LLM-only zones, output/stop/token contracts |
 
 When a rule is shared by two or more skills, it belongs in `doctrine/`. Edit
 there once; all references inherit.
@@ -50,6 +51,15 @@ the core commands and skills only.
 
 The command names are identical across both harnesses. Each wrapper is a short
 pointer to `.agents/skills/<name>.md`; keep the body thin.
+
+## Deterministic execution
+
+Every body skill uses the same six sections: `Inputs`, `Deterministic Steps`,
+`LLM Judgment`, `Output`, `Stop Conditions`, `Token Budget`. Mechanical work
+(discovery, scaffolding, parsing, validation) belongs in commands/scripts;
+synthesis, planning, and semantic review are the model's only judgment zones.
+The canonical contract is `templates/_shared/doctrine/skill-execution.md`; run
+`python3 scripts/lint-skills.py` before committing.
 
 ## Output shape
 

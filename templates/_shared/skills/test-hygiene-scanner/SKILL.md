@@ -1,70 +1,107 @@
 ---
 name: test-hygiene-scanner
-description: Triage hardcoded dates, AsyncMock misuse, cross-tier truncates, and envelope assertion bugs in the test suite
+description: Triage hardcoded dates, AsyncMock misuse, cross-tier truncates, envelope assertions, and singleton leaks in tests.
+when_to_use: >
+  Run when tests are flaky, misleading, or before trusting a green suite. Trigger
+  phrases: "scan test hygiene", "find flaky tests", "audit mocks", "check test
+  dates".
 user-invocable: true
 disable-model-invocation: true
 ---
 
 # Test Hygiene Scanner
 
-Scan the test suite for common hygiene violations that cause flaky or misleading tests.
+<!--
+  contract: .claude/rules/doctrine/skill-execution.md
+  version: 2.0.0, owner: John D
+-->
 
-## Categories to Scan
+Run a fixed set of searches over test files, then use judgment only to triage
+the hits. The searches are deterministic; do not invent categories or scan
+production code.
 
-### 1. Hardcoded Dates
-Search for ISO date strings that will rot as wall-clock advances:
-- `2026-` in test files
-- `Date.parse("...")` with fixed dates
-- `grace_expires_at` pinned to past/future dates
+## Inputs
 
-### 2. AsyncMock Misuse
-Search for `AsyncMock` wrapping sync methods:
-- `httpx.Response.json()` mocked with `AsyncMock`
-- Magic methods (`__getitem__`, `__enter__`) mocked with `AsyncMock`
+- Required: the test roots (`{{BACKEND_PATH}}/tests`, `{{FRONTEND_PATH}}/tests`).
+- Read: only the file:line hits and enough surrounding lines to classify them.
+- Do not read: production source, migrations, or unrelated repositories.
 
-### 3. Cross-Tier Table Truncates
-Search for `autouse=True` conftest fixtures that truncate shared tables:
-- `.delete().neq(...)` on `users`, `creator_profiles`, `agencies`, `creators`
-- `truncate_all_tables(...)` without tier gating
+## Deterministic Steps
 
-### 4. Envelope Assertion Bugs
-Search for `assert "detail" in error_data` against the project's API:
-- The project uses `{"error": {"code": ..., "message": ...}}` per Article IV.
-- `assert "detail" in error_data` is a bug unless the response is from a third-party.
+1. **Hardcoded dates.** Run:
+   ```bash
+   rg -n '20[0-9]{2}-[0-9]{2}-[0-9]{2}|Date\.parse\("|grace_expires_at' \
+     {{BACKEND_PATH}}/tests {{FRONTEND_PATH}}/tests 2>/dev/null || true
+   ```
+2. **AsyncMock misuse.** Run:
+   ```bash
+   rg -n 'AsyncMock|__getitem__|__enter__|\.json\(\)' \
+     {{BACKEND_PATH}}/tests {{FRONTEND_PATH}}/tests 2>/dev/null || true
+   ```
+3. **Cross-tier truncates.** Run:
+   ```bash
+   rg -n 'autouse=True|\.delete\(\)\.neq|truncate_all_tables' \
+     {{BACKEND_PATH}}/tests {{FRONTEND_PATH}}/tests 2>/dev/null || true
+   ```
+4. **Envelope assertions.** Run:
+   ```bash
+   rg -n 'assert "detail" in|\["detail"\]|error_data' \
+     {{BACKEND_PATH}}/tests {{FRONTEND_PATH}}/tests 2>/dev/null || true
+   ```
+5. **Singleton leaks.** Run:
+   ```bash
+   rg -n 'get_prompt_loader|get_async_supabase|mlflow|@patch' \
+     {{BACKEND_PATH}}/tests {{FRONTEND_PATH}}/tests 2>/dev/null || true
+   ```
+6. **Triage every hit.** For each, open only the surrounding lines and assign:
+   - `ERROR` — definitely wrong for this project.
+   - `WARNING` — may cause flakes or false confidence.
+   - `CLEAN` — the hit is a legitimate fixture or already patched.
+7. **Emit the report.** Do not edit tests unless the caller explicitly asks.
 
-### 5. Process-Global Singleton Leaks
-Search for tests reading module-level caches without patching:
-- `get_prompt_loader()`, `get_async_supabase()`, MLflow factories
+## LLM Judgment
+
+Use judgment only for:
+
+- distinguishing a real violation from a legitimate fixture;
+- writing a concrete replacement;
+- deciding whether a hit is ERROR vs WARNING.
+
+Do not add new categories or scan production code.
 
 ## Output
 
-For each category, report:
-- File:line citation
-- Severity: WARNING (may cause flakes) or ERROR (definitely wrong)
-- Suggested fix
-
-Example:
-```
+```markdown
 ## Test Hygiene Report
 
 ### Hardcoded Dates
-- WARNING `frontend/src/stores/analytics.test.ts:42` — `Date.parse("2026-02-17")` used for "recent" window. Use `Date.now() - offset` or `vi.useFakeTimers()`.
+- ERROR|WARNING `<file>:<line>` — <why> — fix: <replacement>
 
 ### AsyncMock Misuse
-- ERROR `backend/tests/unit/test_email_service.py:88` — `AsyncMock` wrapping `httpx.Response.json()` (sync method). Use `MagicMock` instead.
+- …
 
 ### Cross-Tier Truncates
-- ERROR `backend/tests/integration/conftest.py:15` — `autouse=True` fixture truncates `users` table. Drop autouse or gate on `_foreign_tier_present`.
+- …
 
 ### Envelope Assertions
-- ERROR `backend/tests/e2e/test_user_journey.py:203` — `assert "detail" in error_data` against this API. Use `assert "error" in body` per Article IV.
+- …
 
 ### Singleton Leaks
-- WARNING `backend/tests/unit/test_viva_node.py:55` — reads `get_prompt_loader()` without patching. Patch with `@patch("...get_prompt_loader")`.
+- …
+
+**Clean categories:** <list>
 ```
 
-## Rules
+Use `No <category> found.` when a search is empty.
 
-- Only report test files (`tests/**`, `**/*.test.ts`, `**/*.test.py`).
-- Do not report production code.
-- If a category is clean, say so: "No hardcoded dates found."
+## Stop Conditions
+
+- Stop if neither test root exists; report the missing path.
+- Do not report production code or non-test files.
+- Do not apply fixes without an explicit request.
+
+## Token Budget
+
+- Run the five searches exactly once; do not re-scan with variations.
+- Open at most 20 surrounding-line windows.
+- Report ≤ 700 words; cite file:line, not full files.

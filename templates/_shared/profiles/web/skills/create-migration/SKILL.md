@@ -1,6 +1,9 @@
 ---
 name: create-migration
 description: Scaffold a {{DB_PROVIDER}} SQL migration compliant with sql-standards.md
+when_to_use: >
+  Run when adding or altering a table or constraint. Trigger phrases: "create a
+  migration", "add a table", "alter the schema", "write SQL migration".
 user-invocable: true
 disable-model-invocation: true
 arguments:
@@ -14,42 +17,75 @@ arguments:
 
 # Create Migration
 
-Generate a Supabase SQL migration file compliant with `.claude/rules/database/sql-standards.md`.
+<!--
+  contract: .claude/rules/doctrine/skill-execution.md
+  version: 2.0.0, owner: John D
+-->
 
-## Steps
+Generate one SQL migration file. The filename and checklist are deterministic;
+the model designs the table columns and constraints.
 
-1. Determine the migration filename: `supabase/migrations/{timestamp}_{description}.sql`
-   - Timestamp format: `YYYYMMDDHHMMSS` (e.g., `20251212000001`)
+## Inputs
 
-2. For each table, generate SQL following the checklist:
-   - `CREATE TABLE IF NOT EXISTS public.{table} (...)`
-   - `id UUID DEFAULT gen_random_uuid() PRIMARY KEY`
-   - `created_at TIMESTAMPTZ DEFAULT now()`
-   - `updated_at TIMESTAMPTZ DEFAULT now()`
-   - `BEFORE UPDATE` trigger for `updated_at`
-   - All string columns: `TEXT` (never `VARCHAR`)
-   - Status/category columns: `TEXT NOT NULL CHECK (col = ANY(ARRAY[...]))`
-   - FK columns: `{singular_parent}_id UUID REFERENCES public.{parent}(id) ON DELETE {CASCADE|SET NULL|RESTRICT}`
-   - FK columns get indexes: `CREATE INDEX idx_{table}_{fk_col} ON public.{table}({fk_col})`
-   - CHECK constraints named `{table}_{column}_check`
-   - All references schema-qualified with `public.`
+- Required: `description` in snake_case and `tables` (comma-separated).
+- Read: `.claude/rules/database/sql-standards.md` and the nearest existing
+  migration for style.
+- Do not read: unrelated application code or the whole migrations directory.
 
-3. Include a `DOWN` section at the bottom (commented out) for rollback:
+## Deterministic Steps
+
+1. **Generate the filename.**
+   ```bash
+   ts="$(date -u +%Y%m%d%H%M%S)"
+   file="supabase/migrations/${ts}_{{description}}.sql"
+   test ! -e "$file" || { echo "exists: $file"; exit 1; }
+   ```
+2. **Create the file** at that exact path; never invent a timestamp.
+3. **Scaffold each table** with:
+   - `CREATE TABLE IF NOT EXISTS public.{table} (...)`;
+   - `id UUID DEFAULT gen_random_uuid() PRIMARY KEY`;
+   - `created_at` and `updated_at` as `TIMESTAMPTZ DEFAULT now()`;
+   - a `BEFORE UPDATE` trigger for `updated_at`;
+   - `TEXT` for strings; no `VARCHAR` or `ENUM`;
+   - named `CHECK` constraints;
+   - `{parent}_id UUID REFERENCES public.{parent}(id) ON DELETE …`;
+   - indexes for FK columns;
+   - schema-qualified references (`public.`).
+4. **Add a commented rollback**:
    ```sql
    -- DOWN
    -- DROP TABLE IF EXISTS public.{table} CASCADE;
    ```
+5. **Validate against the Migration Checklist** in `sql-standards.md`: no
+   `VARCHAR`, no `ENUM`, every FK has `ON DELETE`, every table has `updated_at`
+   and its trigger, no redundant indexes.
+6. **Report** the path and any checklist item the caller must decide.
 
-4. Validate against the Migration Checklist from sql-standards.md.
+## LLM Judgment
+
+Use judgment only for:
+
+- column sets, data types, and constraint names for the requested tables;
+- `ON DELETE` behavior per relationship;
+- whether an index is genuinely needed.
+
+Do not invent tables or columns outside the request.
 
 ## Output
 
-Provide the full migration file content, ready to write to `supabase/migrations/`.
+The complete migration file contents, ready to write at the deterministic path.
+Include a one-line summary of tables changed and the validation result.
 
-## Rules
+## Stop Conditions
 
-- Never use `VARCHAR` or `ENUM`.
-- Always schema-qualify.
-- Always include `ON DELETE` on FKs.
-- Always include `updated_at` trigger.
-- Never create redundant indexes.
+- Stop if `description` or `tables` is missing.
+- Stop if the target file already exists; do not overwrite it.
+- Stop if the project is not a {{DB_PROVIDER}} project or has no
+  `supabase/migrations/` directory.
+- Stop if a requested change violates `sql-standards.md`.
+
+## Token Budget
+
+- Read ≤ 2 files: `sql-standards.md` and at most one existing migration.
+- Do not scan the migrations directory.
+- Emit SQL only; no prose beyond the one-line summary and checklist result.

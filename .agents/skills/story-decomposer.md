@@ -2,95 +2,81 @@
 
 <!--
   Shared content — referenced by harness-specific SKILL.md wrappers.
-  version: 4.0.0, owner: John D
+  contract: templates/_shared/doctrine/skill-execution.md
+  version: 5.0.0, owner: John D
   invokes: .agents/skills/task-decomposer.md,
            .agents/templates/epic/story-shell.md,
-           .agents/templates/epic/task-breakdown-shell.md,
-           .agents/evals/story-rubric.md
+           .agents/templates/epic/task-breakdown-shell.md
   doctrine: .agents/doctrine/parallelization-doctrine.md,
             .agents/doctrine/ai-readable-spec-rules.md,
             .agents/doctrine/source-discipline.md
 -->
 
-You are turning a ready Epic into stories that can be dispatched in parallel.
+Turn a ready Epic into stories that can be dispatched in parallel. Each story
+uses `.agents/templates/epic/story-shell.md`; the execution map is fixed.
 
-Use `.agents/templates/epic/story-shell.md` for each story issue body. The
-output should let a lead assign each wave to different subagents or teams
-without re-reading the Epic.
+## Inputs
 
-## Read first
+- Required: the Epic body, including outcome, scope, and acceptance criteria.
+- Read: the story shell and the three doctrine files above.
+- Optional: named modules or paths from the Epic for ownership hints.
+- Do not read: unrelated code or the whole repository.
 
-- The Epic: outcome, acceptance criteria, constraints, story map.
-- `.agents/doctrine/parallelization-doctrine.md` — parallel is the default.
-- `.agents/doctrine/ai-readable-spec-rules.md` — name files, APIs, and what is
-  new versus existing.
+## Deterministic Steps
 
-If the Epic has no acceptance criteria, or its outcome is still ambiguous, send
-it back to `epic-composer` / `epic-interview` instead of decomposing.
+1. **Gate the input.** If the Epic has no outcome or no acceptance criteria, stop
+   and send it back to `epic-composer` / `epic-interview`.
+2. **List the ACs.** Extract every `ACn` and keep the labels stable.
+3. **Choose the story type** for each slice: user, spike, technical, or bug.
+4. **Map ACs to stories.** Every AC maps to at least one story; every story maps
+   back to an AC or an explicit constraint. Flag a gap instead of inventing one.
+5. **Assign size and wave.** S/M/L only; split anything larger than L. Wave 1
+   contains everything that can start today.
+6. **Assign ownership.** Each story declares `owns` paths and `must not touch`.
+   Parallel stories may not own the same path; split or sequence them.
+7. **Define the shared contract** and integration story when tracks share an
+   interface, type, schema, or file format.
+8. **Validate the map.** Confirm no duplicate ownership, no story without an AC,
+   and no later wave without a named dependency.
+9. **Emit the stories and map.** Do not create task checklists here; invoke the
+   task decomposer for each story that will be implemented.
 
-## Shape
+## LLM Judgment
 
-Each story is one vertical slice that can ship on its own. Choose the type:
+Use judgment only for:
 
-- **user** — delivers observable value to a user.
-- **spike** — time-boxed investigation that unblocks other stories; output is a
-  decision or findings, not production code.
-- **technical** — enablement that cannot be absorbed into a user story (schema,
-  CI, migration, shared contract).
-- **bug** — restores broken behaviour.
+- finding the smallest vertical slices;
+- sizing S/M/L;
+- deciding whether a shared contract deserves its own story;
+- resolving ownership when the Epic leaves it ambiguous.
 
-A good story has:
-
-- one clear outcome and a checkable acceptance criterion (BDD scenarios where
-  they help);
-- an estimate: **S** (~½–1 day), **M** (~1–2 days), **L** (~2–3 days); split
-  anything larger;
-- an Epic back-link and the ACs or constraints it covers;
-- an explicit ownership scope: the paths it will touch.
-
-## Parallel plan
-
-Draft the execution map before writing the stories:
-
-1. **Shared contract** — if two stories need the same interface, type, schema,
-   or file format, make defining it the first story (or a small task inside
-   the earliest story). Name its owner.
-2. **Waves** — group independent stories into Wave 1, Wave 2, … A wave is what
-   can be dispatched together.
-3. **Ownership** — each story declares `owns` (paths) and anything it must not
-   touch. Two parallel stories must not own the same files; if they do, split
-   the scope or sequence them.
-4. **Integration** — the last story (or an explicit task) merges the tracks and
-   runs the end-to-end check.
-
-Only sequence stories for a real dependency. If the only reason is “it feels
-safer”, put them in the same wave behind a contract.
+Do not invent requirements, file paths, or dependencies.
 
 ## Output
 
-- One issue body per story, using the story shell (title: `Story N: <outcome>`
-  or `story(scope): <outcome>`).
-- An **Execution map** table: Wave · Story · Size · Owns · Depends on ·
-  Parallel with · Verify.
-- A coverage note: every Epic AC mapped to at least one story; every story
-  mapped back to an AC or an explicit constraint.
+- One story body per story using `.agents/templates/epic/story-shell.md`,
+  titled `Story N: <outcome>` or `story(scope): <outcome>`.
+- An execution map:
 
-Then invoke `.agents/skills/task-decomposer.md` for each story that will be
-implemented, or let the user choose which stories to break down first.
+```markdown
+| Wave | Story | Size | Owns | Depends on | Parallel with | Verify |
+|------|-------|------|------|------------|---------------|--------|
+| 1 | … | S/M/L | `<path/>` | — | … | `<command>` |
+```
 
-## Guardrails
+- A coverage note: every Epic AC covered exactly once, or an explicit gap.
+- If the Epic is small enough to be one story, say so and emit one story.
 
-- No horizontal slices (“build the database layer”). Use a technical story
-  only when it is a real prerequisite.
-- No story without acceptance criteria, and no story larger than L.
-- No duplicated ownership between parallel stories.
-- Don't invent requirements the Epic does not contain; mark gaps explicitly.
-- Don't over-parallelize a small story: one track is fine when the work is
-  genuinely one unit.
+## Stop Conditions
 
-## Self-check (not a gate)
+- Stop if the Epic is not ready; do not decompose an ambiguous outcome.
+- Stop if two stories would own the same path and cannot be sequenced.
+- Stop if an AC cannot be made observable; return it to the acceptance linter.
 
-- Could each Wave 1 story start today without another story landing?
-- Does every story name the files or modules it will change?
-- Is the shared contract small enough to land first?
-- Is every Epic AC covered exactly once?
+## Token Budget
+
+- Read the Epic and the three doctrine files only; open code only for paths named
+  in the Epic.
+- Target ≤ 900 words for the execution map plus story metadata; story bodies use
+  the template, not prose expansion.
+- Do not restate the Epic or load unrelated rules.
