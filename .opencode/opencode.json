@@ -3,7 +3,7 @@
   "skills": {
     "paths": [".opencode/skills"]
   },
-  "instructions": ["AGENTS.md", ".wiki-overlay.md"],
+  "instructions": ["AGENTS.md"],
   "permissions": [
     { "action": "shell", "resource": "*", "effect": "allow" },
     { "action": "shell", "resource": "sudo *", "effect": "ask" },
@@ -46,15 +46,8 @@
       "template": "Read and follow the complete evaluation prompt at docs/harness-eval.md.\n\nThat file is the canonical evaluation workflow. Follow all five phases: stack discovery, stack-fit evaluation, trim, suggest missing rules, and report. Present the plan before executing any edits.\n\n$ARGUMENTS"
     }
   },
-  "references": {
-    "wiki-fabric": {
-      "path": "~/wiki-fabric",
-      "description": "Global knowledge fabric (evidence-first wiki + cross-project promotion)"
-    }
-  },
   "watcher": {
     "ignore": [
-      "evidence/raw/**",
       ".obsidian/**"
     ]
   }

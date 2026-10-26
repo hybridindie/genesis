@@ -97,5 +97,5 @@ after pulling, so rule changes propagate.
   touches secrets or `~/.gitconfig` identity.
 - A project's rendered harness is owned by that project; re-rendering is a
   deliberate update, not a background sync.
-- Machine-specific values are flags (`--dev-root`, `--machine-label`,
-  `--wiki-fabric-dir`), never hardcoded in this repo.
+- Machine-specific values are flags (`--dev-root`, `--machine-label`), never
+  hardcoded in this repo.

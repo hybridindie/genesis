@@ -8,7 +8,6 @@
 #   --home <dir>             target home (default: $HOME; used by CI)
 #   --dev-root <dir>         development root (default: <home>/Development)
 #   --machine-label <name>   label for the global AGENTS.md (default: hostname -s)
-#   --wiki-fabric-dir <dir>  optional knowledge-fabric checkout
 #   --force                  update files that differ (timestamped backup first)
 #   --diff                   show what would change; write nothing
 #   --all                    install agent/herdr/zed configs even if the tool is absent
@@ -28,7 +27,6 @@ REPO_ROOT="$(cd -- "$SELF_DIR/.." && pwd)"
 TARGET_HOME="${HOME}"
 DEV_ROOT=""
 MACHINE_LABEL="$(hostname -s 2>/dev/null || hostname 2>/dev/null || echo machine)"
-WIKI_FABRIC_DIR=""
 FORCE=0
 DIFF_ONLY=0
 INSTALL_ALL=0
@@ -53,7 +51,6 @@ while (( $# )); do
     --home)            TARGET_HOME="${2:?--home needs a directory}"; shift 2 ;;
     --dev-root)        DEV_ROOT="${2:?--dev-root needs a directory}"; shift 2 ;;
     --machine-label)   MACHINE_LABEL="${2:?--machine-label needs a value}"; shift 2 ;;
-    --wiki-fabric-dir) WIKI_FABRIC_DIR="${2:?--wiki-fabric-dir needs a directory}"; shift 2 ;;
     --force)           FORCE=1; shift ;;
     --diff)            DIFF_ONLY=1; shift ;;
     --all)             INSTALL_ALL=1; shift ;;
@@ -172,9 +169,6 @@ write_machine() {
     printf '# Re-run the installer to change these; personal tweaks go in 99-local.zsh.\n'
     printf 'export DEV_ROOT=%q\n' "$DEV_ROOT"
     printf 'export MACHINE_LABEL=%q\n' "$MACHINE_LABEL"
-    if [[ -n $WIKI_FABRIC_DIR ]]; then
-      printf 'export WIKI_FABRIC_DIR=%q\n' "$WIKI_FABRIC_DIR"
-    fi
   } > "$tmp"
   shown=$(display "$dst")
   if [[ -f $dst ]] && cmp -s -- "$tmp" "$dst"; then

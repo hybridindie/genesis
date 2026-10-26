@@ -33,7 +33,7 @@ a dotfiles `restow.sh` would be two writers for the same path; pick one owner.
 | `60-integrations.zsh` | direnv + zoxide (and the `cd` wrapper) |
 | `70-aliases.zsh` | aliases, guarded and platform-aware |
 | `80-agents.zsh` | `??` / `?sh` helpers, `command_not_found_handler`, herdr helpers |
-| `98-machine.zsh` | **generated** from installer flags (dev root, label, optional vault) |
+| `98-machine.zsh` | **generated** from installer flags (dev root, label) |
 | `99-local.zsh` | user-owned machine tweaks — created once, never overwritten |
 
 ## Platforms
