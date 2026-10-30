@@ -1,8 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "skills": {
-    "paths": [".opencode/skills"]
-  },
+  "skills": [".opencode/skills"],
   "instructions": ["AGENTS.md"],
   "permissions": [
     { "action": "shell", "resource": "*", "effect": "allow" },
@@ -16,7 +14,7 @@
     { "action": "read", "resource": "~/.kube/**", "effect": "deny" },
     { "action": "read", "resource": "**/.env", "effect": "deny" }
   ],
-  "command": {
+  "commands": {
     "bootstrap-harness": {
       "description": "Scan a project, interview about unknowns, and generate a complete AI harness (Claude + Opencode + Copilot).",
       "template": "Load the bootstrap-harness skill and follow its complete workflow.\n\nThe skill will direct you to read .agents/skills/bootstrap-harness.md. Run all five phases: probe the project, interview only for unresolved unknowns, render via templates/scripts/bootstrap.sh, validate the output, and report. Render into the output directory below (default: current directory).\n\n$ARGUMENTS"
