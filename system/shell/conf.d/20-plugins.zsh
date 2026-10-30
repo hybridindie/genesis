@@ -75,6 +75,11 @@ _zsh_cache_completion() {
   [[ -s $out ]] && fpath=("${out:h}" $fpath)
 }
 
+# The completion cache directory is not created anywhere else — compinit below
+# only creates its parent. Without it the redirects above fail on a fresh home
+# with "no such file or directory: .../_gh.tmp" and no completion is cached.
+mkdir -p "${XDG_CACHE_HOME}/zsh/completions"
+
 _zsh_cache_completion kubectl completion
 _zsh_cache_completion gh      completion -s
 _zsh_cache_completion docker  completion
