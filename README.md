@@ -75,6 +75,11 @@ The interactive path is `/bootstrap-harness` in Claude Code or OpenCode. It
 shows the detected plan, lets you add or drop stacks and packs, renders and
 validates.
 
+Re-rendering never clobbers tailoring. `harness.json` records a hash for
+every file the renderer writes. On the next render, a file that no longer
+matches its hash is a local edit: it is kept and listed (`--force-overwrite`
+replaces it). New rules are still added to the AGENTS.md index.
+
 ### After install
 
 ```

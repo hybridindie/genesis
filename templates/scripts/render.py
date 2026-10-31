@@ -25,6 +25,7 @@ JSON and writes nothing.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -148,6 +149,7 @@ def resolve(args: argparse.Namespace) -> dict[str, Any]:
         "ci_runs_on": args.ci_runs_on or manifest.get("ci_runs_on") or "ubuntu-latest",
         "has_ci": bool(detected.get("has_ci")),
         "evidence": detected.get("evidence") or {},
+        "recorded": manifest.get("files") or {},
         "packs_suggested": detected.get("packs_suggested") or [],
     }
 
@@ -230,26 +232,43 @@ def render_text(text: str, v: dict[str, str], flags: dict[str, bool]) -> str:
     return re.sub(r"\n{3,}", "\n\n", text)
 
 
+def sha(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
 class Writer:
-    def __init__(self, out: Path, v: dict[str, str], flags: dict[str, bool], dry: bool) -> None:
+    """Writes rendered files without clobbering local edits.
+
+    An existing file is replaced only if it is byte-identical to what was
+    rendered last time (its hash is recorded in harness.json), or with
+    --force-overwrite. Anything else is a local edit and is kept.
+    """
+
+    def __init__(self, out: Path, v: dict[str, str], flags: dict[str, bool], dry: bool,
+                 recorded: dict[str, str], force: bool) -> None:
         self.out, self.v, self.flags, self.dry = out, v, flags, dry
+        self.recorded, self.force = recorded, force
         self.written: list[str] = []
+        self.kept: list[str] = []
 
     def file(self, src: Path, rel: str, mode: int | None = None) -> None:
         dst = self.out / rel
+        data = src.read_bytes()
+        if src.suffix in TEXT_SUFFIXES:
+            try:
+                data = render_text(data.decode("utf-8"), self.v, self.flags).encode("utf-8")
+            except UnicodeDecodeError:
+                pass
+        if dst.is_file() and not self.force:
+            existing = dst.read_bytes()
+            if existing != data and self.recorded.get(rel) != sha(existing):
+                self.kept.append(rel)
+                return
         self.written.append(rel)
         if self.dry:
             return
         dst.parent.mkdir(parents=True, exist_ok=True)
-        if src.suffix in TEXT_SUFFIXES:
-            try:
-                text = src.read_text(encoding="utf-8")
-            except UnicodeDecodeError:
-                shutil.copyfile(src, dst)
-            else:
-                dst.write_text(render_text(text, self.v, self.flags), encoding="utf-8")
-        else:
-            shutil.copyfile(src, dst)
+        dst.write_bytes(data)
         if mode is not None or os.access(src, os.X_OK):
             dst.chmod(mode or 0o755)
 
@@ -268,10 +287,10 @@ def sources(plan: dict[str, Any]) -> list[Path]:
         [SHARED / "packs" / p for p in plan["packs"]]
 
 
-def render(plan: dict[str, Any], args: argparse.Namespace) -> list[str]:
+def render(plan: dict[str, Any], args: argparse.Namespace) -> tuple[list[str], list[str]]:
     out = plan["output_dir"]
     v, flags = values(plan, args)
-    w = Writer(out, v, flags, args.plan)
+    w = Writer(out, v, flags, args.plan, plan["recorded"], args.force_overwrite)
 
     # Rules: every article path must be unique across core, stacks and packs.
     seen: dict[str, Path] = {}
@@ -323,7 +342,11 @@ def render(plan: dict[str, Any], args: argparse.Namespace) -> list[str]:
     render_ci(plan, args, w)
 
     if args.plan:
-        return w.written
+        return w.written, w.kept
+
+    subprocess.run([sys.executable, str(SCRIPT_DIR / "generate-harness-mirrors.py"), str(out), str(TEMPLATES)],
+                   check=True, stdout=subprocess.DEVNULL)
+    subprocess.run([sys.executable, str(SCRIPT_DIR / "generate-rule-index.py"), str(out)], check=True)
 
     manifest = {
         "schema": 2,
@@ -339,14 +362,17 @@ def render(plan: dict[str, Any], args: argparse.Namespace) -> list[str]:
         "godot": plan["godot"] if "godot" in plan["stacks"] else {},
         "ci_platform": plan["ci_platform"],
         "ci_runs_on": plan["ci_runs_on"],
+        # Hash of each harness file as rendered; a file that still matches is
+        # safe to replace on the next render, anything else is a local edit.
+        "files": {
+            **{rel: plan["recorded"][rel] for rel in w.kept if rel in plan["recorded"]},
+            **{rel: sha((out / rel).read_bytes()) for rel in w.written if (out / rel).is_file()},
+        },
     }
     path = out / ".claude" / "harness.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
-    subprocess.run([sys.executable, str(SCRIPT_DIR / "generate-harness-mirrors.py"), str(out), str(TEMPLATES)],
-                   check=True, stdout=subprocess.DEVNULL)
-    subprocess.run([sys.executable, str(SCRIPT_DIR / "generate-rule-index.py"), str(out)], check=True)
 
     leftovers = []
     for rel in w.written:
@@ -357,7 +383,7 @@ def render(plan: dict[str, Any], args: argparse.Namespace) -> list[str]:
                 leftovers.append(rel)
     if leftovers:
         sys.exit("ERROR: unresolved conditional blocks in: " + ", ".join(leftovers))
-    return w.written
+    return w.written, w.kept
 
 
 def render_ci(plan: dict[str, Any], args: argparse.Namespace, w: Writer) -> None:
@@ -404,19 +430,26 @@ def main() -> int:
     ap.add_argument("--force-ci", action="store_true")
     ap.add_argument("--force-hooks", action="store_true")
     ap.add_argument("--force-workflows", action="store_true")
+    ap.add_argument("--force-overwrite", action="store_true",
+                    help="replace locally edited harness files instead of keeping them")
     ap.add_argument("--plan", action="store_true", help="print the resolved plan; write nothing")
     args = ap.parse_args()
 
     plan = resolve(args)
-    written = render(plan, args)
+    written, kept = render(plan, args)
     summary = {k: (str(v) if isinstance(v, Path) else v) for k, v in plan.items()
                if k in ("output_dir", "updating", "stacks", "packs", "paths", "evidence", "packs_suggested")}
     if args.plan:
         summary["files"] = len(written)
+        summary["kept_local_edits"] = kept
         print(json.dumps(summary, indent=2))
     else:
         print(f"Rendered {len(written)} files: stacks={','.join(plan['stacks'])} "
               f"packs={','.join(plan['packs']) or 'none'} -> {plan['output_dir']}")
+        if kept:
+            print(f"Kept {len(kept)} locally edited files (--force-overwrite replaces them):")
+            for rel in kept:
+                print(f"  {rel}")
     return 0
 
 

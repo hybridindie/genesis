@@ -36,6 +36,7 @@ python3 templates/scripts/render.py --output-dir /path/to/project --auto-detect 
 | `--project-name`, `--project-slug` | Names used in the context files |
 | `--ci-platform github\|gitea\|none`, `--ci-runs-on LABEL` | CI target and runner |
 | `--force-ci`, `--force-hooks`, `--force-workflows` | Replace an existing CI workflow, git hooks, or `my-workflows.md` |
+| `--force-overwrite` | Replace harness files edited since the last render (kept by default) |
 | `--plan` | Print the resolved plan as JSON and write nothing |
 | `--profile` | Legacy single profile (`web` → `fastapi,frontend`) |
 
