@@ -126,14 +126,17 @@ def requirements_deps(path: Path) -> set[str]:
 
 
 def python_version(root: Path, py_root: Path, data: dict[str, Any]) -> str:
+    """The supported floor (requires-python) wins over a local .python-version pin."""
+    spec = (data.get("project") or {}).get("requires-python", "")
+    m = re.search(r"(\d+\.\d+)", spec)
+    if m:
+        return m.group(1)
     for candidate in (py_root / ".python-version", root / ".python-version"):
         if candidate.is_file():
             m = re.match(r"(\d+\.\d+)", read(candidate).strip())
             if m:
                 return m.group(1)
-    spec = (data.get("project") or {}).get("requires-python", "")
-    m = re.search(r"(\d+\.\d+)", spec)
-    return m.group(1) if m else "3.12"
+    return "3.12"
 
 
 def python_info(root: Path, py_root: Path) -> dict[str, Any]:
