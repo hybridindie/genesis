@@ -25,10 +25,10 @@ JSON and writes nothing.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -148,6 +148,7 @@ def resolve(args: argparse.Namespace) -> dict[str, Any]:
         "ci_runs_on": args.ci_runs_on or manifest.get("ci_runs_on") or "ubuntu-latest",
         "has_ci": bool(detected.get("has_ci")),
         "evidence": detected.get("evidence") or {},
+        "recorded": read_sums(out) or manifest.get("files") or {},
         "packs_suggested": detected.get("packs_suggested") or [],
     }
 
@@ -203,6 +204,8 @@ def values(plan: dict[str, Any], args: argparse.Namespace) -> tuple[dict[str, st
         "FE_NPM": fe_mgr == "npm",
         "FE_PNPM": fe_mgr == "pnpm",
         "FE_BUN": fe_mgr == "bun",
+        "FE_VITEST": (fe.get("unit_runner") or "vitest") == "vitest",
+        "FE_JEST": fe.get("unit_runner") == "jest",
         "PY_IN_SUBDIR": (paths["python"] or ".") != ".",
         "GODOT_IN_SUBDIR": (paths["godot"] or ".") != ".",
         "RUST_IN_SUBDIR": (paths["rust"] or ".") != ".",
@@ -230,26 +233,67 @@ def render_text(text: str, v: dict[str, str], flags: dict[str, bool]) -> str:
     return re.sub(r"\n{3,}", "\n\n", text)
 
 
+def sha(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+SUMS = Path(".claude") / "harness.sums"
+
+
+def read_sums(out: Path) -> dict[str, str]:
+    path = out / SUMS
+    if not path.is_file():
+        return {}
+    sums = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        digest, _, rel = line.partition("  ")
+        if digest and rel:
+            sums[rel] = digest
+    return sums
+
+
+def write_sums(out: Path, sums: dict[str, str]) -> None:
+    (out / SUMS).write_text("".join(f"{d}  {r}\n" for r, d in sorted(sums.items())), encoding="utf-8")
+
+
 class Writer:
-    def __init__(self, out: Path, v: dict[str, str], flags: dict[str, bool], dry: bool) -> None:
+    """Writes rendered files without clobbering local edits.
+
+    An existing file is replaced only if it is byte-identical to what was
+    rendered last time (its hash is recorded in .claude/harness.sums), or with
+    --force-overwrite. Anything else is a local edit and is kept. A recorded
+    file that no longer exists was deleted on purpose and is not recreated.
+    """
+
+    def __init__(self, out: Path, v: dict[str, str], flags: dict[str, bool], dry: bool,
+                 recorded: dict[str, str], force: bool) -> None:
         self.out, self.v, self.flags, self.dry = out, v, flags, dry
+        self.recorded, self.force = recorded, force
         self.written: list[str] = []
+        self.kept: list[str] = []
+        self.deleted: list[str] = []
 
     def file(self, src: Path, rel: str, mode: int | None = None) -> None:
         dst = self.out / rel
+        data = src.read_bytes()
+        if src.suffix in TEXT_SUFFIXES:
+            try:
+                data = render_text(data.decode("utf-8"), self.v, self.flags).encode("utf-8")
+            except UnicodeDecodeError:
+                pass
+        if not dst.exists() and rel in self.recorded and not self.force:
+            self.deleted.append(rel)  # rendered before, deleted since: respect it
+            return
+        if dst.is_file() and not self.force:
+            existing = dst.read_bytes()
+            if existing != data and self.recorded.get(rel) != sha(existing):
+                self.kept.append(rel)
+                return
         self.written.append(rel)
         if self.dry:
             return
         dst.parent.mkdir(parents=True, exist_ok=True)
-        if src.suffix in TEXT_SUFFIXES:
-            try:
-                text = src.read_text(encoding="utf-8")
-            except UnicodeDecodeError:
-                shutil.copyfile(src, dst)
-            else:
-                dst.write_text(render_text(text, self.v, self.flags), encoding="utf-8")
-        else:
-            shutil.copyfile(src, dst)
+        dst.write_bytes(data)
         if mode is not None or os.access(src, os.X_OK):
             dst.chmod(mode or 0o755)
 
@@ -268,10 +312,47 @@ def sources(plan: dict[str, Any]) -> list[Path]:
         [SHARED / "packs" / p for p in plan["packs"]]
 
 
-def render(plan: dict[str, Any], args: argparse.Namespace) -> list[str]:
+def load_script(name: str) -> Any:
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(name.replace("-", "_"), SCRIPT_DIR / f"{name}.py")
+    module = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
+    spec.loader.exec_module(module)  # type: ignore[union-attr]
+    return module
+
+
+# Harness content the renderer owns; anything else (CI, git hooks, docs) is never removed.
+OWNED_PREFIXES = (".claude/rules/", ".claude/agents/", ".claude/commands/", ".claude/skills/",
+                  ".opencode/agents/", ".opencode/commands/", ".opencode/skills/")
+
+
+def remove_stale(out: Path, recorded: dict[str, str], current: set[str], w: Writer) -> list[str]:
+    """Delete files rendered last time but not this time (a removed stack or
+    pack, or a rule genesis dropped) if they are unmodified; keep edited ones."""
+    removed = []
+    for rel, digest in sorted(recorded.items()):
+        if rel in current or not rel.startswith(OWNED_PREFIXES):
+            continue
+        path = out / rel
+        if not path.is_file():
+            continue
+        if sha(path.read_bytes()) == digest:
+            removed.append(rel)
+            if not w.dry:
+                path.unlink()
+        else:
+            w.kept.append(rel)
+    if not w.dry:
+        for d in sorted({(out / r).parent for r in removed}, key=lambda p: -len(p.parts)):
+            while d != out and d.is_dir() and not any(d.iterdir()):
+                d.rmdir()
+                d = d.parent
+    return removed
+
+
+def render(plan: dict[str, Any], args: argparse.Namespace) -> tuple[list[str], list[str]]:
     out = plan["output_dir"]
     v, flags = values(plan, args)
-    w = Writer(out, v, flags, args.plan)
+    w = Writer(out, v, flags, args.plan, plan["recorded"], args.force_overwrite)
 
     # Rules: every article path must be unique across core, stacks and packs.
     seen: dict[str, Path] = {}
@@ -304,7 +385,11 @@ def render(plan: dict[str, Any], args: argparse.Namespace) -> list[str]:
                     w.tree(skill, f"{dest}/{skill.name}")
 
     w.tree(TEMPLATES / "claude-code" / ".claude", ".claude")
-    w.tree(TEMPLATES / "opencode" / ".opencode", ".opencode")
+    if (out / "opencode.json").is_file() and not (out / ".opencode" / "opencode.json").exists():
+        # The project keeps its OpenCode config at the root; don't add a second one.
+        print("  Kept root opencode.json (add my-workflows.md to its instructions)", file=sys.stderr)
+    else:
+        w.tree(TEMPLATES / "opencode" / ".opencode", ".opencode")
     w.file(TEMPLATES / "claude-code" / "CLAUDE.md", "CLAUDE.md")
     w.file(SHARED / "AGENTS.md", "AGENTS.md")
     w.file(GENESIS / "docs" / "harness-eval.md", "docs/harness-eval.md")
@@ -323,7 +408,16 @@ def render(plan: dict[str, Any], args: argparse.Namespace) -> list[str]:
     render_ci(plan, args, w)
 
     if args.plan:
-        return w.written
+        return w.written, w.kept + w.deleted
+
+    mirrors_written, mirrors_kept, mirrors_same = load_script("generate-harness-mirrors").mirror(
+        out, plan["recorded"])
+    w.written += mirrors_written + mirrors_same
+    w.kept += mirrors_kept
+    removed = remove_stale(out, plan["recorded"], set(w.written) | set(w.kept) | set(w.deleted), w)
+    subprocess.run([sys.executable, str(SCRIPT_DIR / "generate-rule-index.py"), str(out)], check=True)
+    for rel in removed:
+        print(f"  Removed {rel} (no longer rendered, unmodified)", file=sys.stderr)
 
     manifest = {
         "schema": 2,
@@ -340,13 +434,19 @@ def render(plan: dict[str, Any], args: argparse.Namespace) -> list[str]:
         "ci_platform": plan["ci_platform"],
         "ci_runs_on": plan["ci_runs_on"],
     }
+    # Hash of each harness file as rendered (sha256sum format, so secret
+    # scanners don't read path/hash pairs as key assignments). A file that
+    # still matches is safe to replace on the next render; anything else is a
+    # local edit.
+    sums = {
+        **{rel: plan["recorded"][rel] for rel in w.kept + w.deleted if rel in plan["recorded"]},
+        **{rel: sha((out / rel).read_bytes()) for rel in w.written if (out / rel).is_file()},
+    }
+    write_sums(out, sums)
     path = out / ".claude" / "harness.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
-    subprocess.run([sys.executable, str(SCRIPT_DIR / "generate-harness-mirrors.py"), str(out), str(TEMPLATES)],
-                   check=True, stdout=subprocess.DEVNULL)
-    subprocess.run([sys.executable, str(SCRIPT_DIR / "generate-rule-index.py"), str(out)], check=True)
 
     leftovers = []
     for rel in w.written:
@@ -357,7 +457,7 @@ def render(plan: dict[str, Any], args: argparse.Namespace) -> list[str]:
                 leftovers.append(rel)
     if leftovers:
         sys.exit("ERROR: unresolved conditional blocks in: " + ", ".join(leftovers))
-    return w.written
+    return w.written, w.kept + w.deleted
 
 
 def render_ci(plan: dict[str, Any], args: argparse.Namespace, w: Writer) -> None:
@@ -404,19 +504,26 @@ def main() -> int:
     ap.add_argument("--force-ci", action="store_true")
     ap.add_argument("--force-hooks", action="store_true")
     ap.add_argument("--force-workflows", action="store_true")
+    ap.add_argument("--force-overwrite", action="store_true",
+                    help="replace locally edited harness files instead of keeping them")
     ap.add_argument("--plan", action="store_true", help="print the resolved plan; write nothing")
     args = ap.parse_args()
 
     plan = resolve(args)
-    written = render(plan, args)
+    written, kept = render(plan, args)
     summary = {k: (str(v) if isinstance(v, Path) else v) for k, v in plan.items()
                if k in ("output_dir", "updating", "stacks", "packs", "paths", "evidence", "packs_suggested")}
     if args.plan:
         summary["files"] = len(written)
+        summary["kept_local_edits"] = kept
         print(json.dumps(summary, indent=2))
     else:
         print(f"Rendered {len(written)} files: stacks={','.join(plan['stacks'])} "
               f"packs={','.join(plan['packs']) or 'none'} -> {plan['output_dir']}")
+        if kept:
+            print(f"Kept {len(kept)} locally edited or deleted files (--force-overwrite replaces them):")
+            for rel in kept:
+                print(f"  {rel}")
     return 0
 
 

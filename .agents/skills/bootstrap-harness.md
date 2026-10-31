@@ -56,10 +56,10 @@ plan with the user and runs the semantic passes.
    and packs are the starting point; detection only fills gaps.
 
 3. **Confirm.** Show the plan table below and ask: "Proceed? Reply yes, or
-   name stacks/packs to add or drop." On an update, warn that harness-owned
-   files (`AGENTS.md`, `.claude/rules/**`, agents, commands, skills) are
-   rewritten; `my-workflows.md`, existing `.githooks/` and existing CI are
-   kept. Re-run step 2 with the adjusted flags if the user changes anything.
+   name stacks/packs to add or drop." On an update, list `kept_local_edits`:
+   files edited since the last render are kept, not overwritten (as are
+   `my-workflows.md`, existing `.githooks/` and existing CI). New stack rules
+   are still added and indexed. Re-run step 2 if the user changes anything.
 
 4. **Render.**
 
