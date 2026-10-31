@@ -1,10 +1,12 @@
 # AI Harness Genesis
 
-Constitutional AI instruction templates for **MCP servers, Python CLIs/libraries,
-agent systems, FastAPI + React web apps, and Godot addons** — plus a machine setup
-layer for the shell and the user-level agent rules.
+AI instruction templates for the projects I build: Python MCP servers, LLM
+agent systems, FastAPI + React/Next web apps, Godot games and addons, and Rust
+native code. Any mix in one repo. There is also a machine setup layer for the
+shell and the user-level agent rules.
 
-OpenCode is the primary harness; Claude Code is supported through a thin import.
+OpenCode and Claude Code are both first-class: `AGENTS.md` is canonical and
+`CLAUDE.md` imports it.
 
 ## Two layers
 
@@ -17,22 +19,32 @@ The end-to-end flow (new machine → new project → tailoring) is in
 [`SYSTEM.md`](SYSTEM.md); the system layer's flags are in
 [`system/README.md`](system/README.md).
 
-## Archetypes
+## Stacks and packs
 
-Each generated harness gets the core rules plus one profile's rules. The
-profile is selected with `--profile` or inferred from the project.
+Every project gets the core rules (architecture, testing, workflow, errors,
+security, dependencies, CI, async, logging, docs). On top of that it gets
+**every stack it uses**, detected from its manifests, plus any **opt-in
+packs**.
 
-| Profile | Selected for | Adds |
-|---------|--------------|------|
-| `mcp` | FastMCP / MCP SDK servers | Tool/resource/prompt contract, safety classes (`dry_run`/`confirm`), transport envelope/timeouts/reconnect, fake-peer contract tests |
-| `python` | CLIs and libraries | Exit codes and stdout/stderr discipline, `--json`/`--dry-run`, uv packaging and entry points |
-| `agent` | LangGraph / MLflow agent systems | Explicit graph/state, versioned prompts, executable evals, run budgets and reproducibility |
-| `web` | FastAPI + React/TS + Postgres/Supabase | API/Pydantic contracts, SQL/migrations, React conventions, auth/input rules, plus the operational articles (rate limiting, GDPR, health, caching, budgets, production safety) |
-| `godot` | Godot 4.4+ addons | `@tool` EditorPlugin lifecycle, command router, UndoRedo, JSON-safe serialization, headless tests, no editor blocking |
+| Stack | Detected from | Adds |
+|---|---|---|
+| `python` | `pyproject.toml` / `requirements.txt` | uv packaging, CLI behaviour |
+| `mcp` | `mcp` / `fastmcp` dependency | tool contract, safety classes, transport, fake-peer tests |
+| `agent` | LangGraph / LangChain / MLflow, or an LLM SDK plus `evals/` | explicit graph, versioned prompts, executable evals, budgets |
+| `fastapi` | `fastapi` dependency | API contract, routes/services/repositories, SQL and migrations, web input security, backend architect, `/migration-check` |
+| `frontend` | React / Next / Vue / Svelte in a `package.json` | frontend conventions, frontend architect, E2E assertion audit |
+| `godot` | `project.godot` | GDScript conventions, main-thread async, headless tests |
+| `godot-addon` | the project's own `addons/*/plugin.cfg` | `EditorPlugin` lifecycle, command router, UndoRedo, JSON-safe serialization |
+| `rust` | `Cargo.toml` | fmt/clippy/test, no panics across FFI, `unsafe` justification |
 
-Auto-detection: `project.godot` → `godot`; `langgraph`/`mlflow` deps → `agent`;
-`package.json` + `pyproject.toml` → `web`; `fastmcp`/`mcp` deps → `mcp`;
-otherwise `python`.
+`mcp`, `agent` and `fastapi` imply `python`; `godot-addon` implies `godot`.
+Each stack's paths (e.g. `backend/`, `frontend/`, `godot/`) are detected and
+used in path-scoped rules, commands and CI.
+
+| Pack | For | Adds |
+|---|---|---|
+| `production` | services deployed with Docker/compose/k8s | deploy safety (health, shutdown, migrations, rollback), service limits (rate, cache, timeouts), privacy |
+| `acd` | strict agent-generated delivery | spec artifacts, one-scenario sessions, `/start-session`, `/end-session`, `/fix` |
 
 ## Install a project harness
 
@@ -45,109 +57,104 @@ curl -fsSL https://raw.githubusercontent.com/hybridindie/genesis/main/install.sh
 Or from a clone:
 
 ```bash
-# new project: git init + auto-detect + render + next steps
-./new-project.sh ../my-service
+# new project: git init + detect + render + next steps
+./new-project.sh ../my-service --stacks mcp --scaffold
 
-# new project with README, LICENSE, .gitignore, Makefile and a Python skeleton
-./new-project.sh ../my-service --profile mcp --scaffold
+# existing project: detect everything
+bash templates/scripts/bootstrap.sh --output-dir . --auto-detect
 
-# existing project with an explicit profile
-bash templates/scripts/bootstrap.sh --profile mcp --output-dir .
+# see the plan without writing anything
+python3 templates/scripts/render.py --output-dir . --auto-detect --plan
+
+# extend or trim an installed harness later
+bash templates/scripts/bootstrap.sh --output-dir . --add-stacks rust
+bash templates/scripts/bootstrap.sh --output-dir . --remove-stacks frontend --packs production
 ```
 
-The interactive path is `/bootstrap-harness` in Claude Code or OpenCode.
+The interactive path is `/bootstrap-harness` in Claude Code or OpenCode. It
+shows the detected plan, lets you add or drop stacks and packs, renders and
+validates.
 
-### Post-bootstrap
+### After install
 
 ```
-bootstrap.sh     → render: placeholders, profile rules, generated rule index
+render           → core + stacks + packs, placeholders, generated rule index
       ↓
-/harness-eval    → trim rules that do not fit, suggest missing ones,
-                   keep the AGENTS.md rule index accurate
+/harness-eval    → verify stacks against the code, trim rules that don't fit,
+                   suggest missing ones
       ↓
 /customize-harness → weave the project's domain and my-workflows.md into AGENTS.md
 ```
 
-Both commands are idempotent and edit the rendered harness in place.
-
 ## What a project gets
 
-- `AGENTS.md` — canonical project context with a **generated rule index**
-- `CLAUDE.md` — thin `@AGENTS.md` + `@my-workflows.md` import, Claude-only notes
-- `.claude/rules/` — core rules + the selected profile's rules
-- `.claude/{commands,agents,skills,hooks}/` — profile-appropriate set
-- `.opencode/{commands,agents,skills}/` — mirrored from the Claude sources
-- `.claude/harness.json` — profile, paths and versions used by the drift gate
-- `.githooks/` — tracked pre-commit/pre-push guardrails (installed per clone)
-- `.github/workflows/ci.yml` — minimal profile CI, only when the project has none
-- `my-workflows.md` — your cross-project conventions (loaded automatically)
-- `docs/harness-eval.md` — the evaluation prompt
-- `/ship-pr` — open/watch/triage a PR and merge with `--merge` once green
+- `AGENTS.md`: canonical context with the stack summary, the real commands,
+  and a **generated rule index**.
+- `CLAUDE.md`: a thin `@AGENTS.md` + `@my-workflows.md` import.
+- `.claude/rules/`: core, stack and pack rules, read on demand.
+- `.claude/{commands,agents,skills,hooks}/`, with mirrors in
+  `.opencode/{commands,agents,skills}/`.
+- `.claude/harness.json`: stacks, packs, paths and tooling, which the drift
+  gate checks.
+- `.githooks/`: tracked pre-commit/pre-push guardrails, installed once per
+  clone.
+- `.github/workflows/ci.yml` (or `.gitea/workflows/ci.yml`): one job per stack,
+  only written when the project has no CI yet.
+- `my-workflows.md`: your cross-project conventions. It is kept on re-render.
+- `/ship-pr`: open, watch and triage a PR, then merge with a merge commit once
+  it is green.
 
 ## Enforcement, not only advice
 
-The harness ships deterministic gates; none of them add context at session start.
-
-- **`pre-commit`** scans the staged diff for credentials, forbidden skips/xfails,
-  and project drift. **`pre-push`** scans the whole tree and runs `make check`
-  when the project defines it. Both are thin wrappers over
-  `.claude/hooks/guardrails.sh`; CI calls the same script with `--ci`.
-- **`check-project-drift.py`** verifies that `AGENTS.md` still matches the tree:
-  rule index, command and skill lists, Claude/OpenCode mirrors, thin `CLAUDE.md`,
-  the profile's rule set, and the Python version in `pyproject.toml`.
-  `check-primitive-drift.sh` covers the complementary part: the mirrored command
-  and agent bodies must be identical, not just present.
-- **CI** runs the drift gate, the secret scan, and the profile's lint/type/test
-  jobs. The generated workflow is skipped if the project already has one.
-- Git hooks are per-clone: run `bash .claude/hooks/install-git-hooks.sh` once
-  (or let `new-project.sh` do it). CI remains the backstop if a hook is skipped.
-
-## Context, not a rule dump
-
-- OpenCode loads `AGENTS.md` + `my-workflows.md` and reads rules **on demand**
-  through the rule index. It never globs `.claude/rules/`.
-- Claude Code loads the thin `CLAUDE.md` and path-scoped rules.
-- The rule index is generated from each rule's `read_when:` frontmatter, so a
-  trimmed or added rule cannot leave a stale pointer. CI fails if the index and
-  the rendered rules disagree.
-- The web-only operational articles ship only for `web`; MCP, CLI, agent and
-  Godot harnesses stay lean.
+- **`pre-commit`** scans the staged diff for credentials, forbidden
+  skips/xfails and project drift. **`pre-push`** scans the tree and runs
+  `make check` when defined. Both wrap `.claude/hooks/guardrails.sh`, and CI
+  calls the same script.
+- **`check-project-drift.py`** fails when `AGENTS.md` no longer matches the
+  tree. It covers the rule index, the command and skill lists, the mirrors, a
+  thin `CLAUDE.md`, and the Python version. It also fails when a rule belongs
+  to a stack or pack that `harness.json` doesn't declare, or when a declared
+  one is missing its rules.
+- **CI** runs the guardrails plus each stack's lint/type/test job.
 
 ## Repository layout
 
 ```
-system/                 machine layer (shell, global agent rules, git)
+system/                  machine layer (shell, global agent rules, git)
 templates/
   _shared/
-    AGENTS.md           canonical project context template (rule-index marker)
-    core/articles/      rules shipped for every profile
-    agents/ commands/ skills/ doctrine/
-    ci/                 minimal profile CI workflows
-    githooks/           tracked pre-commit / pre-push gates
-    profiles/
-      mcp/ python/ agent/ web/ godot/
-        articles/ commands/ agents/ skills/
-    mirror-pairs.json   routing for agent/command/doctrine mirrors
+    AGENTS.md            project context template (stack blocks, generated lists)
+    core/articles/       rules for every project
+    agents/ commands/ skills/ doctrine/   shared by every project
+    stacks/<id>/         articles/ agents/ commands/ skills/ per stack
+    packs/<id>/          opt-in rule packs
+    ci/                  base.yml + jobs/<stack>.yml, composed per project
+    githooks/
     my-workflows.md
-  claude-code/          Claude harness assets (hooks, thin CLAUDE.md)
-  opencode/             OpenCode config (instructions + v2 permissions)
-  scripts/              bootstrap, rule index, mirrors, detection, conditionals
-new-project.sh          create a repo + render the harness
-scripts/lint-skills.py  enforce the deterministic skill contract
-SYSTEM.md               machine → project flow
+  claude-code/           Claude harness assets (hooks, thin CLAUDE.md)
+  opencode/              OpenCode config
+  scripts/               render.py (renderer), inspect-project.py (detection),
+                         rule index, mirrors, checks, scaffold
+new-project.sh           create a repo + render the harness
+scripts/lint-skills.py   enforce the skill contract
 ```
 
 ## Editing contract
 
-- Edit shared content in `templates/_shared/core/` or the relevant
-  `profiles/<profile>/` directory — never the generated OpenCode mirrors.
-- Every rule needs `read_when:` frontmatter; the index and CI depend on it.
-- Re-render and run the checks after changes:
+- Edit shared content in `templates/_shared/`. Never edit generated OpenCode
+  mirrors.
+- Rule paths must be unique across core, stacks and packs. A stack adds rules
+  and never replaces a core one.
+- Every rule needs `read_when:` frontmatter.
+- Each rule lives in one file; other files link to it rather than restating it.
+- Re-render and check after changes (CI runs this matrix):
 
 ```bash
-for p in mcp python agent web godot; do
-  bash templates/scripts/bootstrap.sh --profile "$p" --project-name Test --project-slug test --output-dir "/tmp/render-$p"
-  python3 templates/scripts/check-harness-sync.py templates "/tmp/render-$p"
+for s in python mcp agent fastapi,frontend godot,rust mcp,godot-addon; do
+  out="/tmp/render-${s//,/-}"; rm -rf "$out"
+  python3 templates/scripts/render.py --output-dir "$out" --project-name Test --stacks "$s" --packs production,acd
+  python3 templates/scripts/check-harness-sync.py templates "$out"
+  python3 "$out/.claude/hooks/check-project-drift.py" --root "$out"
 done
 ```
 

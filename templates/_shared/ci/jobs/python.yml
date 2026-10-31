@@ -1,0 +1,22 @@
+
+  python:
+    runs-on: {{CI_RUNS_ON}}
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: "{{BACKEND_PATH}}"
+    steps:
+      - uses: actions/checkout@v4
+{{#PY_UV}}
+      - uses: astral-sh/setup-uv@v5
+      - run: uv python install {{PYTHON_VERSION}}
+{{/PY_UV}}
+{{#PY_PIP}}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "{{PYTHON_VERSION}}"
+{{/PY_PIP}}
+      - run: {{PY_SYNC_CMD}}
+      - run: {{LINT_BACKEND_CMD}}
+      - run: {{TYPE_BACKEND_CMD}}
+      - run: {{TEST_BACKEND_CMD}} -q{{#STACK_AGENT}} -m "not slow and not integration"{{/STACK_AGENT}}

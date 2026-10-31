@@ -47,7 +47,7 @@ jobs:
       - name: Scaffold a new project
         run: |
           rm -rf /tmp/scaffold
-          ./new-project.sh /tmp/scaffold --profile python \
+          ./new-project.sh /tmp/scaffold --stacks python \
             --project-name "Scaffold" --project-slug scaffold --scaffold --no-hooks
           test -f /tmp/scaffold/pyproject.toml
           test -f /tmp/scaffold/src/scaffold/__init__.py
@@ -93,22 +93,26 @@ jobs:
           exit "$fail"
 
   templates:
-    name: Harness / ${{ matrix.profile }}
+    name: Harness / ${{ matrix.name }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        profile: [mcp, python, agent, web, godot]
+        include:
+          - { name: python, stacks: python, packs: "" }
+          - { name: mcp, stacks: mcp, packs: "" }
+          - { name: agent+acd, stacks: agent, packs: acd }
+          - { name: web+production, stacks: "fastapi,frontend", packs: production }
+          - { name: full-web, stacks: "mcp,agent,fastapi,frontend", packs: "production,acd" }
+          - { name: godot+rust, stacks: "godot,rust", packs: "" }
+          - { name: godot-mcp, stacks: "mcp,godot-addon", packs: "" }
     env:
-      RENDER: /tmp/render-${{ matrix.profile }}
+      RENDER: /tmp/render
     steps:
       - uses: actions/checkout@v4
 
       - name: Install dependencies
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq python3 python3-pip
-          pip install -q --user pyyaml
+        run: pip install -q --user pyyaml
 
       - name: Validate tracked JSON, YAML, shell and Python
         run: |
@@ -117,126 +121,43 @@ jobs:
             python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$f" \
               || { echo "INVALID JSON: $f"; fail=1; }
           done
-          for f in $(git ls-files '*.yml' '*.yaml'); do
+          for f in $(git ls-files '*.yml' '*.yaml' | grep -v '^templates/_shared/ci/'); do
             python3 -c 'import sys,yaml; yaml.safe_load(open(sys.argv[1]))' "$f" \
               || { echo "INVALID YAML: $f"; fail=1; }
           done
-          for f in $(git ls-files '*.sh'); do
+          for f in $(git ls-files '*.sh') templates/_shared/githooks/*; do
             bash -n "$f" || { echo "INVALID SHELL: $f"; fail=1; }
-          done
-          for f in templates/_shared/githooks/*; do
-            bash -n "$f" || { echo "INVALID GIT HOOK: $f"; fail=1; }
           done
           python3 -m py_compile templates/scripts/*.py \
             templates/claude-code/.claude/hooks/*.py || fail=1
-          find templates/_shared/skills .agents/scripts -name '*.py' -print0 \
-            | xargs -0 -r python3 -m py_compile || fail=1
+          git ls-files 'templates/_shared/**/*.py' '.agents/scripts/*.py' \
+            | xargs -r python3 -m py_compile || fail=1
           python3 scripts/lint-skills.py || fail=1
           exit "$fail"
 
-      - name: Render the ${{ matrix.profile }} harness
+      - name: Render ${{ matrix.name }}
         run: |
           rm -rf "$RENDER"
-          extra=()
-          if [[ "${{ matrix.profile }}" == "agent" ]]; then
-            extra=(--has-mlflow yes --has-langgraph yes)
-          fi
-          bash templates/scripts/bootstrap.sh \
-            --profile "${{ matrix.profile }}" \
-            --project-name "Validate${{ matrix.profile }}" \
-            --project-slug "validate-${{ matrix.profile }}" \
-            "${extra[@]}" \
-            --output-dir "$RENDER"
+          python3 templates/scripts/render.py --output-dir "$RENDER" \
+            --project-name "Validate" --stacks "${{ matrix.stacks }}" --packs "${{ matrix.packs }}"
 
       - name: Check harness contract
         run: |
           set -e
           grep -q '@AGENTS.md' "$RENDER/CLAUDE.md"
-          grep -q '### Rule Index\|## Rule Index' "$RENDER/AGENTS.md"
-          grep -q 'my-workflows.md' "$RENDER/AGENTS.md"
+          grep -q '## Rule Index' "$RENDER/AGENTS.md"
           ! grep -q '.claude/rules' "$RENDER/.opencode/opencode.json"
           ! grep -rq '^permission:' "$RENDER/.opencode/agents"
           grep -Rq '^permissions:' "$RENDER/.opencode/agents"
           ! grep -rqi 'copilot' "$RENDER"
-
-      - name: Check rule index is complete
-        run: |
-          rules=$(find "$RENDER/.claude/rules" -name '*.md' -not -path '*/doctrine/*' | wc -l | tr -d ' ')
-          rows=$(grep -c '^| `\.claude/rules/' "$RENDER/AGENTS.md" || true)
-          echo "rules=$rules index_rows=$rows"
-          [[ "$rules" == "$rows" ]]
-
-      - name: Check profile isolation
-        run: |
-          fail=0
-          case "${{ matrix.profile }}" in
-            mcp)
-              test -f "$RENDER/.claude/rules/mcp-contract.md" || fail=1
-              test -f "$RENDER/.claude/rules/mcp-transport.md" || fail=1
-              test ! -e "$RENDER/.claude/rules/rate-limiting.md" || fail=1
-              test ! -e "$RENDER/.claude/rules/frontend" || fail=1
-              test ! -e "$RENDER/.claude/agents/frontend-architect.md" || fail=1
-              test ! -e "$RENDER/.claude/commands/migration-check.md" || fail=1
-              ;;
-            python)
-              test -f "$RENDER/.claude/rules/cli.md" || fail=1
-              test -f "$RENDER/.claude/rules/packaging.md" || fail=1
-              test ! -e "$RENDER/.claude/rules/mcp-contract.md" || fail=1
-              test ! -e "$RENDER/.claude/rules/api-design.md" || fail=1
-              test ! -e "$RENDER/.claude/agents/frontend-architect.md" || fail=1
-              ;;
-            agent)
-              test -f "$RENDER/.claude/rules/agent-system.md" || fail=1
-              test -f "$RENDER/.claude/rules/agentic-workflow.md" || fail=1
-              test ! -e "$RENDER/.claude/rules/mcp-contract.md" || fail=1
-              test ! -e "$RENDER/.claude/agents/frontend-architect.md" || fail=1
-              ;;
-            web)
-              test -f "$RENDER/.claude/rules/api-design.md" || fail=1
-              test -f "$RENDER/.claude/rules/frontend/conventions.md" || fail=1
-              test -f "$RENDER/.claude/rules/database/sql-standards.md" || fail=1
-              test -f "$RENDER/.claude/agents/frontend-architect.md" || fail=1
-              test -f "$RENDER/.claude/commands/migration-check.md" || fail=1
-              test ! -e "$RENDER/.claude/rules/mcp-contract.md" || fail=1
-              ;;
-            godot)
-              test -f "$RENDER/.claude/rules/godot-serialization.md" || fail=1
-              test -f "$RENDER/.claude/rules/godot-testing.md" || fail=1
-              test ! -e "$RENDER/.claude/rules/cli.md" || fail=1
-              test ! -e "$RENDER/.claude/rules/mcp-contract.md" || fail=1
-              test ! -e "$RENDER/.claude/agents/frontend-architect.md" || fail=1
-              ;;
-          esac
-          exit "$fail"
-
-      - name: Check required files and hooks
-        run: |
-          fail=0
-          for f in AGENTS.md CLAUDE.md .claude/settings.json .opencode/opencode.json \
-                   .claude/rules/architecture.md .claude/rules/testing.md \
-                   .claude/commands/graphify.md .opencode/commands/graphify.md \
-                   .claude/commands/ship-pr.md .opencode/commands/ship-pr.md \
-                   .claude/skills/ship-pr/SKILL.md .opencode/skills/ship-pr/SKILL.md \
-                   .claude/skills/ship-pr/scripts/watch_pr.py \
-                   .claude/hooks/check-primitive-drift.sh \
-                   .claude/hooks/check-project-drift.py .claude/hooks/check-secrets.py \
-                   .claude/hooks/guardrails.sh .claude/hooks/install-git-hooks.sh \
-                   .claude/harness.json \
-                   .githooks/pre-commit .githooks/pre-push \
-                   .github/workflows/ci.yml \
-                   .claude/skills/customize-harness/SKILL.md \
-                   .opencode/skills/customize-harness/SKILL.md; do
-            test -f "$RENDER/$f" || { echo "MISSING: $f"; fail=1; }
+          ! grep -rqE '\{\{[#/]?[A-Z_]+\}\}' "$RENDER"
+          python3 -c 'import sys,yaml; yaml.safe_load(open(sys.argv[1]))' "$RENDER/.github/workflows/ci.yml"
+          for f in $(find "$RENDER" -name '*.json' -type f); do
+            python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$f"
           done
-          for h in "$RENDER"/.claude/hooks/*.sh; do
-            bash -n "$h" || { echo "INVALID HOOK: $h"; fail=1; }
-          done
-          for h in "$RENDER"/.claude/hooks/*.py; do
-            python3 -m py_compile "$h" || { echo "INVALID PYTHON HOOK: $h"; fail=1; }
-          done
-          exit "$fail"
+          for h in "$RENDER"/.claude/hooks/*.sh; do bash -n "$h"; done
 
-      - name: Check OpenCode agent/command mirrors
+      - name: Check OpenCode mirrors
         run: |
           fail=0
           for kind in agents commands; do
@@ -252,27 +173,17 @@ jobs:
           done
           exit "$fail"
 
-      - name: Check rendered JSON and placeholders
-        run: |
-          fail=0
-          for f in $(find "$RENDER" -name '*.json' -type f); do
-            python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$f" \
-              || { echo "INVALID RENDERED JSON: $f"; fail=1; }
-          done
-          if grep -rn '{{[A-Z_]*}}' "$RENDER"; then
-            echo "FAIL: orphaned placeholders"
-            fail=1
-          fi
-          exit "$fail"
-
       - name: Cross-harness sync
         run: python3 templates/scripts/check-harness-sync.py templates "$RENDER"
 
-      - name: Project drift guard
+      - name: Project drift guard (includes stack/pack isolation)
         run: python3 "$RENDER/.claude/hooks/check-project-drift.py" --root "$RENDER"
 
-      - name: Check file count
+      - name: Isolation regression
         run: |
-          total=$(find "$RENDER" -type f | wc -l | tr -d ' ')
-          echo "rendered $total files"
-          [[ "$total" -ge 40 ]]
+          touch "$RENDER/.claude/rules/rust.md"
+          if [[ ",${{ matrix.stacks }}," != *",rust,"* ]] && \
+             python3 "$RENDER/.claude/hooks/check-project-drift.py" --root "$RENDER" --quiet; then
+            echo "drift gate accepted a rule from an undeclared stack"
+            exit 1
+          fi

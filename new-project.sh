@@ -6,9 +6,9 @@
 #
 # Without extra flags the harness is tailored with --auto-detect (it probes the
 # directory). Pass any bootstrap flag to override, e.g.:
-#   ./new-project.sh ../mcp-server --profile mcp
-#   ./new-project.sh ../api --project-name "My API" --profile web
-#   ./new-project.sh ../cli --profile python --scaffold
+#   ./new-project.sh ../mcp-server --stacks mcp
+#   ./new-project.sh ../api --project-name "My API" --stacks fastapi,frontend --packs production
+#   ./new-project.sh ../cli --stacks python --scaffold
 #
 # The script creates the directory, initialises git (main) when needed, renders
 # the harness, installs the tracked git hooks (unless --no-hooks), optionally

@@ -22,7 +22,7 @@ production code.
 
 ## Inputs
 
-- Required: the test roots (`{{BACKEND_PATH}}/tests`, `{{FRONTEND_PATH}}/tests`).
+- Required: the test roots (`{{TEST_ROOTS}}`).
 - Read: only the file:line hits and enough surrounding lines to classify them.
 - Do not read: production source, migrations, or unrelated repositories.
 
@@ -31,7 +31,7 @@ production code.
 1. **Scan once.**
    ```bash
    python3 .claude/skills/test-hygiene-scanner/scripts/scan.py \
-     {{BACKEND_PATH}}/tests {{FRONTEND_PATH}}/tests
+     {{TEST_ROOTS}}
    ```
    The script owns the categories and regexes; do not run alternate searches.
 2. **Triage every hit.** For each, open only the surrounding lines and assign:

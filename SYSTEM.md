@@ -38,8 +38,8 @@ platform. It never installs anything on its own.
 ```bash
 cd ~/Development
 ~/genesis/new-project.sh myapp            # git init + auto-detect + render
-~/genesis/new-project.sh mcp-server --profile mcp
-~/genesis/new-project.sh cli --profile python --scaffold  # + README/LICENSE/Makefile/skeleton
+~/genesis/new-project.sh mcp-server --stacks mcp
+~/genesis/new-project.sh cli --stacks python --scaffold  # + README/LICENSE/Makefile/skeleton
 ```
 
 `new-project.sh` creates the directory, runs `git init -b main`, renders the

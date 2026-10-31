@@ -4,37 +4,24 @@ read_when: "Changing CI workflows, build steps, caching, or release automation"
 
 # CI/CD: One Command, Same Result Everywhere
 
-CI is the contract. If it is not reproducible locally, it is not a gate.
+If a gate can't be reproduced locally, it isn't a gate.
 
 ## MUST
 
-- Every gate runnable locally with one documented command (and mirrored in CI).
-- Pin tool and action versions; update them deliberately, not implicitly.
-- Deterministic builds: lockfiles committed, no floating `latest` in production
-  paths, no network-dependent tests in the blocking job.
-- Fail on: lint, type errors, failing tests, unchecked skips, secret leaks,
-  broken links, and invalid config/manifests.
-- Cache only reproducible artifacts (package caches, build caches) and key them
-  on the lockfile.
-- Releases are tagged and reproducible from a clean checkout.
+- Every blocking gate is runnable locally, and `/preflight` runs the same
+  checks.
+- The blocking job fails on lint, type errors, failing tests, unconditional
+  skips, secret leaks, and invalid config.
+- Pin tool and action versions; update them deliberately.
+- Install from the lockfile; no network-dependent tests in the blocking job.
+- Gates run on every PR, not only on `main`.
+- Secrets are never echoed to logs or exposed to fork PRs.
 
 ## SHOULD
 
-- Fast blocking job (< 5 min) + slower nightly/extended job.
-- Matrix only where the matrix proves something (OS/runtime floor).
-- Upload failure artifacts (logs, screenshots, coverage) on red.
-- Concurrency groups to cancel superseded runs.
-
-## ANTI-PATTERNS
-
-- `--no-verify`, skipped hooks, or `|| true` around a gate.
-- Secrets echoed to logs or available to fork PRs.
-- A gate that only runs on `main`.
-- Tests that need a live external service in the blocking job.
-- Rebuilding the same artifact per job instead of once and reusing it.
-
-## Checklist
-
-- [ ] Local preflight matches CI.
-- [ ] Versions and actions pinned.
-- [ ] Red build means a real defect, not flakiness.
+- Keep the blocking job fast (target < 10 min); put slow suites (integration,
+  evals, headless engine runs) in a separate job or nightly.
+- Cache keyed on the lockfile; build an artifact once and reuse it.
+- Cancel superseded runs with concurrency groups.
+- Upload logs/screenshots/coverage on failure.
+- Release workflows reuse the CI workflow as their gate.

@@ -7,7 +7,7 @@ It does not ask a model to judge prose. The template-source counterpart is
 `templates/scripts/check-harness-sync.py`; this file validates a deployed project.
 
 Checks:
-  1. The manifest is present, valid, and its profile matches the rule files.
+  1. The manifest is present and valid, and its stacks/packs match the rule files.
   2. `AGENTS.md` indexes every rule exactly once, and every rule has read_when.
   3. The Commands and Skills sections match the directories on disk.
   4. The Claude/OpenCode mirrors have the same commands, skills, and agents.
@@ -27,13 +27,22 @@ import re
 import sys
 from pathlib import Path
 
-PROFILE_MARKERS = {
-    "mcp": {"mcp-contract.md", "mcp-safety.md", "mcp-testing.md", "mcp-transport.md"},
-    "python": {"cli.md", "packaging.md"},
-    "agent": {"agent-system.md", "agentic-workflow.md"},
-    "web": {"api-design.md"},
-    "godot": {"godot-serialization.md", "godot-testing.md"},
+# One marker rule per stack/pack: present when declared, absent otherwise.
+STACK_MARKERS = {
+    "python": "packaging.md",
+    "mcp": "mcp-contract.md",
+    "agent": "agent-system.md",
+    "fastapi": "api-design.md",
+    "frontend": "frontend/conventions.md",
+    "godot": "godot.md",
+    "godot-addon": "godot-addon.md",
+    "rust": "rust.md",
 }
+PACK_MARKERS = {
+    "production": "deploy-safety.md",
+    "acd": "agentic-workflow.md",
+}
+LEGACY_PROFILES = {"web": ["fastapi", "frontend"]}
 
 PLACEHOLDER = re.compile(r"\{\{[A-Z_][A-Z0-9_]*\}\}")
 
@@ -58,7 +67,7 @@ class Drift:
             self.fail(message)
         return ok
 
-    # ── Manifest and profile ──────────────────────────────────────────
+    # ── Manifest, stacks and packs ────────────────────────────────────
 
     def manifest(self) -> dict | None:
         path = self.root / ".claude" / "harness.json"
@@ -73,30 +82,33 @@ class Drift:
         if not isinstance(data, dict):
             self.fail("DRIFT: .claude/harness.json must contain an object")
             return None
-        self.check(data.get("schema") == 1, "DRIFT: harness.json schema must be 1")
-        profile = data.get("profile")
-        self.check(profile in PROFILE_MARKERS, f"DRIFT: unknown profile in harness.json: {profile!r}")
+        schema = data.get("schema")
+        self.check(schema in (1, 2), f"DRIFT: unsupported harness.json schema {schema!r}")
+        if schema == 1:  # single-profile harness from an older bootstrap
+            profile = data.get("profile") or "python"
+            data["stacks"] = LEGACY_PROFILES.get(profile, [profile])
+            data.setdefault("packs", ["acd"] if profile == "agent" else [])
+        for stack in data.get("stacks") or []:
+            self.check(stack in STACK_MARKERS, f"DRIFT: unknown stack in harness.json: {stack!r}")
+        for pack in data.get("packs") or []:
+            self.check(pack in PACK_MARKERS, f"DRIFT: unknown pack in harness.json: {pack!r}")
         return data
 
-    def profile(self, manifest: dict) -> None:
+    def stacks(self, manifest: dict) -> None:
         rules = self.root / ".claude" / "rules"
-        present = {p.name for p in rules.glob("*.md")}
-        profile = manifest.get("profile")
-        if profile not in PROFILE_MARKERS:
-            return
-        for marker in sorted(PROFILE_MARKERS[profile]):
-            self.check(
-                marker in present,
-                f"DRIFT: profile {profile} is missing .claude/rules/{marker}",
-            )
-        for other, markers in PROFILE_MARKERS.items():
-            if other == profile:
-                continue
-            leaked = sorted(markers & present)
-            if leaked:
-                self.fail(
-                    f"DRIFT: profile {profile} contains {other} rules: {', '.join(leaked)}"
-                )
+        for kind, markers, declared in (
+            ("stack", STACK_MARKERS, set(manifest.get("stacks") or [])),
+            ("pack", PACK_MARKERS, set(manifest.get("packs") or [])),
+        ):
+            for name, marker in sorted(markers.items()):
+                present = (rules / marker).is_file()
+                if name in declared:
+                    self.check(present, f"DRIFT: {kind} {name} is missing .claude/rules/{marker}")
+                elif present:
+                    self.fail(
+                        f"DRIFT: .claude/rules/{marker} belongs to {kind} {name}, which harness.json "
+                        f"does not declare (add it to {kind}s or delete the rule)"
+                    )
 
     # ── Rule index ─────────────────────────────────────────────────────
 
@@ -258,7 +270,7 @@ class Drift:
                     match.group(1) == self.major_minor(expected),
                     f"DRIFT: AGENTS.md says Python {match.group(1)}, manifest says {expected}",
                 )
-        backend = manifest.get("backend_path") or "."
+        backend = (manifest.get("paths") or {}).get("python") or manifest.get("backend_path") or "."
         pyproject = self.root / backend / "pyproject.toml"
         if pyproject.is_file():
             match = re.search(
@@ -273,12 +285,9 @@ class Drift:
                 )
 
     def paths(self, manifest: dict) -> None:
-        if manifest.get("profile") != "web":
-            return
-        for key in ("backend_path", "frontend_path"):
-            value = manifest.get(key)
+        for key, value in (manifest.get("paths") or {}).items():
             if value and value != "." and not (self.root / value).is_dir():
-                self.warn(f"WARN: {key} {value!r} does not exist yet")
+                self.warn(f"WARN: {key} path {value!r} does not exist yet")
 
     # ── Placeholders and required hooks ────────────────────────────────
 
@@ -328,7 +337,7 @@ class Drift:
     def run(self) -> int:
         manifest = self.manifest()
         if manifest is not None:
-            self.profile(manifest)
+            self.stacks(manifest)
             self.versions(manifest)
             self.paths(manifest)
         self.rule_index()

@@ -80,7 +80,7 @@ caller asked for `--merge`.
    `mergeStateStatus=CLEAN`, no `CHANGES_REQUESTED`, no unresolved blocking
    thread, and no `do-not-merge` label. Then:
    ```bash
-   gh pr merge "$PR" --squash --delete-branch
+   gh pr merge "$PR" --merge --delete-branch
    ```
    If branch protection needs a human approval, stop and report it. Do not use
    `--admin` or bypass hooks.

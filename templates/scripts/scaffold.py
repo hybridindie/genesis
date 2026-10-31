@@ -2,7 +2,7 @@
 """Create the small repo-hygiene skeleton a new project needs.
 
 This is deliberately minimal: README, LICENSE, .gitignore, Makefile, and for
-Python profiles a package + smoke test. It never overwrites an existing file.
+a Python stack a package + smoke test. It never overwrites an existing file.
 The harness itself is rendered by bootstrap.sh; this runs afterwards.
 
 Usage:
@@ -41,7 +41,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-PYTHON_PROFILES = {"mcp", "python", "agent"}
 
 
 def write_if_missing(path: Path, text: str, written: list[str], skipped: list[str]) -> None:
@@ -62,7 +61,7 @@ def git_author(root: Path) -> str:
         return "The Authors"
 
 
-def gitignore(profile: str) -> str:
+def gitignore(stacks: list[str]) -> str:
     lines = [
         "# OS / editor",
         ".DS_Store",
@@ -74,7 +73,7 @@ def gitignore(profile: str) -> str:
         ".env.*",
         "!.env.example",
     ]
-    if profile in PYTHON_PROFILES:
+    if "python" in stacks:
         lines += [
             "",
             "# Python",
@@ -90,7 +89,7 @@ def gitignore(profile: str) -> str:
             "htmlcov/",
             ".coverage",
         ]
-    if profile == "web":
+    if "frontend" in stacks:
         lines += [
             "",
             "# Node",
@@ -99,25 +98,29 @@ def gitignore(profile: str) -> str:
             "coverage/",
             "*.local",
         ]
-    if profile == "godot":
+    if "godot" in stacks:
         lines += [
             "",
             "# Godot",
             ".godot/",
-            ".import/",
             "export/",
+        ]
+    if "rust" in stacks:
+        lines += [
+            "",
+            "# Rust",
+            "target/",
         ]
     return "\n".join(lines) + "\n"
 
 
-def readme(profile: str, name: str) -> str:
-    quickstart = {
-        "mcp": "Add the server package under `src/`, then run:\n\n```bash\nuv sync\nmake check\n```",
-        "python": "Add the package under `src/`, then run:\n\n```bash\nuv sync\nmake check\n```",
-        "agent": "Add the graph/state package under `src/`, then run:\n\n```bash\nuv sync\nmake check\n```",
-        "web": "Put the FastAPI app in `backend/` and the React app in `frontend/`, then run:\n\n```bash\nmake check\n```",
-        "godot": "Open the project in Godot 4.4+, enable the addon, then run:\n\n```bash\nmake check\n```",
-    }[profile]
+def readme(stacks: list[str], name: str) -> str:
+    steps = []
+    if "python" in stacks:
+        steps.append("uv sync")
+    if "frontend" in stacks:
+        steps.append("(cd frontend && npm install)")
+    quickstart = "```bash\n" + "\n".join(steps + ["make check"]) + "\n```"
     return f"""# {name}
 
 {name} is scaffolded with the [genesis](https://github.com/hybridindie/genesis)
@@ -180,23 +183,36 @@ testpaths = ["tests"]
 """
 
 
-def makefile(profile: str) -> str:
-    if profile in PYTHON_PROFILES:
-        return (
-            ".PHONY: check\n"
-            "check:\n"
-            "\tuv run ruff check .\n"
-            "\tuv run mypy src/\n"
-            "\tuv run pytest tests -q\n"
-        )
-    if profile == "web":
-        return (
-            ".PHONY: check\n"
-            "check:\n"
-            "\tcd backend && uv run ruff check . && uv run mypy src/ && uv run pytest\n"
-            "\tcd frontend && npm run lint && npm run type-check && npx vitest run\n"
-        )
-    return ".PHONY: check\ncheck:\n\tgdformat --check .\n\tgdlint .\n"
+def makefile(manifest: dict) -> str:
+    """`make check` runs each stack's lint, type and test commands."""
+    stacks = manifest.get("stacks") or []
+    paths = manifest.get("paths") or {}
+    py = manifest.get("python") or {}
+    fe = manifest.get("frontend") or {}
+    gd = manifest.get("godot") or {}
+
+    def at(path: str | None, cmds: list[str]) -> str:
+        line = " && ".join(cmds)
+        return f"\tcd {path} && {line}\n" if path and path != "." else f"\t{line}\n"
+
+    body = ""
+    if "python" in stacks:
+        body += at(paths.get("python"), [
+            py.get("lint_cmd") or "uv run ruff check .",
+            py.get("type_cmd") or "uv run mypy src/",
+            py.get("test_cmd") or "uv run pytest",
+        ])
+    if "frontend" in stacks:
+        body += at(paths.get("frontend"), [
+            fe.get("lint_cmd") or "npm run lint",
+            fe.get("type_cmd") or "npx tsc --noEmit",
+            fe.get("test_cmd") or "npm test",
+        ])
+    if "godot" in stacks:
+        body += at(paths.get("godot"), ["gdlint .", gd.get("test_cmd") or "godot --headless --script res://tests/run_tests.gd"])
+    if "rust" in stacks:
+        body += at(paths.get("rust"), ["cargo fmt --check", "cargo clippy --all-targets -- -D warnings", "cargo test"])
+    return ".PHONY: check\ncheck:\n" + (body or "\t@echo 'no checks configured'\n")
 
 
 def main() -> int:
@@ -212,7 +228,7 @@ def main() -> int:
         print("scaffold: .claude/harness.json is missing; run bootstrap first", file=sys.stderr)
         return 2
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    profile = manifest.get("profile")
+    stacks = manifest.get("stacks") or ([manifest["profile"]] if manifest.get("profile") else [])
     name = manifest.get("project_name") or root.name
     slug = manifest.get("project_slug") or root.name
     module = slug.replace("-", "_")
@@ -222,9 +238,9 @@ def main() -> int:
     written: list[str] = []
     skipped: list[str] = []
 
-    write_if_missing(root / ".gitignore", gitignore(profile), written, skipped)
-    write_if_missing(root / "README.md", readme(profile, name), written, skipped)
-    write_if_missing(root / "Makefile", makefile(profile), written, skipped)
+    write_if_missing(root / ".gitignore", gitignore(stacks), written, skipped)
+    write_if_missing(root / "README.md", readme(stacks, name), written, skipped)
+    write_if_missing(root / "Makefile", makefile(manifest), written, skipped)
     if args.license.lower() != "none":
         write_if_missing(
             root / "LICENSE",
@@ -233,7 +249,7 @@ def main() -> int:
             skipped,
         )
 
-    if profile in PYTHON_PROFILES:
+    if "python" in stacks and (manifest.get("paths") or {}).get("python") in (None, "."):
         write_if_missing(root / "pyproject.toml", pyproject(slug, module, python), written, skipped)
         write_if_missing(
             root / "src" / module / "__init__.py",

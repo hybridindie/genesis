@@ -21,7 +21,8 @@ ROOT = Path(__file__).resolve().parents[1]
 BODY_GLOBS = [
     ".agents/skills/*.md",
     "templates/_shared/skills/*/SKILL.md",
-    "templates/_shared/profiles/*/skills/*/SKILL.md",
+    "templates/_shared/stacks/*/skills/*/SKILL.md",
+    "templates/_shared/packs/*/skills/*/SKILL.md",
 ]
 WRAPPER_GLOBS = [
     ".claude/skills/*/SKILL.md",

@@ -1,47 +1,91 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "skills": [".opencode/skills"],
-  "instructions": ["AGENTS.md"],
+  "skills": [
+    ".opencode/skills"
+  ],
+  "instructions": [
+    "AGENTS.md"
+  ],
   "permissions": [
-    { "action": "shell", "resource": "*", "effect": "allow" },
-    { "action": "shell", "resource": "sudo *", "effect": "ask" },
-    { "action": "shell", "resource": "rm -rf *", "effect": "ask" },
-    { "action": "shell", "resource": "brew *", "effect": "ask" },
-    { "action": "shell", "resource": "git push --force*", "effect": "ask" },
-    { "action": "shell", "resource": "direnv allow *", "effect": "ask" },
-    { "action": "read", "resource": "~/.ssh/**", "effect": "deny" },
-    { "action": "read", "resource": "~/.aws/**", "effect": "deny" },
-    { "action": "read", "resource": "~/.kube/**", "effect": "deny" },
-    { "action": "read", "resource": "**/.env", "effect": "deny" }
+    {
+      "action": "shell",
+      "resource": "*",
+      "effect": "allow"
+    },
+    {
+      "action": "shell",
+      "resource": "sudo *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "rm -rf *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "brew *",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "git push --force*",
+      "effect": "ask"
+    },
+    {
+      "action": "shell",
+      "resource": "direnv allow *",
+      "effect": "ask"
+    },
+    {
+      "action": "read",
+      "resource": "~/.ssh/**",
+      "effect": "deny"
+    },
+    {
+      "action": "read",
+      "resource": "~/.aws/**",
+      "effect": "deny"
+    },
+    {
+      "action": "read",
+      "resource": "~/.kube/**",
+      "effect": "deny"
+    },
+    {
+      "action": "read",
+      "resource": "**/.env",
+      "effect": "deny"
+    }
   ],
   "commands": {
     "bootstrap-harness": {
-      "description": "Scan a project, interview about unknowns, and generate a complete AI harness (Claude + Opencode + Copilot).",
-      "template": "Load the bootstrap-harness skill and follow its complete workflow.\n\nThe skill will direct you to read .agents/skills/bootstrap-harness.md. Run all five phases: probe the project, interview only for unresolved unknowns, render via templates/scripts/bootstrap.sh, validate the output, and report. Render into the output directory below (default: current directory).\n\n$ARGUMENTS"
+      "description": "Install or update the AI harness in a target project.",
+      "template": "Load the bootstrap-harness skill and follow it.\n\n$ARGUMENTS"
     },
     "epic-composer": {
-      "description": "Compose an Epic from source material (transcripts, docs, notes).",
-      "template": "Load the epic-composer skill and follow its complete workflow on the source material below.\n\nThe skill will direct you to read .agents/skills/epic-composer.md for the full instructions. Follow all phases including synthesis, interview (if needed), drafting, and readiness assessment.\n\n$ARGUMENTS"
+      "description": "Draft an Epic issue from source material.",
+      "template": "Load the epic-composer skill and follow it.\n\n$ARGUMENTS"
     },
     "epic-interview": {
-      "description": "Run Epic interview mode to close critical gaps.",
-      "template": "Load the epic-interview skill and follow its instructions on the current material and draft.\n\nThe skill will direct you to read .agents/skills/epic-interview.md. Do not rewrite the Epic \u2014 ask concise, high-value questions grouped by priority, then label the response state.\n\n$ARGUMENTS"
+      "description": "Ask the smallest set of questions that unblocks an Epic.",
+      "template": "Load the epic-interview skill and follow it.\n\n$ARGUMENTS"
     },
     "epic-acceptance-linter": {
-      "description": "Lint acceptance criteria on an existing Epic draft.",
-      "template": "Load the epic-acceptance-linter skill and apply it to the acceptance criteria below.\n\nThe skill will direct you to read .agents/skills/epic-acceptance-linter.md. Review each criterion for observability, testability, specificity, outcome focus, non-conflict, and coverage. Label the response: PASS, NEEDS_REVISION, or BLOCKED.\n\n$ARGUMENTS"
+      "description": "Review acceptance criteria for testability and coverage.",
+      "template": "Load the epic-acceptance-linter skill and follow it.\n\n$ARGUMENTS"
     },
     "story-decomposer": {
-      "description": "Decompose a ready Epic into INVEST-compliant user stories.",
-      "template": "Load the story-decomposer skill and follow its instructions to decompose the Epic below.\n\nThe skill will direct you to read .agents/skills/story-decomposer.md. Verify the Epic is ready, map ACs to stories, write BDD acceptance criteria, apply INVEST, map dependencies, and assess readiness.\n\n$ARGUMENTS"
+      "description": "Decompose a ready Epic into parallel story issues.",
+      "template": "Load the story-decomposer skill and follow it.\n\n$ARGUMENTS"
     },
     "task-decomposer": {
-      "description": "Break down a story into AI-executable engineering tasks.",
-      "template": "Load the task-decomposer skill and apply it to the story below.\n\nThe skill will direct you to read .agents/skills/task-decomposer.md. Draft specific tasks with file paths, APIs, and test paths. Lint for specificity and verifiability. Assess AI-parallelization.\n\n$ARGUMENTS"
+      "description": "Break a story into PR-sized parallel tasks.",
+      "template": "Load the task-decomposer skill and follow it.\n\n$ARGUMENTS"
     },
     "harness-eval": {
       "description": "Evaluate the installed harness against the project's actual stack.",
-      "template": "Read and follow the complete evaluation prompt at docs/harness-eval.md.\n\nThat file is the canonical evaluation workflow. Follow all five phases: stack discovery, stack-fit evaluation, trim, suggest missing rules, and report. Present the plan before executing any edits.\n\n$ARGUMENTS"
+      "template": "Read and follow docs/harness-eval.md. Present the plan before making any edits.\n\n$ARGUMENTS"
     }
   }
 }
