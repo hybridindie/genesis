@@ -328,7 +328,11 @@ def render(plan: dict[str, Any], args: argparse.Namespace) -> tuple[list[str], l
                     w.tree(skill, f"{dest}/{skill.name}")
 
     w.tree(TEMPLATES / "claude-code" / ".claude", ".claude")
-    w.tree(TEMPLATES / "opencode" / ".opencode", ".opencode")
+    if (out / "opencode.json").is_file() and not (out / ".opencode" / "opencode.json").exists():
+        # The project keeps its OpenCode config at the root; don't add a second one.
+        print("  Kept root opencode.json (add my-workflows.md to its instructions)", file=sys.stderr)
+    else:
+        w.tree(TEMPLATES / "opencode" / ".opencode", ".opencode")
     w.file(TEMPLATES / "claude-code" / "CLAUDE.md", "CLAUDE.md")
     w.file(SHARED / "AGENTS.md", "AGENTS.md")
     w.file(GENESIS / "docs" / "harness-eval.md", "docs/harness-eval.md")

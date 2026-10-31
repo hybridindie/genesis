@@ -73,8 +73,11 @@ def main():
         row = re.compile(r"^\|\s*`\.claude/rules/([^`]+)`")
         positions = [i for i, line in enumerate(lines) if row.match(line)]
         if not positions:
-            print(f"ERROR: {agents} has no {MARKER} marker and no rule index table", file=sys.stderr)
-            sys.exit(1)
+            # No index at all yet: append one.
+            lines += ["", "## Rule Index", "", *table]
+            agents.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            print(f"Rule index: appended a new index with {len(rows)} rules")
+            return
         indexed = {row.match(lines[i]).group(1) for i in positions}
         new = [f"| `.claude/rules/{rel}` | {read_when} |" for rel, read_when in rows if rel not in indexed]
         lines[positions[-1] + 1:positions[-1] + 1] = new

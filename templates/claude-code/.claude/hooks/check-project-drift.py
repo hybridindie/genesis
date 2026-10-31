@@ -223,14 +223,16 @@ class Drift:
         self.check(workflows.is_file(), "DRIFT: my-workflows.md is missing")
 
         config_path = self.root / ".opencode" / "opencode.json"
-        if self.check(config_path.is_file(), "DRIFT: .opencode/opencode.json is missing"):
+        if not config_path.is_file() and (self.root / "opencode.json").is_file():
+            config_path = self.root / "opencode.json"
+        if self.check(config_path.is_file(), "DRIFT: opencode.json is missing (.opencode/ or root)"):
             try:
                 config = json.loads(config_path.read_text(encoding="utf-8"))
             except json.JSONDecodeError as exc:
-                self.fail(f"DRIFT: .opencode/opencode.json is invalid JSON: {exc}")
+                self.fail(f"DRIFT: {config_path.relative_to(self.root)} is invalid JSON: {exc}")
                 return
             if not isinstance(config, dict):
-                self.fail("DRIFT: .opencode/opencode.json must contain an object")
+                self.fail(f"DRIFT: {config_path.relative_to(self.root)} must contain an object")
                 return
             instructions = config.get("instructions") or []
             self.check(
