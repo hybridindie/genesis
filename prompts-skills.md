@@ -66,7 +66,7 @@ once; all references inherit.
 AGENTS.md                          # Cross-harness entrypoint
 
 .opencode/
-  opencode.json                   # Config: skills.paths -> .opencode/skills
+  opencode.json                   # Config: skills -> .opencode/skills
   skills/                          # Opencode wrappers (frontmatter only)
     epic-composer/SKILL.md
     epic-acceptance-linter/SKILL.md
@@ -143,7 +143,7 @@ Every skill can be invoked **two ways**:
   (Opencode skills are model-invoked only, so the commands are the slash path).
 - **Automatically:** skills in `.opencode/skills/<name>/SKILL.md` are discovered
   by their `name`/`description`; `permission.skill` allows them.
-- Config: `opencode.json` sets `skills.paths` → `.opencode/skills` and
+- Config: `opencode.json` sets `skills` → `.opencode/skills` and
   `instructions` → `AGENTS.md`. Frontmatter is `name`/`description` only, and
   `name` must match the directory. Restart Opencode after changing config.
 - Docs: [Opencode Skills](https://opencode.ai/docs/skills)

@@ -236,8 +236,10 @@ class Drift:
                 "my-workflows.md" in instructions,
                 "DRIFT: opencode.json must load my-workflows.md",
             )
+            skills = config.get("skills") or []
+            skill_paths = skills if isinstance(skills, list) else skills.get("paths") or []
             self.check(
-                ".opencode/skills" in ((config.get("skills") or {}).get("paths") or []),
+                ".opencode/skills" in skill_paths,
                 "DRIFT: opencode.json must expose .opencode/skills",
             )
             permissions = config.get("permissions") or []
