@@ -75,8 +75,8 @@ The interactive path is `/bootstrap-harness` in Claude Code or OpenCode. It
 shows the detected plan, lets you add or drop stacks and packs, renders and
 validates.
 
-Re-rendering never clobbers tailoring. `harness.json` records a hash for
-every file the renderer writes. On the next render, a file that no longer
+Re-rendering never clobbers tailoring. `.claude/harness.sums` records a
+sha256 for every file the renderer writes. On the next render, a file that no longer
 matches its hash is a local edit: it is kept and listed (`--force-overwrite`
 replaces it). A rendered file you deleted stays deleted. New rules are still
 added to the AGENTS.md index.
@@ -102,6 +102,8 @@ render           → core + stacks + packs, placeholders, generated rule index
   `.opencode/{commands,agents,skills}/`.
 - `.claude/harness.json`: stacks, packs, paths and tooling, which the drift
   gate checks.
+- `.claude/harness.sums`: sha256 of each rendered file, in `sha256sum`
+  format, so a re-render can tell your edits apart from its own output.
 - `.githooks/`: tracked pre-commit/pre-push guardrails, installed once per
   clone.
 - `.github/workflows/ci.yml` (or `.gitea/workflows/ci.yml`): one job per stack,

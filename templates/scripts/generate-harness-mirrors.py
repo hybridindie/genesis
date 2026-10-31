@@ -19,7 +19,6 @@ Usage: python generate-harness-mirrors.py <output_dir>
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 import sys
 from pathlib import Path
@@ -98,10 +97,13 @@ def main() -> int:
         print("Usage: generate-harness-mirrors.py <output_dir>", file=sys.stderr)
         return 1
     out = Path(sys.argv[1])
-    manifest = out / ".claude" / "harness.json"
     recorded = {}
-    if manifest.is_file():
-        recorded = json.loads(manifest.read_text(encoding="utf-8")).get("files") or {}
+    sums = out / ".claude" / "harness.sums"
+    if sums.is_file():
+        for line in sums.read_text(encoding="utf-8").splitlines():
+            digest, _, rel = line.partition("  ")
+            if digest and rel:
+                recorded[rel] = digest
     written, kept, _ = mirror(out, recorded)
     print(f"OpenCode mirrors: {len(written)} written, {len(kept)} kept")
     for rel in kept:

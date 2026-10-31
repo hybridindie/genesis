@@ -148,7 +148,7 @@ def resolve(args: argparse.Namespace) -> dict[str, Any]:
         "ci_runs_on": args.ci_runs_on or manifest.get("ci_runs_on") or "ubuntu-latest",
         "has_ci": bool(detected.get("has_ci")),
         "evidence": detected.get("evidence") or {},
-        "recorded": manifest.get("files") or {},
+        "recorded": read_sums(out) or manifest.get("files") or {},
         "packs_suggested": detected.get("packs_suggested") or [],
     }
 
@@ -237,11 +237,30 @@ def sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+SUMS = Path(".claude") / "harness.sums"
+
+
+def read_sums(out: Path) -> dict[str, str]:
+    path = out / SUMS
+    if not path.is_file():
+        return {}
+    sums = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        digest, _, rel = line.partition("  ")
+        if digest and rel:
+            sums[rel] = digest
+    return sums
+
+
+def write_sums(out: Path, sums: dict[str, str]) -> None:
+    (out / SUMS).write_text("".join(f"{d}  {r}\n" for r, d in sorted(sums.items())), encoding="utf-8")
+
+
 class Writer:
     """Writes rendered files without clobbering local edits.
 
     An existing file is replaced only if it is byte-identical to what was
-    rendered last time (its hash is recorded in harness.json), or with
+    rendered last time (its hash is recorded in .claude/harness.sums), or with
     --force-overwrite. Anything else is a local edit and is kept. A recorded
     file that no longer exists was deleted on purpose and is not recreated.
     """
@@ -414,13 +433,16 @@ def render(plan: dict[str, Any], args: argparse.Namespace) -> tuple[list[str], l
         "godot": plan["godot"] if "godot" in plan["stacks"] else {},
         "ci_platform": plan["ci_platform"],
         "ci_runs_on": plan["ci_runs_on"],
-        # Hash of each harness file as rendered; a file that still matches is
-        # safe to replace on the next render, anything else is a local edit.
-        "files": {
-            **{rel: plan["recorded"][rel] for rel in w.kept + w.deleted if rel in plan["recorded"]},
-            **{rel: sha((out / rel).read_bytes()) for rel in w.written if (out / rel).is_file()},
-        },
     }
+    # Hash of each harness file as rendered (sha256sum format, so secret
+    # scanners don't read path/hash pairs as key assignments). A file that
+    # still matches is safe to replace on the next render; anything else is a
+    # local edit.
+    sums = {
+        **{rel: plan["recorded"][rel] for rel in w.kept + w.deleted if rel in plan["recorded"]},
+        **{rel: sha((out / rel).read_bytes()) for rel in w.written if (out / rel).is_file()},
+    }
+    write_sums(out, sums)
     path = out / ".claude" / "harness.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
