@@ -4,6 +4,19 @@ Editing contract for this repo. Read this when modifying articles, agents,
 commands, skills, doctrine, or the bootstrap pipeline. Not auto-loaded into
 sessions — open it on demand when editing.
 
+## Design principles
+
+- **Keep always-loaded context lean.** A long `AGENTS.md`/`CLAUDE.md` gets
+  skimmed or ignored. Put detail in rules that load on demand (via the rule
+  index or `paths:`), and keep status and history out.
+- **Three layers, each for its own job.** Rules hold persistent, path-scoped
+  guidance. Skills hold procedures, loaded on demand. Hooks and CI are the
+  deterministic gates. Anything that must never be skipped belongs in a gate,
+  not in prose.
+- **Drift is the main maintenance cost.** Generate everything that can be
+  generated (OpenCode mirrors, rule index, command and skill lists) and check
+  the rest in CI, rather than keeping copies in sync by hand.
+
 ## Working on the genesis repo
 
 - **System layer**: edit `system/`. Test with
