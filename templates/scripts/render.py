@@ -241,7 +241,8 @@ class Writer:
 
     An existing file is replaced only if it is byte-identical to what was
     rendered last time (its hash is recorded in harness.json), or with
-    --force-overwrite. Anything else is a local edit and is kept.
+    --force-overwrite. Anything else is a local edit and is kept. A recorded
+    file that no longer exists was deleted on purpose and is not recreated.
     """
 
     def __init__(self, out: Path, v: dict[str, str], flags: dict[str, bool], dry: bool,
@@ -250,6 +251,7 @@ class Writer:
         self.recorded, self.force = recorded, force
         self.written: list[str] = []
         self.kept: list[str] = []
+        self.deleted: list[str] = []
 
     def file(self, src: Path, rel: str, mode: int | None = None) -> None:
         dst = self.out / rel
@@ -259,6 +261,9 @@ class Writer:
                 data = render_text(data.decode("utf-8"), self.v, self.flags).encode("utf-8")
             except UnicodeDecodeError:
                 pass
+        if not dst.exists() and rel in self.recorded and not self.force:
+            self.deleted.append(rel)  # rendered before, deleted since: respect it
+            return
         if dst.is_file() and not self.force:
             existing = dst.read_bytes()
             if existing != data and self.recorded.get(rel) != sha(existing):
@@ -342,7 +347,7 @@ def render(plan: dict[str, Any], args: argparse.Namespace) -> tuple[list[str], l
     render_ci(plan, args, w)
 
     if args.plan:
-        return w.written, w.kept
+        return w.written, w.kept + w.deleted
 
     subprocess.run([sys.executable, str(SCRIPT_DIR / "generate-harness-mirrors.py"), str(out), str(TEMPLATES)],
                    check=True, stdout=subprocess.DEVNULL)
@@ -365,7 +370,7 @@ def render(plan: dict[str, Any], args: argparse.Namespace) -> tuple[list[str], l
         # Hash of each harness file as rendered; a file that still matches is
         # safe to replace on the next render, anything else is a local edit.
         "files": {
-            **{rel: plan["recorded"][rel] for rel in w.kept if rel in plan["recorded"]},
+            **{rel: plan["recorded"][rel] for rel in w.kept + w.deleted if rel in plan["recorded"]},
             **{rel: sha((out / rel).read_bytes()) for rel in w.written if (out / rel).is_file()},
         },
     }
@@ -383,7 +388,7 @@ def render(plan: dict[str, Any], args: argparse.Namespace) -> tuple[list[str], l
                 leftovers.append(rel)
     if leftovers:
         sys.exit("ERROR: unresolved conditional blocks in: " + ", ".join(leftovers))
-    return w.written, w.kept
+    return w.written, w.kept + w.deleted
 
 
 def render_ci(plan: dict[str, Any], args: argparse.Namespace, w: Writer) -> None:
@@ -447,7 +452,7 @@ def main() -> int:
         print(f"Rendered {len(written)} files: stacks={','.join(plan['stacks'])} "
               f"packs={','.join(plan['packs']) or 'none'} -> {plan['output_dir']}")
         if kept:
-            print(f"Kept {len(kept)} locally edited files (--force-overwrite replaces them):")
+            print(f"Kept {len(kept)} locally edited or deleted files (--force-overwrite replaces them):")
             for rel in kept:
                 print(f"  {rel}")
     return 0

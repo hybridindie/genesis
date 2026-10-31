@@ -103,7 +103,8 @@ class Drift:
             for name, marker in sorted(markers.items()):
                 present = (rules / marker).is_file()
                 if name in declared:
-                    self.check(present, f"DRIFT: {kind} {name} is missing .claude/rules/{marker}")
+                    if not present:  # tailored repos may cover a stack under their own rule name
+                        self.warn(f"WARN: {kind} {name} has no .claude/rules/{marker}")
                 elif present:
                     self.fail(
                         f"DRIFT: .claude/rules/{marker} belongs to {kind} {name}, which harness.json "
