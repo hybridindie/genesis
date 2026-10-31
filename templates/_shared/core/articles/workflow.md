@@ -1,45 +1,41 @@
 ---
-read_when: "Starting or finishing a unit of work, or deciding what to do next"
+read_when: "Starting or finishing a unit of work, opening or reviewing a PR, or deciding what to do next"
 ---
 
-# Workflow: Issue → Red → Green → Preflight → PR
+# Workflow: Issue → Red → Green → Preflight → PR → Merge
 
-One issue per merge. The order is the process; skipping a step is a named
+The issue is the spec. One issue per PR. Skipping a step is a stated
 exception, not a shortcut.
 
 ## Steps
 
-1. **Issue** — the problem, acceptance criteria, and non-goals. Found a
-   defect mid-task? Open an issue; do not bury it in the current PR.
-2. **Failing test** — reproduce or pin the behaviour. Confirm it fails for the
-   right reason.
-3. **Green code** — the minimum change to pass. Refactor separately once green.
-4. **Preflight** — lint, types, tests, skip-scan, docs. Fix the cause, never the
-   gate.
-5. **PR** — one concern, links the issue, states a test plan and verified
-   commands.
-6. **Review** — address every comment with a change or a reply; unrelated
-   findings become linked follow-ups.
-7. **Merge** — only with green CI and resolved comments. Squash; delete branch.
+1. **Issue** — problem, acceptance criteria, non-goals. A defect found
+   mid-task becomes a new issue, not part of this PR.
+2. **Red** — a failing test that pins the behaviour (see `testing.md`).
+3. **Green** — the smallest change that passes. Refactor in a separate commit
+   or PR once green.
+4. **Preflight** — run `/preflight`. Fix the cause, never the gate: no
+   `--no-verify`, no `|| true`, no disabled checks.
+5. **PR** — one concern; `closes #N`; a test plan naming the commands run.
+   Note rollback for risky changes.
+6. **Review** — every comment gets a change or a reply; unrelated findings
+   become linked issues.
+7. **Merge** — green CI and resolved threads. Merge commit
+   (`gh pr merge --merge`), then delete the branch.
 
-## Session discipline
+## Reporting
 
-- Start by reading the issue and the relevant rule files (see the rule index).
-- Keep a short plan; update it when scope changes.
-- Before ending a session: run preflight, summarise what changed and what is
-  unverified, leave the tree green.
+- Say what you verified and with which command.
+- Name anything skipped, partial, flaky, or unverified. Never report work as
+  done that was not run.
+
+## Versioning
+
+- One source of truth for the version; everything else derives from it.
+- Libraries use SemVer. Apps may use CalVer if the repo already does.
 
 ## ANTI-PATTERNS
 
-- "I'll open the issue later."
-- Writing code before the test, then back-filling a test that cannot fail.
 - Bundling a refactor, a dependency bump, and a feature.
-- Pushing a failing test "to see CI".
-- Resolving a review comment with neither a change nor a reply.
-
-## Checklist
-
-- [ ] Issue linked.
-- [ ] Red test recorded before the fix.
-- [ ] Preflight green locally.
-- [ ] PR scope is one concern.
+- Pushing a red test "to see CI".
+- A changelog that lists commits instead of user-visible changes.

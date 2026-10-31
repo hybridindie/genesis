@@ -1,0 +1,16 @@
+
+  # Headless Godot tests need a runner with the engine installed; add a job
+  # that runs `{{GODOT_TEST_CMD}}` once one is available.
+  gdscript:
+    runs-on: {{CI_RUNS_ON}}
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: "{{GODOT_PATH}}"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install "gdtoolkit==4.*"
+      - run: gdlint .

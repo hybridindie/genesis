@@ -1,10 +1,9 @@
 ---
 name: bootstrap-harness
 description: >
-  Scan a project, interview the user about unknowns, and generate a complete
-  AI harness (OpenCode + Claude Code) with core rules and one archetype profile.
-  Trigger words: bootstrap harness, generate harness, install harness, scaffold
-  AI rules, set up Claude and Opencode rules, tailor this repo for my project.
+  Install, update, or extend the AI harness (OpenCode + Claude Code) in a
+  project: core rules plus every detected stack (python, mcp, agent, fastapi,
+  frontend, godot, godot-addon, rust) and opt-in packs (production, acd).
 ---
 
 Read and follow the complete instructions at `.agents/skills/bootstrap-harness.md` —

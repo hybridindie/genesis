@@ -7,7 +7,7 @@ harness templates and target the same two AI coding harnesses:
 **OpenCode** and **Claude Code**.
 
 This is the full usage guide. `AGENTS.md` holds the concise cross-harness
-entrypoint; the constitutional harness-generation system is documented in the
+entrypoint; the harness-generation system is documented in the
 top-level `README.md` and `CLAUDE.md`.
 
 ## Architecture

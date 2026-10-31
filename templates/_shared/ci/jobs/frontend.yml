@@ -1,0 +1,24 @@
+
+  frontend:
+    runs-on: {{CI_RUNS_ON}}
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: "{{FRONTEND_PATH}}"
+    steps:
+      - uses: actions/checkout@v4
+{{#FE_BUN}}
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+{{/FE_BUN}}
+{{#FE_NPM}}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: "{{FRONTEND_PATH}}/package-lock.json"
+      - run: npm ci
+{{/FE_NPM}}
+      - run: {{LINT_FRONTEND_CMD}}
+      - run: {{TYPE_FRONTEND_CMD}}
+      - run: {{TEST_FRONTEND_CMD}}

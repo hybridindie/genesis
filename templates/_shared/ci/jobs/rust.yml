@@ -1,0 +1,18 @@
+
+  rust:
+    runs-on: {{CI_RUNS_ON}}
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: "{{RUST_PATH}}"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "{{RUST_PATH}}"
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test

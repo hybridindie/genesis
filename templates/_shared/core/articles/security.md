@@ -1,41 +1,35 @@
 ---
-read_when: "Handling auth, secrets, user input, dependencies, or destructive actions"
+read_when: "Handling auth, secrets, user input, or destructive actions"
 ---
 
 # Security: Least Privilege, No Secrets in Code
 
+Dependency hygiene lives in `dependency-security.md`.
+
 ## MUST
 
 - Secrets come from the environment or a secret store; never in code, tests,
-  fixtures, logs, or git history.
-- `.env` files are gitignored; ship `.env.example` with names and no values.
-- Validate input at the boundary: schema, length, range, encoding, and the
-  operation allowed for the caller.
-- Parameterise queries and shell calls. No string-built SQL or `shell=True`
-  with interpolated input.
-- Dependencies are pinned with a lockfile; run an audit in CI.
-- Destructive operations require explicit confirmation (`confirm=True`) and
-  support a preview (`dry_run`).
-- Agents inherit permissions: default allow, ask before destructive commands,
-  deny credential paths (`~/.ssh`, `~/.aws`, `~/.kube`, `**/.env`).
+  fixtures, logs, or git history. `.env` is gitignored; commit an example file
+  with names only.
+- Validate input at the boundary (schema, length, range, encoding) and check
+  that the caller may perform the operation, before any side effect.
+- Parameterise SQL and subprocess calls. No string-built SQL; no
+  `shell=True` with interpolated input.
+- Never `eval`/`exec` or dynamically import untrusted input, including model
+  output.
+- Destructive operations need an explicit confirmation flag and offer a
+  preview (`dry_run` / `--dry-run`).
+- Validate security-critical config at startup; refuse to run in production
+  with missing or default secrets.
 
 ## SHOULD
 
-- Constant-time comparison for tokens; standard libraries over custom crypto.
-- Least-privilege tokens, scoped keys, short expiries.
-- Fail closed: unknown state denies, it does not allow.
+- Least-privilege, scoped, short-lived tokens; no shared admin token.
+- Constant-time comparison for secrets; standard crypto libraries only.
+- Fail closed: unknown state denies.
 
 ## ANTI-PATTERNS
 
-- Credentials in URLs, logs, error messages, or commit history.
+- Credentials in URLs, logs, or error messages.
 - Trusting a client-supplied role, path, or command.
 - Disabling TLS verification to "make it work".
-- One shared admin token for everything.
-- `eval`, `exec`, or dynamic import of untrusted input.
-
-## Checklist
-
-- [ ] No secret material in the diff.
-- [ ] Input validated before side effects.
-- [ ] Destructive path requires confirm and honours dry-run.
-- [ ] Dependencies pinned and audited.

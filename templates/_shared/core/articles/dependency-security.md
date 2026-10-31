@@ -2,36 +2,29 @@
 read_when: "Adding, upgrading, or auditing a dependency"
 ---
 
-# Dependencies: Pinned, Audited, Justified
+# Dependencies: Locked, Audited, Justified
 
 ## MUST
 
-- Commit the lockfile. Builds install from the lockfile, never from floating
-  ranges.
-- Pin runtime floors (`>=x.y,<next-major`) and let the lockfile pin exact
-  versions.
-- Run an audit (OSV/npm audit/pip-audit) in CI; a known-exploited advisory
-  blocks merge.
-- New dependencies are justified in the PR: what it does, licence, maintenance
-  signal, and why not the standard library.
-- Remove unused dependencies; do not ship transitive extras you do not use.
-- Never install from an unpinned URL or a git ref in a release path.
+- Commit the lockfile (`uv.lock`, `package-lock.json`, `Cargo.lock`, …) and
+  install from it in CI (`uv sync --locked`, `npm ci`).
+- Use the project's package manager to change dependencies (`uv add`, not
+  `pip install`).
+- Declare floors with an upper bound where the ecosystem supports it; the
+  lockfile pins exact versions. Never lower a security floor.
+- CI runs a vulnerability audit. A high or critical advisory with a fixed
+  version blocks merge; an accepted exception is documented with a reason and
+  a review date.
+- A new dependency is justified in the PR: what it does, licence, maintenance
+  signal, why not the standard library or an existing dependency.
 
 ## SHOULD
 
-- Prefer the standard library and already-present dependencies.
-- Batch routine updates; review majors individually with release notes.
-- Check the licence is compatible with the project.
+- Batch routine updates; review major upgrades individually with release notes.
+- Remove unused dependencies and extras.
 
 ## ANTI-PATTERNS
 
-- Copy-pasting `pip install` output into a manifest.
-- `--force`/`--no-deps` to get past a conflict.
-- Ignoring a critical advisory "because it works".
+- `--force` / `--no-deps` to get past a conflict.
+- A git ref or unpinned URL in a release path.
 - A dependency for a ten-line function.
-
-## Checklist
-
-- [ ] Lockfile updated.
-- [ ] Audit clean or documented exception.
-- [ ] Licence and maintenance checked.

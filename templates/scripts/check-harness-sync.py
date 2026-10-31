@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
 Cross-Harness Policy Checker — validates that a freshly rendered harness matches
-the template sources and mirror-pairs.json. This is the genesis-source check; the
+the template sources. This is the genesis-source check; the
 deployed-project counterpart is .claude/hooks/check-project-drift.py.
 
 Checks:
-  1. Every source article declares read_when
+  1. Every source article (core, stacks, packs) declares read_when
   2. Every rendered rule is indexed in AGENTS.md (and the index has no extras)
   3. Opencode agents/skills are semantically aligned with Claude rules
   4. No orphaned placeholders in rendered harnesses
@@ -19,7 +19,6 @@ Usage:
 Exits 0 if clean, non-zero with grouped FAIL lines if drift detected.
 """
 
-import json
 import os
 import re
 import sys
@@ -37,25 +36,18 @@ class HarnessSyncChecker:
         self.errors: list[str] = []
         self.warnings: list[str] = []
 
-        self.mirror_json = self.templates_dir / "_shared" / "mirror-pairs.json"
-        self.agent_entries: list[dict] = []
-        self._load_mirror_pairs()
 
         self._stack_versions: dict[str, str] = {}
 
-    # ── 1. Mirror pairs -------------------------------------------------
-
-    def _load_mirror_pairs(self) -> None:
-        with open(self.mirror_json, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        self.agent_entries = data.get("agent_entries", [])
+    # ── 1. Sources ------------------------------------------------------
 
     def check_article_sources(self) -> None:
         """Every source article must declare read_when (used by the rule index)."""
         roots = [self.templates_dir / "_shared" / "core" / "articles"]
-        profiles = self.templates_dir / "_shared" / "profiles"
-        if profiles.is_dir():
-            roots += sorted(profiles.glob("*/articles"))
+        for group in ("stacks", "packs"):
+            base = self.templates_dir / "_shared" / group
+            if base.is_dir():
+                roots += sorted(base.glob("*/articles"))
         if not roots[0].is_dir():
             self.errors.append("FAIL: core/articles directory missing")
         for root in roots:
@@ -101,11 +93,13 @@ class HarnessSyncChecker:
         else:
             base = self.templates_dir / "opencode" / ".opencode"
         expected_agents = ["article-compliance-reviewer.md"]
-        expected_commands = ["preflight.md", "harness-eval.md", "graphify.md"]
-        web = self.output_dir and (self.output_dir / ".claude" / "rules" / "api-design.md").exists()
-        if web:
-            expected_agents += ["backend-architect.md", "frontend-architect.md"]
-            expected_commands += ["migration-check.md"]
+        expected_commands = ["preflight.md", "harness-eval.md", "graphify.md", "ship-pr.md"]
+        rules = self.output_dir / ".claude" / "rules" if self.output_dir else None
+        if rules and (rules / "api-design.md").exists():
+            expected_agents.append("backend-architect.md")
+            expected_commands.append("migration-check.md")
+        if rules and (rules / "frontend" / "conventions.md").exists():
+            expected_agents.append("frontend-architect.md")
         for name in expected_agents:
             if not (base / "agents" / name).exists():
                 self.warnings.append(f"WARN: Opencode agent missing: {name}")
@@ -184,10 +178,10 @@ class HarnessSyncChecker:
     def check_coverage_tiers(self) -> None:
         if not self.output_dir:
             return
-        testing = self.output_dir / ".claude" / "rules" / "backend" / "testing.md"
+        testing = self.output_dir / ".claude" / "rules" / "testing.md"
         if testing.exists():
             text = testing.read_text(encoding="utf-8")
-            if "Security 90%+" not in text and "90%+" not in text:
+            if "90%" not in text:
                 self.warnings.append(
                     "WARN: testing.md does not mention the security coverage tier"
                 )

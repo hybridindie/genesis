@@ -3,32 +3,32 @@
 <!--
   Shared content — referenced by harness-specific SKILL.md wrappers.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 5.0.0, owner: John D
-  invokes: templates/scripts/inspect-project.py,
-           templates/scripts/bootstrap.sh,
-           templates/scripts/check-harness-sync.py
-  doctrine: templates/_shared/doctrine/skill-execution.md
+  version: 6.0.0, owner: John D
+  invokes: templates/scripts/render.py (via bootstrap.sh),
+           templates/scripts/validate-render.py
 -->
 
-Fetch the genesis repo if needed, inspect the target deterministically, render
-one profile, validate the result, then optionally run the semantic evaluation
-and customization steps. The model is used for the interview and for semantic
-review, not for file discovery.
+Install, update, or extend the genesis harness in a target project. A project
+gets the core rules plus every stack it uses (`python`, `mcp`, `agent`,
+`fastapi`, `frontend`, `godot`, `godot-addon`, `rust`) and any opt-in packs
+(`production`, `acd`). The renderer detects stacks; the model only confirms the
+plan with the user and runs the semantic passes.
 
 ## Inputs
 
 - Required: the target project directory (default: current directory).
-- Optional: profile/flag overrides, `--merge` is not accepted here.
-- Read after inspection: `README.md`, `pyproject.toml`, `package.json`, and
-  `project.godot` only when the inspector leaves a required field empty.
-- Do not read: every source file, generated harness output, or unrelated repos.
+- Optional: stack/pack changes from the user ("add rust", "drop frontend",
+  "with the production pack").
+- Read: nothing up front. Read a manifest only if the plan shows a stack the
+  user disputes.
+- Do not read: source trees, generated harness output, or unrelated repos.
 
 ## Deterministic Steps
 
-1. **Resolve genesis.** Run this from the target or any directory:
+1. **Resolve genesis.**
 
    ```bash
-   if [[ -f templates/scripts/bootstrap.sh ]]; then
+   if [[ -f templates/scripts/render.py ]]; then
      GENESIS="$PWD"
    else
      CACHE="${GENESIS_CACHE:-$HOME/.cache/genesis}"
@@ -41,110 +41,81 @@ review, not for file discovery.
      fi
      GENESIS="$CACHE"
    fi
-   test -f "$GENESIS/templates/scripts/bootstrap.sh"
+   TARGET="$(cd "${1:-$PWD}" && pwd)"
    ```
 
-   If the clone fails, stop and report the git/network error.
-
-2. **Resolve the target.** `TARGET="$(cd "${1:-$PWD}" && pwd)"`; stop if it does
-   not exist.
-
-3. **Classify fresh vs update.** If `$TARGET/.claude/rules` exists, use the
-   update path below. Otherwise continue.
-
-4. **Inspect once.** Run the deterministic inspector and keep its JSON:
+2. **Plan.** Build the flags from the user's request (`--add-stacks`,
+   `--remove-stacks`, `--stacks`, `--packs`) and print the plan without
+   writing:
 
    ```bash
-   python3 "$GENESIS/templates/scripts/inspect-project.py" "$TARGET"
+   python3 "$GENESIS/templates/scripts/render.py" --output-dir "$TARGET" --auto-detect --plan <flags>
    ```
 
-   Use `profile`, `project_name`, `project_slug`, versions, and `confidence` from
-   that result. Do not run manual probes or list the repository.
+   On an installed harness (`.claude/harness.json` exists) the recorded stacks
+   and packs are the starting point; detection only fills gaps.
 
-5. **Plan review.** Show the fixed plan table: profile, detected stack, files to
-   install, omitted profiles, and any missing required field. Ask only for gaps
-   that would change the profile or a required flag; at most three questions.
-   Ask “Proceed with this plan? Reply yes, or describe changes.”
+3. **Confirm.** Show the plan table below and ask: "Proceed? Reply yes, or
+   name stacks/packs to add or drop." On an update, warn that harness-owned
+   files (`AGENTS.md`, `.claude/rules/**`, agents, commands, skills) are
+   rewritten; `my-workflows.md`, existing `.githooks/` and existing CI are
+   kept. Re-run step 2 with the adjusted flags if the user changes anything.
 
-6. **Render.** Run exactly:
+4. **Render.**
 
    ```bash
-   bash "$GENESIS/templates/scripts/bootstrap.sh" \
-     --auto-detect --output-dir "$TARGET" <confirmed flags>
+   bash "$GENESIS/templates/scripts/bootstrap.sh" --output-dir "$TARGET" --auto-detect <confirmed flags>
    ```
 
-   Capture stdout; stop on a non-zero exit.
-
-7. **Validate.** Run the single deterministic validator and report only failures:
+5. **Validate.**
 
    ```bash
-   python3 "$GENESIS/templates/scripts/validate-render.py" \
-     --genesis "$GENESIS" --target "$TARGET"
+   python3 "$GENESIS/templates/scripts/validate-render.py" --genesis "$GENESIS" --target "$TARGET"
    ```
 
-   It owns the required files, project drift, harness sync, and hook syntax
-   checks. If it fails, stop; do not paper over it.
-
-8. **Semantic pass (interactive only).** Run the shipped `/harness-eval`, then
-   `/customize-harness` against `$TARGET`, showing each plan and getting
-   confirmation before edits. Skip this phase when the caller asked for a
-   non-interactive install.
-
-9. **Report.** State the installed profile, created file counts, validation
-   state, and the next three actions.
+6. **Semantic pass (fresh installs, interactive only).** Run `/harness-eval`,
+   then `/customize-harness`, each with its own plan and confirmation.
 
 ## LLM Judgment
 
-Use judgment only for:
+- Whether a detected stack is real when the evidence is thin (e.g. an LLM SDK
+  plus an `evals/` dir suggests `agent`). Ask rather than guess.
+- Whether to offer the `production` pack (`packs_suggested`) and, only if the
+  user asks for strict agent sessions, the `acd` pack.
 
-- the domain/compliance questions the inspector cannot answer;
-- reviewing the rendered rules for stack fit (`/harness-eval`);
-- weaving the user's conventions from `my-workflows.md` into `AGENTS.md`
-  (`/customize-harness`).
-
-Do not choose paths, versions, package managers, or commands by inspection; the
-inspector and bootstrap own those.
+Paths, versions, package managers and commands come from the renderer; don't
+override them by inspection.
 
 ## Output
 
-```markdown
-Harness installed in: <TARGET>
-Profile: <profile>    Confidence: <inspector confidence>
+Plan:
 
-Created: <counts for rules, agents, commands, skills, mirrors>
-Validation: PASS | FAIL <list>
-Next:
-1. <action>
-2. <action>
-3. <action>
+```markdown
+| | Value |
+|---|---|
+| Target | <path> (fresh install / update) |
+| Stacks | <list>  — evidence: <one line each> |
+| Packs | <list or none>  (suggested: <list>) |
+| Paths | python=<…> frontend=<…> godot=<…> rust=<…> |
+| Files | <count> |
 ```
 
-For an update, use `Harness updated in: <TARGET>` and include a short diff
-summary: files refreshed, files unchanged, and warning that generated files were
-rewritten.
+Result:
 
-## Update Path
-
-1. Show current counts with `find`/`ls`; do not read file bodies.
-2. Re-run the inspector and show what will be refreshed, plus the warning that
-   bootstrap owns generated files and overwrites local customizations.
-3. Ask for confirmation, then render and validate exactly as steps 6–7.
-4. Report as above; do not run `/customize-harness` unless requested.
+```markdown
+Harness <installed|updated> in <path>: stacks <list>, packs <list>.
+Validation: PASS | FAIL <first errors>
+Next: <up to three actions>
+```
 
 ## Stop Conditions
 
-- Stop if genesis cannot be fetched, the target is missing, or bootstrap fails.
-- Stop if `check-project-drift.py` or `check-harness-sync.py` fails.
-- Stop if the inspector cannot choose a profile and the user does not answer the
-  one profile question.
+- Genesis can't be fetched, the target is missing, or the render fails.
+- Validation fails: report the errors; don't patch the output by hand.
+- The user hasn't confirmed the plan.
 - Never edit `$GENESIS/templates/` during an install.
 
 ## Token Budget
 
-- One inspector run; no manual probe list, no repository tour.
-- Default: read at most five target files, and only when the inspector leaves a
-  field empty. If a required field is still unresolved, read the smallest
-  additional manifest/config and say why.
-- Aim for three interview questions; report ≤ 250 words. If a fourth answer
-  changes the profile, ask it rather than guess.
-- Reuse the plan/report templates; do not restate the skill.
+- One plan run, one render, one validation; no repository tour.
+- Plan and report ≤ 250 words each.

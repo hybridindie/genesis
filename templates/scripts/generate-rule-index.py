@@ -6,7 +6,8 @@ Every rule article declares a `read_when:` field in its frontmatter. This script
 reads the rendered `.claude/rules/**/*.md` (skipping doctrine), validates that
 each file has one, and replaces the `<!-- RULE_INDEX -->` marker in AGENTS.md
 with a table pointing at the files. OpenCode reads rules on demand through this
-index; nothing globs the directory eagerly.
+index; nothing globs the directory eagerly. It also fills `<!-- COMMAND_LIST -->`
+and `<!-- SKILL_LIST -->` from the rendered commands and skills.
 
 Usage: python generate-rule-index.py <output_dir>
 """
@@ -68,8 +69,13 @@ def main():
     if MARKER not in text:
         print(f"ERROR: {agents} has no {MARKER} marker", file=sys.stderr)
         sys.exit(1)
-    agents.write_text(text.replace(MARKER, "\n".join(table)), encoding="utf-8")
-    print(f"Rule index: {len(rows)} rules")
+    commands = sorted(p.stem for p in (out / ".claude" / "commands").glob("*.md"))
+    skills = sorted(p.parent.name for p in (out / ".claude" / "skills").glob("*/SKILL.md"))
+    text = text.replace(MARKER, "\n".join(table))
+    text = text.replace("<!-- COMMAND_LIST -->", ", ".join(f"`/{c}`" for c in commands) or "none")
+    text = text.replace("<!-- SKILL_LIST -->", ", ".join(f"`{s}`" for s in skills) or "none")
+    agents.write_text(text, encoding="utf-8")
+    print(f"Rule index: {len(rows)} rules, {len(commands)} commands, {len(skills)} skills")
 
 
 if __name__ == "__main__":

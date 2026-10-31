@@ -1,75 +1,25 @@
 #!/usr/bin/env python3
-r"""
-Project Introspection Engine — auto-detect tech stack and recommend harness params.
+"""Detect a project's stacks and tooling for the harness renderer.
 
-Scans a project directory and emits a JSON blob that `bootstrap.sh`
-(and the customize-harness skill) can consume directly.
+Read-only. Walks the project to a shallow depth (skipping dependency, build
+and hidden directories), reads manifests, and prints one JSON object:
 
-Detection heuristics (ordered by reliability):
-  1. Lockfile / deps file contents (pyproject.toml, package.json, go.mod, Cargo.toml)
-  2. Directory structure (src/ layout, framework-specific dirs)
-  3. Source code imports (first 5 .py / .ts files matching framework patterns)
-  4. Config files (vite.config.ts, supabase/config.toml, next.config.js, etc.)
-
-Usage:
-  python3 templates/scripts/inspect-project.py <project_root>
-
-Output (JSON examples):
-  Full SaaS (default):
   {
-    "mode": "full",
-    "profile": "web",
-    "project_name": "acme",
-    "project_slug": "acme",
-    "python_version": "3.12",
-    "fastapi_version": "0.119+",
-    "react_version": "19",
-    "typescript_version": "5.9",
-    "vite_version": "7.3",
-    "db_provider": "supabase",
-    "state_manager": "zustand",
-    "pkg_manager_backend": "uv",
-    "pkg_manager_frontend": "npm",
-    "test_backend_cmd": "uv run pytest",
-    "test_frontend_cmd": "npx vitest run",
-    "db_extensions": [],
-    "has_mlflow": false,
-    "has_langgraph": false,
-    "tailwind": true,
-    "zod_validation": true,
-    "cicd_platform": "github-actions",
-    "e2e_tool": "playwright",
-    "ui_library": "shadcn/ui",
-    "confidence": "high"
+    "project_name": "...", "project_slug": "...",
+    "stacks": ["python", "mcp", "godot", "godot-addon"],
+    "packs_suggested": ["production"],
+    "evidence": {"mcp": "pyproject.toml depends on fastmcp", ...},
+    "paths": {"python": ".", "frontend": null, "godot": "godot", "rust": null},
+    "python": {...}, "frontend": {...}, "godot": {...},
+    "ci_platform": "github" | "gitea",
+    "confidence": "high" | "medium" | "low"
   }
 
-  MCP service (Python-only):
-  {
-    "mode": "backend-only",
-    "profile": "mcp",
-    "project_name": "mcp-weather",
-    "python_version": "3.12",
-    "fastapi_version": null,
-    "react_version": null,
-    "typescript_version": null,
-    "vite_version": null,
-    "db_provider": null,
-    "state_manager": null,
-    "pkg_manager_backend": "uv",
-    "pkg_manager_frontend": null,
-    "test_backend_cmd": "uv run pytest",
-    "test_frontend_cmd": null,
-    "has_mlflow": false,
-    "has_langgraph": false,
-    "cicd_platform": "github-actions",
-    "confidence": "high"
-  }
+Usage: python3 templates/scripts/inspect-project.py <project_root>
 """
 
 from __future__ import annotations
 
-import ast
-import glob
 import json
 import os
 import re
@@ -77,435 +27,344 @@ import sys
 from pathlib import Path
 from typing import Any
 
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python < 3.11
+    tomllib = None  # type: ignore[assignment]
 
-# ── Heuristic constants ──────────────────────────────────────────────────────
-BACKEND_PACKAGES = {
-    "fastapi": ("fastapi", r'"fastapi(?:\[[^\]]*\])?"\s*:?\s*["\']?\~?\>?\=?\s*[0-9.+\*a-z]+'),
-    "flask": ("flask", r'"flask"\s*:?\s*["\']?\~?\>?\=?\s*[0-9.+\*a-z]+'),
-    "mcp": ("mcp", r'"mcp"'),
-    "uvicorn": ("uvicorn", r'"uvicorn"'),
-    "httpx": ("httpx", r'"httpx"'),
-    "asyncpg": ("asyncpg", r'"asyncpg"'),
-    "psycopg2": ("psycopg2", r'"psycopg2"'),
-    "supabase": ("supabase", r'"supabase"'),
-    "sqlalchemy": ("sqlalchemy", r'"sqlalchemy"'),
-    "playwright": ("playwright", r'"playwright"'),
+MAX_DEPTH = 3
+SKIP_DIRS = {
+    "node_modules", "venv", "env", "dist", "build", "target", "out",
+    "graphify-out", "__pycache__", "site-packages", "mlruns", "coverage",
+    "htmlcov", "vendor", "third_party",
 }
+THIRD_PARTY_ADDONS = {"gut", "gdunit4", "godot-git-plugin", "dialogic", "phantom_camera", "beehave"}
 
-FRONTEND_PACKAGES = {
-    "react": ("react", r'"react"\s*:?\s*["\']?\~?\>?\=?\s*[0-9.+\*a-z]+'),
-    "next": ("next", r'"next"\s*:?\s*["\']?\~?\>?\=?\s*[0-9.+\*a-z]+'),
-    "vite": ("vite", r'"vite"\s*:?\s*["\']?\~?\>?\=?\s*[0-9.+\*a-z]+'),
-    "zustand": ("zustand", r'"zustand"'),
-    "redux": ("redux", r'"redux"'),
-    "tailwindcss": ("tailwindcss", r'"tailwindcss"'),
-}
-
-DB_PACKAGES = {
-    "psycopg2": "postgres",
-    "asyncpg": "postgres",
-    "supabase": "supabase",
-    "sqlmodel": "postgres",
-}
-
-CI_DIRS = {
-    ".github/workflows": "github-actions",
-    ".gitlab-ci.yml": "gitlab-ci",
-    ".circleci": "circleci",
-    "azure-pipelines.yml": "azure-pipelines",
-}
-
-E2E_PACKAGES = {
-    "playwright": "playwright",
-    "cypress": "cypress",
-    "vitest": None,  # Unit, not E2E
-}
+AGENT_DEPS = {"langgraph", "langchain", "langchain-core", "mlflow", "crewai",
+              "autogen", "pyautogen", "pydantic-ai", "dspy", "dspy-ai", "llama-index"}
+LLM_DEPS = {"openai", "anthropic", "ollama", "litellm", "google-genai"}
+MCP_DEPS = {"mcp", "fastmcp"}
+FRONTEND_DEPS = {"react", "next", "vue", "svelte", "solid-js", "@angular/core"}
+PY_TOOLING_ONLY = {"gdtoolkit", "pre-commit", "pip", "setuptools", "wheel"}
 
 
-# ── File readers ──────────────────────────────────────────────────────────────
-
-def read_text(p: Path, max_bytes: int = 500_000) -> str:
+def read(path: Path) -> str:
     try:
-        return p.read_text(encoding="utf-8", errors="ignore")[:max_bytes]
-    except Exception:
+        return path.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
         return ""
 
 
-def parse_semver(text: str, package_name: str) -> str | None:
-    """Loose semver extraction from dependency string."""
-    # Match: "fastapi" : "0.119+"  OR  "fastapi" : ">=0.119"
-    pat = re.compile(
-        rf'"{re.escape(package_name)}(?:\[[^\]]*\])?"\s*[:=]\s*["\']?'
-        rf'[\~\^\><\=\!]*([0-9][0-9.+\*a-z]*)',
-        re.IGNORECASE,
-    )
-    m = pat.search(text)
-    return m.group(1).rstrip(",;") if m else None
+def norm(name: str) -> str:
+    return re.split(r"[\s\[<>=!~;@]", name.strip(), maxsplit=1)[0].lower().replace("_", "-")
 
 
-def parse_pyproject_deps(text: str) -> dict[str, str]:
-    """Extract direct dependencies from a pyproject.toml string."""
-    deps: dict[str, str] = {}
-    # Poetry-style [tool.poetry.dependencies]
-    in_poetry_deps = False
-    for line in text.splitlines():
-        if "[tool.poetry.dependencies]" in line:
-            in_poetry_deps = True
-            continue
-        if in_poetry_deps:
-            if line.startswith("[") and line.endswith("]"):
-                break
-            stripped = line.strip()
-            if stripped and not stripped.startswith("#"):
-                # "fastapi" = "^0.119.0"
-                m = re.match(r'^([a-zA-Z0-9_\-]+)\s*=\s*"([^"]+)"', stripped)
-                if m:
-                    deps[m.group(1).lower()] = m.group(2)
-
-    # PEP 621 / uv hatchling [project.dependencies] — quoted list format
-    in_proj_deps = False
-    for line in text.splitlines():
-        if "[project]" in line:
-            in_proj_deps = False  # reset
-            continue
-        if "dependencies" in line and "=" in line and ("[" in line or not line.strip().endswith("]")):
-            in_proj_deps = True
-            continue
-        if in_proj_deps:
-            stripped = line.strip()
-            if stripped.startswith("]"):
-                in_proj_deps = False
-                continue
-            if stripped.startswith("#"):
-                continue
-            # Match "fastapi>=0.104.0,<1.0.0"
-            m = re.match(r'^"([a-zA-Z0-9_\-]+)(?:\[[^\]]*\])?\s*([><~=!]+=?)\s*([0-9][0-9.+\*a-z]*)"', stripped)
-            if m:
-                deps[m.group(1).lower()] = m.group(3)
-
-    return deps
+def walk(root: Path) -> list[Path]:
+    """Directories to depth MAX_DEPTH, skipping hidden, dependency and build dirs."""
+    found: list[Path] = []
+    for dirpath, dirnames, _ in os.walk(root):
+        rel = Path(dirpath).relative_to(root)
+        depth = 0 if str(rel) == "." else len(rel.parts)
+        dirnames[:] = sorted(
+            d for d in dirnames
+            if not d.startswith(".") and d not in SKIP_DIRS and depth < MAX_DEPTH
+        )
+        found.append(Path(dirpath))
+    return found
 
 
-def parse_requirements_txt(text: str) -> dict[str, str]:
-    deps: dict[str, str] = {}
-    for line in text.splitlines():
+def shallowest(dirs: list[Path], marker: str) -> Path | None:
+    hits = [d for d in dirs if (d / marker).is_file()]
+    return min(hits, key=lambda d: (len(d.parts), str(d))) if hits else None
+
+
+def rel(root: Path, path: Path | None) -> str | None:
+    if path is None:
+        return None
+    r = path.relative_to(root).as_posix()
+    return "." if r in ("", ".") else r
+
+
+# ── Python ────────────────────────────────────────────────────────────────
+
+
+def pyproject_data(path: Path) -> dict[str, Any]:
+    text = read(path)
+    if tomllib is not None:
+        try:
+            return tomllib.loads(text)
+        except tomllib.TOMLDecodeError:
+            pass
+    # Fallback: crude scan of quoted requirement strings.
+    deps = re.findall(r'^\s*"([A-Za-z0-9_.\-\[\]]+)[^"]*",?\s*$', text, re.MULTILINE)
+    return {"project": {"dependencies": deps}, "_raw": text}
+
+
+def python_deps(data: dict[str, Any]) -> set[str]:
+    deps: list[str] = []
+    project = data.get("project", {})
+    deps += project.get("dependencies", []) or []
+    for group in (project.get("optional-dependencies") or {}).values():
+        deps += group
+    for group in (data.get("dependency-groups") or {}).values():
+        deps += [d for d in group if isinstance(d, str)]
+    deps += ((data.get("tool") or {}).get("uv") or {}).get("dev-dependencies", []) or []
+    poetry = (data.get("tool") or {}).get("poetry") or {}
+    deps += list((poetry.get("dependencies") or {}).keys())
+    for grp in (poetry.get("group") or {}).values():
+        deps += list((grp.get("dependencies") or {}).keys())
+    return {norm(d) for d in deps if isinstance(d, str) and d.strip()}
+
+
+def requirements_deps(path: Path) -> set[str]:
+    out = set()
+    for line in read(path).splitlines():
         line = line.strip()
-        if not line or line.startswith("#") or line.startswith("-"):
+        if line and not line.startswith(("#", "-")):
+            out.add(norm(line))
+    return out
+
+
+def python_version(root: Path, py_root: Path, data: dict[str, Any]) -> str:
+    for candidate in (py_root / ".python-version", root / ".python-version"):
+        if candidate.is_file():
+            m = re.match(r"(\d+\.\d+)", read(candidate).strip())
+            if m:
+                return m.group(1)
+    spec = (data.get("project") or {}).get("requires-python", "")
+    m = re.search(r"(\d+\.\d+)", spec)
+    return m.group(1) if m else "3.12"
+
+
+def python_info(root: Path, py_root: Path) -> dict[str, Any]:
+    pyproject = py_root / "pyproject.toml"
+    data = pyproject_data(pyproject) if pyproject.is_file() else {}
+    deps = python_deps(data)
+    for req in ("requirements.txt", "requirements-dev.txt"):
+        if (py_root / req).is_file():
+            deps |= requirements_deps(py_root / req)
+    tool = data.get("tool") or {}
+
+    if (py_root / "uv.lock").is_file() or "uv" in tool:
+        manager = "uv"
+    elif (py_root / "poetry.lock").is_file() or "poetry" in tool:
+        manager = "poetry"
+    else:
+        manager = "pip"
+    run = {"uv": "uv run ", "poetry": "poetry run ", "pip": ""}[manager]
+    sync = {
+        "uv": "uv sync --locked" if (py_root / "uv.lock").is_file() else "uv sync",
+        "poetry": "poetry install",
+        "pip": "python -m pip install -r requirements.txt"
+        if (py_root / "requirements.txt").is_file() else "python -m pip install -e .",
+    }[manager]
+
+    type_checker = "pyright" if ("pyright" in deps or "pyright" in tool) else "mypy"
+    target = "src/" if (py_root / "src").is_dir() else "."
+    type_cmd = f"{run}pyright" if type_checker == "pyright" else f"{run}mypy {target}"
+
+    db = None
+    if (root / "supabase").is_dir() or "supabase" in deps:
+        db = "supabase"
+    elif "sqlalchemy" in deps or "sqlmodel" in deps:
+        db = "SQLAlchemy"
+    elif deps & {"asyncpg", "psycopg", "psycopg2", "psycopg2-binary"}:
+        db = "Postgres"
+
+    return {
+        "deps": sorted(deps),
+        "version": python_version(root, py_root, data),
+        "pkg_manager": manager,
+        "type_checker": type_checker,
+        "sync_cmd": sync,
+        "lint_cmd": f"{run}ruff check .",
+        "type_cmd": type_cmd,
+        "test_cmd": f"{run}pytest",
+        "has_mlflow": "mlflow" in deps,
+        "has_langgraph": "langgraph" in deps,
+        "db_provider": db,
+    }
+
+
+# ── Frontend ──────────────────────────────────────────────────────────────
+
+
+def frontend_root(dirs: list[Path]) -> tuple[Path | None, dict[str, Any]]:
+    best: tuple[Path | None, dict[str, Any]] = (None, {})
+    for d in dirs:
+        pkg = d / "package.json"
+        if not pkg.is_file():
             continue
-        m = re.match(r'^([a-zA-Z0-9_\-]+)\s*\[?[^\]]*\]?\s*[\><\~\=\!]*=[\s]*([0-9][0-9.+\*a-z]*)', line)
-        if m:
-            deps[m.group(1).lower()] = m.group(2)
-        else:
-            pkg = line.split("=>", 1)[0].split("[")[0].strip().lower()
-            if pkg:
-                deps[pkg] = "*"
-    return deps
+        try:
+            data = json.loads(read(pkg))
+        except json.JSONDecodeError:
+            continue
+        deps = {**(data.get("dependencies") or {}), **(data.get("devDependencies") or {})}
+        if FRONTEND_DEPS & set(deps):
+            if best[0] is None or len(d.parts) < len(best[0].parts):
+                best = (d, data)
+    return best
 
 
-def parse_package_json(text: str) -> dict[str, str]:
-    try:
-        data: dict[str, Any] = json.loads(text)
-    except json.JSONDecodeError:
-        return {}
-    all_deps: dict[str, str] = {}
-    for k in ("dependencies", "devDependencies"):
-        for pkg, ver in data.get(k, {}).items():
-            all_deps[pkg.lower()] = str(ver).lstrip("^~")
-    return all_deps
+def major(version: str | None) -> str:
+    m = re.search(r"(\d+)", version or "")
+    return m.group(1) if m else ""
 
 
-# ── Core detection ────────────────────────────────────────────────────────────
+def frontend_info(fe_root: Path, data: dict[str, Any]) -> dict[str, Any]:
+    deps = {**(data.get("dependencies") or {}), **(data.get("devDependencies") or {})}
+    scripts = data.get("scripts") or {}
+    if any((fe_root / f).is_file() for f in ("bun.lockb", "bun.lock")):
+        manager = "bun"
+    elif (fe_root / "pnpm-lock.yaml").is_file():
+        manager = "pnpm"
+    else:
+        manager = "npm"
+    runner = {"npm": "npm run", "pnpm": "pnpm run", "bun": "bun run"}[manager]
+    npx = {"npm": "npx", "pnpm": "pnpm exec", "bun": "bunx"}[manager]
 
-class ProjectInspector:
-    def __init__(self, root: Path):
-        self.root = root
-        self.py_deps: dict[str, str] = {}
-        self.js_deps: dict[str, str] = {}
-        self.confidence = "medium"
+    lint = f"{runner} lint" if "lint" in scripts else f"{npx} eslint ."
+    type_script = next((s for s in ("type-check", "typecheck", "types", "tsc") if s in scripts), None)
+    type_cmd = f"{runner} {type_script}" if type_script else f"{npx} tsc --noEmit"
+    unit = "vitest" if "vitest" in deps else "jest" if "jest" in deps else None
+    if "test" in scripts:
+        test = f"{npx} vitest run" if unit == "vitest" and "run" not in scripts["test"] else f"{runner} test"
+    else:
+        test = f"{npx} vitest run" if unit == "vitest" else f"{npx} jest" if unit == "jest" else f"{runner} test"
 
-    # ── Phase 1: Dependency discovery ───
-
-    def scan_deps(self) -> None:
-        # Python deps
-        pyproject = self.root / "pyproject.toml"
-        if pyproject.is_file():
-            self.py_deps.update(parse_pyproject_deps(read_text(pyproject)))
-            self.confidence = "high"
-        req = self.root / "requirements.txt"
-        if req.is_file():
-            self.py_deps.update(parse_requirements_txt(read_text(req)))
-
-        # JS deps
-        pkg = self.root / "package.json"
-        if pkg.is_file():
-            self.js_deps.update(parse_package_json(read_text(pkg)))
-            self.confidence = "high"
-
-        # Monorepo detection: search nested package.json / pyproject.toml
-        for f in self.root.rglob("pyproject.toml"):
-            if f == pyproject:
-                continue
-            self.py_deps.update(parse_pyproject_deps(read_text(f)))
-        for f in self.root.rglob("package.json"):
-            if f == pkg:
-                continue
-            self.js_deps.update(parse_package_json(read_text(f)))
-
-    # ── Phase 2: Import sniffer ───
-
-    def sniff_imports(self, pattern: str, limit: int = 5) -> set[str]:
-        """Read first `limit` matching files and extract top-level imports."""
-        found: set[str] = set()
-        for p in sorted(self.root.rglob(pattern))[:limit]:
-            if p.stat().st_size > 50_000:
-                continue  # Skip huge generated files
-            try:
-                tree = ast.parse(p.read_text(encoding="utf-8", errors="ignore"))
-            except SyntaxError:
-                continue
-            for node in ast.walk(tree):
-                if isinstance(node, ast.Import):
-                    for alias in node.names:
-                        found.add(alias.name.split(".")[0].lower())
-                elif isinstance(node, ast.ImportFrom):
-                    if node.module:
-                        found.add(node.module.split(".")[0].lower())
-        return found
-
-    def sniff_mcp(self) -> bool:
-        """Detect MCP via imports or file names."""
-        if "mcp" in self.py_deps:
-            return True
-        imports = self.sniff_imports("*.py", limit=8)
-        if "mcp" in imports:
-            return True
-        # File names like weather_mcp.py, mcp_server.py
-        # Exclude config files (.mcp.json is VS Code MCP config, not a server)
-        for p in self.root.rglob("*.py"):
-            if re.search(r"(?:^|_)mcp(?:_|\.|$)", p.name, re.IGNORECASE):
-                return True
-        return False
-
-    def sniff_fastapi(self) -> bool:
-        if "fastapi" in self.py_deps:
-            return True
-        return "fastapi" in self.sniff_imports("*.py", limit=5)
-
-    def sniff_flask(self) -> bool:
-        if "flask" in self.py_deps:
-            return True
-        return "flask" in self.sniff_imports("*.py", limit=5)
-
-    def sniff_frontend(self) -> bool:
-        if any(k in self.js_deps for k in ("react", "next")):
-            return True
-        # Look for common frontend files
-        for name in ("vite.config.ts", "vite.config.js", "next.config.js", "next.config.ts", "src/App.tsx", "src/main.tsx", "index.html"):
-            if (self.root / name).is_file():
-                return True
-        return False
-
-    def sniff_nextjs(self) -> bool:
-        """Detect Next.js specifically (vs plain React+Vite)."""
-        if "next" in self.js_deps:
-            return True
-        for name in ("next.config.js", "next.config.ts", "next.config.mjs"):
-            if (self.root / name).is_file():
-                return True
-        # App Router signal
-        if (self.root / "app").is_dir() and any(
-            (self.root / "app" / f).exists()
-            for f in ("layout.tsx", "layout.jsx", "page.tsx", "page.jsx")
-        ):
-            return True
-        return False
-
-    # ── Phase 3: Config & infra ───
-
-    def detect_db(self) -> str | None:
-        for pkg, db in DB_PACKAGES.items():
-            if pkg in self.py_deps or (self.root / f"{pkg}").exists():
-                return db
-        if (self.root / "supabase").is_dir() or (self.root / "supabase" / "config.toml").is_file():
-            return "supabase"
-        if any((self.root / d).is_dir() for d in ("migrations", "alembic", "prisma")):
-            # Heuristic: if postgres package present, it's postgres
-            if any(p in self.py_deps for p in ("asyncpg", "psycopg2", "psycopg")):
-                return "postgres"
-        return None
-
-    def detect_ci(self) -> str:
-        for subdir, platform in CI_DIRS.items():
-            if (self.root / subdir).exists():
-                return platform
-        return "github-actions"
-
-    def detect_e2e(self) -> str | None:
-        for pkg, tool in E2E_PACKAGES.items():
-            if pkg in self.js_deps:
-                return tool
-        if (self.root / "e2e").is_dir():
-            return "playwright"
-        return None
-
-    def detect_tailwind(self) -> bool:
-        return "tailwindcss" in self.js_deps or (self.root / "tailwind.config.js").is_file() or (self.root / "tailwind.config.ts").is_file()
-
-    def detect_zod(self) -> bool:
-        return "zod" in self.js_deps or "@zod-validation" in self.js_deps
-
-    def detect_uv(self) -> bool:
-        return (self.root / "uv.lock").is_file()
-
-    # ── Phase 4: Decision matrix ───
-
-    def decide(self) -> dict[str, Any]:
-        self.scan_deps()
-
-        has_mcp = self.sniff_mcp()
-        has_fastapi = self.sniff_fastapi()
-        has_flask = self.sniff_flask()
-        has_frontend = self.sniff_frontend()
-        has_nextjs = self.sniff_nextjs() if has_frontend else False
-
-        has_godot = (self.root / "project.godot").is_file()
-        has_mlflow = "mlflow" in self.py_deps or (self.root / "mlruns").is_dir()
-        has_langgraph = "langgraph" in self.py_deps
-
-        # Profile selection: one archetype per project. A full-stack app is
-        # `web` even if it also exposes MCP endpoints; agent systems take
-        # precedence over a bare MCP server.
-        if has_godot:
-            profile = "godot"
-        elif has_fastapi and has_frontend:
-            profile = "web"
-        elif has_langgraph or has_mlflow:
-            profile = "agent"
-        elif has_mcp:
-            profile = "mcp"
-        elif has_frontend:
-            profile = "web"
-        else:
-            profile = "python"
-
-        # Mode selection
-        if has_frontend:
-            mode = "full"
-        else:
-            mode = "backend-only"
-
-        # Python version
-        python_version = self.py_deps.get("python")
-        if not python_version:
-            # Check .python-version, Dockerfile, or pyenv
-            pv = self.root / ".python-version"
-            if pv.is_file():
-                python_version = read_text(pv).strip().splitlines()[0]
-        if not python_version:
-            python_version = "3.12"
-        # Clean trailing dots (e.g. "3.12." -> "3.12")
-        if isinstance(python_version, str):
-            python_version = python_version.rstrip(".")
-
-        # FastAPI version
-        fastapi_version = self.py_deps.get("fastapi")
-        if not fastapi_version:
-            fastapi_version = "0.119+"
-
-        # React / TS / Vite versions
-        react_version = self.js_deps.get("react") or "19"
-        typescript_version = self.js_deps.get("typescript") or "5.9"
-        vite_version = self.js_deps.get("vite") or "7.3"
-
-        # State manager
-        state_manager = None
-        for sm in ("zustand", "redux", "pinia", "jotai", "recoil"):
-            if sm in self.js_deps:
-                state_manager = sm
-                break
-        if state_manager is None:
-            state_manager = "zustand"
-
-        # Package manager
-        uv = self.detect_uv()
-        pkg_backend = "uv" if uv else "pip"
-        # Frontend package manager: Bun if bun.lockb, otherwise npm
-        if (self.root / "bun.lockb").is_file():
-            pkg_frontend = "bun"
-        else:
-            pkg_frontend = "npm"
-
-        # DB
-        db_provider = self.detect_db()
-        if not db_provider and has_mcp:
-            # MCP usually stateless or simple key-value
-            db_provider = None
-
-        # E2E
-        e2e = self.detect_e2e()
-
-        # ML / Lang infra
-        has_mlflow = "mlflow" in self.py_deps or (self.root / "mlruns").is_dir()
-        has_langgraph = "langgraph" in self.py_deps
-
-        # Tailwind & Zod (frontend only)
-        tailwind = self.detect_tailwind() if has_frontend else False
-        zod_val = self.detect_zod() if has_frontend else False
-
-        def _clean_python_ver(v: str) -> str:
-            parts = v.split(".")
-            return ".".join(parts[:2]) if len(parts) >= 2 else v
-
-        output: dict[str, Any] = {
-            "mode": mode,
-            "profile": profile,
-            "project_name": self.root.name,
-            "project_slug": re.sub(r"[^a-z0-9]", "", self.root.name.lower()),
-            "python_version": _clean_python_ver(python_version) if python_version else "3.12",
-            "fastapi_version": fastapi_version if has_fastapi else None,
-            "react_version": react_version if has_frontend else None,
-            "typescript_version": typescript_version if has_frontend else None,
-            "vite_version": vite_version if has_frontend else None,
-            "db_provider": db_provider,
-            "state_manager": state_manager if has_frontend else None,
-            "pkg_manager_backend": pkg_backend,
-            "pkg_manager_frontend": pkg_frontend if has_frontend else None,
-            "test_backend_cmd": f"{pkg_backend} run pytest" if uv else "pytest",
-            "test_frontend_cmd": (
-                "bun test" if pkg_frontend == "bun" else "npx vitest run"
-            ) if has_frontend else None,
-            "db_extensions": [],
-            "has_mlflow": has_mlflow,
-            "has_langgraph": has_langgraph,
-            "has_nextjs": has_nextjs,
-            "tailwind": tailwind,
-            "zod_validation": zod_val,
-            "cicd_platform": self.detect_ci(),
-            "e2e_tool": e2e,
-            "ui_library": "shadcn/ui" if (has_frontend and "radix-ui" in self.js_deps) else "shadcn/ui",
-            "confidence": self.confidence,
-        }
-
-        # Clean nulls for brevity
-        output = {k: v for k, v in output.items() if v is not None}
-        return output
+    parts = []
+    if "next" in deps:
+        parts.append(f"Next {major(deps['next'])}".strip())
+    for name, label in (("react", "React"), ("vue", "Vue"), ("svelte", "Svelte")):
+        if name in deps:
+            parts.append(f"{label} {major(deps[name])}".strip())
+    if "typescript" in deps:
+        parts.append("TypeScript")
+    if "tailwindcss" in deps:
+        parts.append("Tailwind")
+    if "vite" in deps and "next" not in deps:
+        parts.append("Vite")
+    tests = [t for t in (unit.capitalize() if unit else None,
+                         "Playwright" if "@playwright/test" in deps else None,
+                         "Cypress" if "cypress" in deps else None) if t]
+    summary = ", ".join(parts) + (f"; tests: {' + '.join(tests)}" if tests else "")
+    return {
+        "pkg_manager": manager,
+        "lint_cmd": lint,
+        "type_cmd": type_cmd,
+        "test_cmd": test,
+        "unit_runner": unit,
+        "stack_summary": summary or "see package.json",
+    }
 
 
-# ── CLI ───────────────────────────────────────────────────────────────────────
+# ── Godot ─────────────────────────────────────────────────────────────────
+
+
+def godot_info(g_root: Path) -> dict[str, Any]:
+    text = read(g_root / "project.godot")
+    m = re.search(r'config/features=PackedStringArray\("(\d+\.\d+)', text)
+    addons = g_root / "addons"
+    own_addons = sorted(
+        p.parent.name for p in addons.glob("*/plugin.cfg")
+        if p.parent.name.lower() not in THIRD_PARTY_ADDONS
+    ) if addons.is_dir() else []
+    if (addons / "gut").is_dir():
+        test_cmd = "godot --headless -s addons/gut/gut_cmdln.gd -gexit"
+    elif (addons / "gdUnit4").is_dir():
+        test_cmd = "godot --headless -s res://addons/gdUnit4/bin/GdUnitCmdTool.gd -a res://tests"
+    else:
+        test_cmd = "godot --headless --script res://tests/run_tests.gd"
+    return {"version": m.group(1) if m else "4", "own_addons": own_addons, "test_cmd": test_cmd}
+
+
+# ── Decision ──────────────────────────────────────────────────────────────
+
+
+def inspect(root: Path) -> dict[str, Any]:
+    dirs = walk(root)
+    stacks: list[str] = []
+    evidence: dict[str, str] = {}
+    out: dict[str, Any] = {
+        "project_name": root.name,
+        "project_slug": re.sub(r"[^a-z0-9]+", "-", root.name.lower()).strip("-"),
+    }
+
+    py_root = shallowest(dirs, "pyproject.toml")
+    if py_root is None:
+        req_root = shallowest(dirs, "requirements.txt")
+        if req_root is not None and requirements_deps(req_root / "requirements.txt") - PY_TOOLING_ONLY:
+            py_root = req_root
+    fe_root, fe_pkg = frontend_root(dirs)
+    g_root = shallowest(dirs, "project.godot")
+    rs_root = shallowest(dirs, "Cargo.toml")
+
+    if py_root is not None:
+        py = python_info(root, py_root)
+        deps = set(py.pop("deps"))
+        out["python"] = py
+        stacks.append("python")
+        evidence["python"] = f"{rel(root, py_root)}/pyproject.toml or requirements.txt"
+        if deps & MCP_DEPS:
+            stacks.append("mcp")
+            evidence["mcp"] = f"depends on {', '.join(sorted(deps & MCP_DEPS))}"
+        has_evals = any((py_root / d).is_dir() for d in ("evals", "eval", "evaluations"))
+        if deps & AGENT_DEPS or (deps & LLM_DEPS and has_evals):
+            stacks.append("agent")
+            evidence["agent"] = f"depends on {', '.join(sorted((deps & AGENT_DEPS) or (deps & LLM_DEPS)))}" + (
+                " with an evals directory" if not deps & AGENT_DEPS else "")
+        if "fastapi" in deps:
+            stacks.append("fastapi")
+            evidence["fastapi"] = "depends on fastapi"
+    if fe_root is not None:
+        out["frontend"] = frontend_info(fe_root, fe_pkg)
+        stacks.append("frontend")
+        evidence["frontend"] = f"{rel(root, fe_root)}/package.json ({out['frontend']['stack_summary']})"
+    if g_root is not None:
+        out["godot"] = godot_info(g_root)
+        stacks.append("godot")
+        evidence["godot"] = f"{rel(root, g_root)}/project.godot"
+        if out["godot"]["own_addons"]:
+            stacks.append("godot-addon")
+            evidence["godot-addon"] = f"addons/{', '.join(out['godot']['own_addons'])}/plugin.cfg"
+    if rs_root is not None:
+        stacks.append("rust")
+        evidence["rust"] = f"{rel(root, rs_root)}/Cargo.toml"
+
+    packs = []
+    deploy = [p for p in ("Dockerfile", "docker-compose.yml", "docker-compose.prod.yml", "k8s", "helm", "deploy")
+              if (root / p).exists()]
+    if deploy and ({"fastapi", "mcp"} & set(stacks)):
+        packs.append("production")
+        evidence["production (pack)"] = f"deploy files: {', '.join(deploy)}"
+
+    out.update({
+        "stacks": stacks,
+        "packs_suggested": packs,
+        "evidence": evidence,
+        "paths": {
+            "python": rel(root, py_root),
+            "frontend": rel(root, fe_root),
+            "godot": rel(root, g_root),
+            "rust": rel(root, rs_root),
+        },
+        "ci_platform": "gitea" if (root / ".gitea" / "workflows").is_dir() else "github",
+        "has_ci": any((root / d / "workflows").is_dir() and any((root / d / "workflows").iterdir())
+                      for d in (".github", ".gitea")),
+        "confidence": "high" if stacks else "low",
+    })
+    return out
+
 
 def main() -> int:
-    if len(sys.argv) < 2:
-        print("Usage: python3 inspect-project.py <project_root>", file=sys.stderr)
-        return 1
-
+    if len(sys.argv) != 2:
+        print("Usage: inspect-project.py <project_root>", file=sys.stderr)
+        return 2
     root = Path(sys.argv[1]).resolve()
     if not root.is_dir():
         print(f"ERROR: {root} is not a directory", file=sys.stderr)
         return 1
-
-    inspector = ProjectInspector(root)
-    result = inspector.decide()
-    print(json.dumps(result, indent=2))
+    print(json.dumps(inspect(root), indent=2))
     return 0
 
 

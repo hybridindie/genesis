@@ -2,23 +2,28 @@
 """
 Generate the OpenCode harness mirrors from the shared Claude sources.
 
-Single source: `templates/_shared/{agents,commands}` → rendered by bootstrap into
-`.claude/{agents,commands}`. This script mirrors those rendered files into
+Single source: `templates/_shared/**/{agents,commands}` → rendered into
+`.claude/{agents,commands}`. This script mirrors every rendered file into
 `.opencode/{agents,commands}` with the frontmatter OpenCode expects (the body
 stays identical).
 """
 
-import json
 import os
 import re
 import sys
 
 
-def load_entries(templates_dir):
-    json_path = os.path.join(templates_dir, '_shared', 'mirror-pairs.json')
-    with open(json_path, 'r', encoding='utf-8') as f:
-        data = json.load(f)
-    return data.get('agent_entries', []), data.get('command_entries', [])
+def load_entries(out_dir):
+    """Every rendered Claude agent and command gets an OpenCode mirror."""
+    def entries(kind):
+        src = os.path.join(out_dir, '.claude', kind)
+        if not os.path.isdir(src):
+            return []
+        return [
+            {'source_file': name, 'claude_dir': f'.claude/{kind}', 'opencode_dir': f'.opencode/{kind}'}
+            for name in sorted(os.listdir(src)) if name.endswith('.md')
+        ]
+    return entries('agents'), entries('commands')
 
 
 def extract_frontmatter_and_body(text):
@@ -101,10 +106,7 @@ def main():
         sys.exit(1)
 
     out_dir = sys.argv[1]
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    templates_dir = sys.argv[2] if len(sys.argv) > 2 else os.path.dirname(script_dir)
-
-    agent_entries, command_entries = load_entries(templates_dir)
+    agent_entries, command_entries = load_entries(out_dir)
 
     if agent_entries:
         print("=== Generating OpenCode agent mirrors ===")

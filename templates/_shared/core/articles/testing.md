@@ -4,45 +4,47 @@ read_when: "Writing or fixing tests, choosing coverage, or touching test infrast
 
 # Testing: Red First, Deterministic, Zero Skips
 
+This file is the single source for test discipline. Other rules and agents
+link here instead of restating it.
+
 ## MUST
 
-- Write the failing test first; commit test + fix together.
+- Write the failing test first and confirm it fails for the right reason;
+  commit the test with the fix.
 - Every bug fix ships a regression test.
-- Contract tests come before implementation for public interfaces (HTTP, MCP, CLI, file formats).
-- Determinism: inject clock/RNG/network. No sleeps, real sockets, wall-clock comparisons, or order-dependent tests.
-- Zero unchecked skips/xfail. A conditional skip is allowed only for a genuine environment precondition.
-- Tests are independent and parallel-safe; no shared mutable fixtures.
+- Public interfaces (HTTP, MCP, CLI, file formats, addon commands) get a
+  contract test before the implementation changes.
+- Deterministic: inject clock, RNG, ids, and network. No `sleep` to
+  synchronise, no real sockets in unit tests, no order dependence.
+- No unconditional skip or xfail is committed. A conditional skip is allowed
+  only for a real environment precondition (missing GPU, OS-specific path) and
+  states the reason.
+- The suite is green on a clean checkout. A failing or flaky test is fixed or
+  removed in its own PR, never left red.
 
-## Tiers
+## Coverage floors
 
-| Risk | Minimum |
+| Code | Floor |
 |---|---|
-| Safety, security, irreversible actions | 90%+ |
-| Core business rules | 80%+ |
-| IO and adapters | 70%+ |
-| Helpers and formatting | 50%+ |
+| Safety, security, irreversible actions | 90% |
+| Core domain logic | 80% |
+| IO and adapters | 70% |
+| Helpers and formatting | 50% |
 
-Coverage is a floor, not a goal.
+Floors apply to changed files. Coverage is a floor, not a goal; behaviour
+assertions matter more than the number.
 
-## Layout
+## SHOULD
 
-- `tests/contract/` — schema, envelope, protocol
-- `tests/integration/` — real adapters (DB, HTTP, subprocess)
-- `tests/e2e/` — user-visible flows
-- `tests/unit/` — pure logic
-- Fakes for external systems; golden files for serialized output.
+- Follow the repo's existing test layout. For a new repo: `tests/unit`,
+  `tests/contract`, `tests/integration` (real adapters, behind a marker), and
+  `tests/e2e`.
+- Fakes for external systems; golden files for serialised output.
+- Tests are independent and safe to run in parallel.
 
 ## ANTI-PATTERNS
 
-- Asserting on log strings instead of structured output.
-- Mocking the thing under test.
-- `sleep()` to synchronise.
-- Tests that pass serially but fail in parallel.
-- Coverage theatre: asserting a mock was called without checking behaviour.
-
-## Checklist
-
-- [ ] Test failed before the fix.
-- [ ] No skip/xfail added.
-- [ ] No wall clock/RNG/network dependence.
-- [ ] Contract test covers the public boundary.
+- Weakening an assertion or deleting a test to get green.
+- Mocking the unit under test, or asserting only that a mock was called.
+- Asserting on log text instead of structured output.
+- A test written after the code that could not have failed.
