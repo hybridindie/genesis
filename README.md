@@ -78,7 +78,8 @@ validates.
 Re-rendering never clobbers tailoring. `harness.json` records a hash for
 every file the renderer writes. On the next render, a file that no longer
 matches its hash is a local edit: it is kept and listed (`--force-overwrite`
-replaces it). New rules are still added to the AGENTS.md index.
+replaces it). A rendered file you deleted stays deleted. New rules are still
+added to the AGENTS.md index.
 
 ### After install
 
@@ -118,8 +119,8 @@ render           → core + stacks + packs, placeholders, generated rule index
 - **`check-project-drift.py`** fails when `AGENTS.md` no longer matches the
   tree. It covers the rule index, the command and skill lists, the mirrors, a
   thin `CLAUDE.md`, and the Python version. It also fails when a rule belongs
-  to a stack or pack that `harness.json` doesn't declare, or when a declared
-  one is missing its rules.
+  to a stack or pack that `harness.json` doesn't declare, and warns when a
+  declared one has no rules.
 - **CI** runs the guardrails plus each stack's lint/type/test job.
 
 ## Repository layout
