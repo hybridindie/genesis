@@ -81,8 +81,12 @@ def main():
         indexed = {row.match(lines[i]).group(1) for i in positions}
         new = [f"| `.claude/rules/{rel}` | {read_when} |" for rel, read_when in rows if rel not in indexed]
         lines[positions[-1] + 1:positions[-1] + 1] = new
+        present = {rel for rel, _ in rows}
+        gone = [i for i in positions if row.match(lines[i]).group(1) not in present]
+        for i in reversed(gone):  # rows for rules that no longer exist
+            del lines[i]
         agents.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        print(f"Rule index: kept the existing table, added {len(new)} rows")
+        print(f"Rule index: kept the existing table, added {len(new)} rows, removed {len(gone)}")
         return
     commands = sorted(p.stem for p in (out / ".claude" / "commands").glob("*.md"))
     skills = sorted(p.parent.name for p in (out / ".claude" / "skills").glob("*/SKILL.md"))

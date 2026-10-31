@@ -47,7 +47,11 @@ CREATE OR REPLACE TRIGGER {table}_updated_at
 -- TODO: FK indexes
 """
         )
-    text = f"-- Migration: {desc}\n-- Generated skeleton: fill columns/constraints, validate against sql-standards.md.\n\n" + "\n".join(blocks)
+    header = (
+        f"-- Migration: {desc}\n"
+        "-- Generated skeleton: fill columns/constraints, validate against sql-standards.md.\n\n"
+    )
+    text = header + "\n".join(blocks)
     text += "\n-- DOWN\n" + "\n".join(f"-- DROP TABLE IF EXISTS public.{t} CASCADE;" for t in tables) + "\n"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text, encoding="utf-8")

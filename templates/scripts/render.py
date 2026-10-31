@@ -29,7 +29,6 @@ import hashlib
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -205,6 +204,8 @@ def values(plan: dict[str, Any], args: argparse.Namespace) -> tuple[dict[str, st
         "FE_NPM": fe_mgr == "npm",
         "FE_PNPM": fe_mgr == "pnpm",
         "FE_BUN": fe_mgr == "bun",
+        "FE_VITEST": (fe.get("unit_runner") or "vitest") == "vitest",
+        "FE_JEST": fe.get("unit_runner") == "jest",
         "PY_IN_SUBDIR": (paths["python"] or ".") != ".",
         "GODOT_IN_SUBDIR": (paths["godot"] or ".") != ".",
         "RUST_IN_SUBDIR": (paths["rust"] or ".") != ".",
@@ -292,6 +293,43 @@ def sources(plan: dict[str, Any]) -> list[Path]:
         [SHARED / "packs" / p for p in plan["packs"]]
 
 
+def load_script(name: str) -> Any:
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(name.replace("-", "_"), SCRIPT_DIR / f"{name}.py")
+    module = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
+    spec.loader.exec_module(module)  # type: ignore[union-attr]
+    return module
+
+
+# Harness content the renderer owns; anything else (CI, git hooks, docs) is never removed.
+OWNED_PREFIXES = (".claude/rules/", ".claude/agents/", ".claude/commands/", ".claude/skills/",
+                  ".opencode/agents/", ".opencode/commands/", ".opencode/skills/")
+
+
+def remove_stale(out: Path, recorded: dict[str, str], current: set[str], w: Writer) -> list[str]:
+    """Delete files rendered last time but not this time (a removed stack or
+    pack, or a rule genesis dropped) if they are unmodified; keep edited ones."""
+    removed = []
+    for rel, digest in sorted(recorded.items()):
+        if rel in current or not rel.startswith(OWNED_PREFIXES):
+            continue
+        path = out / rel
+        if not path.is_file():
+            continue
+        if sha(path.read_bytes()) == digest:
+            removed.append(rel)
+            if not w.dry:
+                path.unlink()
+        else:
+            w.kept.append(rel)
+    if not w.dry:
+        for d in sorted({(out / r).parent for r in removed}, key=lambda p: -len(p.parts)):
+            while d != out and d.is_dir() and not any(d.iterdir()):
+                d.rmdir()
+                d = d.parent
+    return removed
+
+
 def render(plan: dict[str, Any], args: argparse.Namespace) -> tuple[list[str], list[str]]:
     out = plan["output_dir"]
     v, flags = values(plan, args)
@@ -353,9 +391,14 @@ def render(plan: dict[str, Any], args: argparse.Namespace) -> tuple[list[str], l
     if args.plan:
         return w.written, w.kept + w.deleted
 
-    subprocess.run([sys.executable, str(SCRIPT_DIR / "generate-harness-mirrors.py"), str(out), str(TEMPLATES)],
-                   check=True, stdout=subprocess.DEVNULL)
+    mirrors_written, mirrors_kept, mirrors_same = load_script("generate-harness-mirrors").mirror(
+        out, plan["recorded"])
+    w.written += mirrors_written + mirrors_same
+    w.kept += mirrors_kept
+    removed = remove_stale(out, plan["recorded"], set(w.written) | set(w.kept) | set(w.deleted), w)
     subprocess.run([sys.executable, str(SCRIPT_DIR / "generate-rule-index.py"), str(out)], check=True)
+    for rel in removed:
+        print(f"  Removed {rel} (no longer rendered, unmodified)", file=sys.stderr)
 
     manifest = {
         "schema": 2,

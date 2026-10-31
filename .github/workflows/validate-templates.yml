@@ -166,8 +166,9 @@ jobs:
               rel="${cf#"$RENDER/.claude/$kind/"}"
               of="$RENDER/.opencode/$kind/$rel"
               test -f "$of" || { echo "MISSING mirror: $kind/$rel"; fail=1; continue; }
-              cb=$(awk '/^---$/{if (++c == 2) nextfile} c >= 2' "$cf")
-              ob=$(awk '/^---$/{if (++c == 2) nextfile} c >= 2' "$of")
+              cb=$(awk 'c >= 2 {print} /^---$/ {c++}' "$cf")
+              ob=$(awk 'c >= 2 {print} /^---$/ {c++}' "$of")
+              [[ -n "$cb" ]] || { echo "EMPTY body: $kind/$rel"; fail=1; }
               [[ "$cb" == "$ob" ]] || { echo "DRIFT: $kind/$rel"; fail=1; }
             done
           done

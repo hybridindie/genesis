@@ -16,9 +16,9 @@ link here instead of restating it.
   contract test before the implementation changes.
 - Deterministic: inject clock, RNG, ids, and network. No `sleep` to
   synchronise, no real sockets in unit tests, no order dependence.
-- No unconditional skip or xfail is committed. A conditional skip is allowed
-  only for a real environment precondition (missing GPU, OS-specific path) and
-  states the reason.
+- No unconditional skip or xfail is committed. A skip is allowed only for a
+  real environment precondition (missing GPU, OS-specific path), and its line
+  carries `skip-ok: <reason>` so the skip gate accepts it.
 - The suite is green on a clean checkout. A failing or flaky test is fixed or
   removed in its own PR, never left red.
 
