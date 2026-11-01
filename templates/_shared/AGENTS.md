@@ -106,6 +106,7 @@ Issue → red → green → `/preflight` → PR → review → merge. Details in
 | Commands | `.claude/commands/*.md` | `.opencode/commands/*.md` |
 | Subagents | `.claude/agents/*.md` | `.opencode/agents/*.md` (read-only) |
 | Skills | `.claude/skills/*/SKILL.md` | `.opencode/skills/*/SKILL.md` |
+| Language servers | `/ide` IDE attachment, or an MCP bridge | Built-in LSP via `"lsp"` in `.opencode/opencode.json` |
 | Gates | `.githooks/*` + `.claude/hooks/*` | CI + `/preflight` |
 
 ### Commands

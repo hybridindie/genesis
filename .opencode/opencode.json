@@ -1,5 +1,11 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  "lsp": {
+    "godot": {
+      "command": ["godot-lsp"],
+      "extensions": [".gd"]
+    }
+  },
   "skills": [
     ".opencode/skills"
   ],

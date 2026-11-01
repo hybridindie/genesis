@@ -8,3 +8,4 @@ graphify-out/
 node_modules/
 *.bak
 *.bak-*
+.claude/hooks/instructions-loaded.log
