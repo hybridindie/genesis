@@ -10,7 +10,7 @@ safety, transport, and testing details are in the other `mcp-*` rules.
 ## MUST
 
 - Domain libraries import no MCP SDK types; tool handlers validate, delegate,
-  and return a typed model.
+  and return a documented result shape.
 - The server owns safety (`mcp-safety.md`); clients and addons are never the
   only guard.
 - The transport is the only path to the controlled process

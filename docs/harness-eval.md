@@ -45,8 +45,10 @@ bash <genesis>/templates/scripts/bootstrap.sh --output-dir . --packs production
 ```
 
 (The `bootstrap-harness` skill fetches genesis and runs this for you.)
-Re-rendering rewrites harness-owned files; re-apply local rule edits after it,
-or make the stack change before tailoring.
+Re-rendering keeps files you have edited since the last render (it lists
+them) and adds the new stack's rules and index rows; update the AGENTS.md
+Stack and Key Commands sections by hand if AGENTS.md was one of the kept
+files.
 
 ## 2. Check each rule fits
 

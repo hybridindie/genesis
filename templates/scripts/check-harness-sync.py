@@ -19,7 +19,6 @@ Usage:
 Exits 0 if clean, non-zero with grouped FAIL lines if drift detected.
 """
 
-import os
 import re
 import sys
 from pathlib import Path
@@ -198,9 +197,9 @@ class HarnessSyncChecker:
             )
         else:
             body = claude_hook.read_text(encoding="utf-8")
-            if "pytest.mark.skip" not in body:
+            if "check \"" not in body:
                 self.errors.append(
-                    "FAIL: Claude check-no-skipped-tests.sh does not enforce pytest.skip"
+                    "FAIL: check-no-skipped-tests.sh renders no skip checks"
                 )
 
         opencode_skills = self.output_dir / ".opencode" / "skills"

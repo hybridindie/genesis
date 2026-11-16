@@ -6,7 +6,8 @@ Every rule article declares a `read_when:` field in its frontmatter. This script
 reads the rendered `.claude/rules/**/*.md` (skipping doctrine), validates that
 each file has one, and replaces the `<!-- RULE_INDEX -->` marker in AGENTS.md
 with a table pointing at the files. OpenCode reads rules on demand through this
-index; nothing globs the directory eagerly. It also fills `<!-- COMMAND_LIST -->`
+index; nothing globs the directory eagerly. Without the marker (a tailored
+AGENTS.md) it appends rows for unindexed rules to the existing table. It also fills `<!-- COMMAND_LIST -->`
 and `<!-- SKILL_LIST -->` from the rendered commands and skills.
 
 Usage: python generate-rule-index.py <output_dir>
@@ -67,8 +68,26 @@ def main():
 
     text = agents.read_text(encoding="utf-8")
     if MARKER not in text:
-        print(f"ERROR: {agents} has no {MARKER} marker", file=sys.stderr)
-        sys.exit(1)
+        # A tailored AGENTS.md: keep its index, append rows for new rules.
+        lines = text.splitlines()
+        row = re.compile(r"^\|\s*`\.claude/rules/([^`]+)`")
+        positions = [i for i, line in enumerate(lines) if row.match(line)]
+        if not positions:
+            # No index at all yet: append one.
+            lines += ["", "## Rule Index", "", *table]
+            agents.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            print(f"Rule index: appended a new index with {len(rows)} rules")
+            return
+        indexed = {row.match(lines[i]).group(1) for i in positions}
+        new = [f"| `.claude/rules/{rel}` | {read_when} |" for rel, read_when in rows if rel not in indexed]
+        lines[positions[-1] + 1:positions[-1] + 1] = new
+        present = {rel for rel, _ in rows}
+        gone = [i for i in positions if row.match(lines[i]).group(1) not in present]
+        for i in reversed(gone):  # rows for rules that no longer exist
+            del lines[i]
+        agents.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        print(f"Rule index: kept the existing table, added {len(new)} rows, removed {len(gone)}")
+        return
     commands = sorted(p.stem for p in (out / ".claude" / "commands").glob("*.md"))
     skills = sorted(p.parent.name for p in (out / ".claude" / "skills").glob("*/SKILL.md"))
     text = text.replace(MARKER, "\n".join(table))

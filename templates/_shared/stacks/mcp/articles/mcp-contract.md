@@ -9,7 +9,8 @@ public contract an agent will call without a human.
 
 ## Tools
 
-- Typed input and output models; defaults documented.
+- Typed input models with documented defaults. Prefer typed output models;
+  a plain dict is fine when the server's own contract specifies its keys.
 - Name: `surface_verb_object` (`k8s_pod_list`), stable, no verbs like `do`.
 - Docstring is the client-facing description: what it does, when to use it,
   what it returns, what fails. Written for an agent.
@@ -39,7 +40,7 @@ public contract an agent will call without a human.
 ## ANTI-PATTERNS
 
 - A single dispatcher tool.
-- Returning `dict[str, Any]`.
+- Untyped, undocumented return shapes.
 - Side effects in a resource or prompt.
 - Renaming a tool without a deprecation alias.
 - Description that restates the name ("lists pods").

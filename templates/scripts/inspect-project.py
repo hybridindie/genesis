@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -40,7 +41,7 @@ SKIP_DIRS = {
 }
 THIRD_PARTY_ADDONS = {"gut", "gdunit4", "godot-git-plugin", "dialogic", "phantom_camera", "beehave"}
 
-AGENT_DEPS = {"langgraph", "langchain", "langchain-core", "mlflow", "crewai",
+AGENT_DEPS = {"langgraph", "langchain", "langchain-core", "mlflow", "mlflow-skinny", "crewai",
               "autogen", "pyautogen", "pydantic-ai", "dspy", "dspy-ai", "llama-index"}
 LLM_DEPS = {"openai", "anthropic", "ollama", "litellm", "google-genai"}
 MCP_DEPS = {"mcp", "fastmcp"}
@@ -126,14 +127,30 @@ def requirements_deps(path: Path) -> set[str]:
 
 
 def python_version(root: Path, py_root: Path, data: dict[str, Any]) -> str:
+    """The supported floor (requires-python) wins over a local .python-version pin."""
+    spec = (data.get("project") or {}).get("requires-python", "")
+    m = re.search(r"(\d+\.\d+)", spec)
+    if m:
+        return m.group(1)
     for candidate in (py_root / ".python-version", root / ".python-version"):
         if candidate.is_file():
             m = re.match(r"(\d+\.\d+)", read(candidate).strip())
             if m:
                 return m.group(1)
-    spec = (data.get("project") or {}).get("requires-python", "")
-    m = re.search(r"(\d+\.\d+)", spec)
-    return m.group(1) if m else "3.12"
+    return "3.12"
+
+
+def detect_type_checker(root: Path, deps: set[str], tool: dict[str, Any]) -> str:
+    """The checker CI or pre-commit actually runs wins; then what is configured."""
+    gates = ""
+    for pattern in (".github/workflows/*.y*ml", ".gitea/workflows/*.y*ml", ".pre-commit-config.yaml", "Makefile"):
+        for f in root.glob(pattern):
+            gates += read(f)
+    ran = [c for c in ("mypy", "pyright") if re.search(rf"\b{c}\b", gates)]
+    if len(ran) == 1:
+        return ran[0]
+    has = [c for c in ("mypy", "pyright") if c in deps or c in tool]
+    return has[0] if len(has) == 1 else "mypy"
 
 
 def python_info(root: Path, py_root: Path) -> dict[str, Any]:
@@ -159,20 +176,24 @@ def python_info(root: Path, py_root: Path) -> dict[str, Any]:
         if (py_root / "requirements.txt").is_file() else "python -m pip install -e .",
     }[manager]
 
-    type_checker = "pyright" if ("pyright" in deps or "pyright" in tool) else "mypy"
+    type_checker = detect_type_checker(root, deps, tool)
     target = "src/" if (py_root / "src").is_dir() else "."
     type_cmd = f"{run}pyright" if type_checker == "pyright" else f"{run}mypy {target}"
 
     db = None
-    if (root / "supabase").is_dir() or "supabase" in deps:
+    if (root / "supabase").is_dir():  # the client library alone doesn't mean Supabase migrations
         db = "supabase"
     elif "sqlalchemy" in deps or "sqlmodel" in deps:
         db = "SQLAlchemy"
     elif deps & {"asyncpg", "psycopg", "psycopg2", "psycopg2-binary"}:
         db = "Postgres"
 
+    project = data.get("project") or {}
+    runtime = {norm(d) for d in project.get("dependencies", []) or [] if isinstance(d, str)}
+    runtime |= {norm(d) for d in ((tool.get("poetry") or {}).get("dependencies") or {})}
     return {
         "deps": sorted(deps),
+        "runtime_deps": sorted(runtime),
         "version": python_version(root, py_root, data),
         "pkg_manager": manager,
         "type_checker": type_checker,
@@ -180,10 +201,32 @@ def python_info(root: Path, py_root: Path) -> dict[str, Any]:
         "lint_cmd": f"{run}ruff check .",
         "type_cmd": type_cmd,
         "test_cmd": f"{run}pytest",
-        "has_mlflow": "mlflow" in deps,
+        "has_mlflow": bool({"mlflow", "mlflow-skinny"} & deps),
         "has_langgraph": "langgraph" in deps,
         "db_provider": db,
     }
+
+
+MCP_SERVER = re.compile(r"\bFastMCP\(|from mcp\.server|import mcp\.server|\bServer\(\s*[\"']")
+MCP_RUN = re.compile(
+    r"\b\w*(?:mcp|server)\w*\.run(?:_\w+)?\(|\.run\(\s*transport=|run_(?:stdio|http|sse|streamable)\w*\("
+    r"|(?:sse|streamable_http|http)_app\(|stdio_server\("
+)
+
+
+def serves_mcp(py_root: Path) -> bool:
+    """Builds and runs an MCP server; a client of someone else's server doesn't count."""
+    built = ran = False
+    for path in py_root.rglob("*.py"):
+        rel = path.relative_to(py_root).parts
+        if any(p.startswith(".") or p in SKIP_DIRS or p in {"tests", "test"} for p in rel):
+            continue
+        text = read(path)
+        built = built or bool(MCP_SERVER.search(text))
+        ran = ran or bool(MCP_SERVER.search(text) and MCP_RUN.search(text))
+        if built and ran:
+            return True
+    return False
 
 
 # ── Frontend ──────────────────────────────────────────────────────────────
@@ -281,13 +324,42 @@ def godot_info(g_root: Path) -> dict[str, Any]:
 # ── Decision ──────────────────────────────────────────────────────────────
 
 
+def project_name(root: Path) -> str:
+    """The git remote's repo name, then the root manifest's name, then the folder.
+
+    The folder can be a worktree or a temp dir, so it is the last resort.
+    """
+    try:
+        url = subprocess.run(["git", "-C", str(root), "remote", "get-url", "origin"],
+                             capture_output=True, text=True, timeout=5).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        url = ""
+    if url:
+        return re.sub(r"\.git$", "", url.rstrip("/").rsplit("/", 1)[-1].rsplit(":", 1)[-1])
+    pyproject = root / "pyproject.toml"
+    if pyproject.is_file():
+        name = (pyproject_data(pyproject).get("project") or {}).get("name")
+        if name:
+            return str(name)
+    pkg = root / "package.json"
+    if pkg.is_file():
+        try:
+            name = json.loads(read(pkg)).get("name")
+        except json.JSONDecodeError:
+            name = None
+        if name:
+            return str(name).split("/")[-1]
+    return root.name
+
+
 def inspect(root: Path) -> dict[str, Any]:
     dirs = walk(root)
     stacks: list[str] = []
     evidence: dict[str, str] = {}
+    name = project_name(root)
     out: dict[str, Any] = {
-        "project_name": root.name,
-        "project_slug": re.sub(r"[^a-z0-9]+", "-", root.name.lower()).strip("-"),
+        "project_name": name,
+        "project_slug": re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-"),
     }
 
     py_root = shallowest(dirs, "pyproject.toml")
@@ -302,16 +374,18 @@ def inspect(root: Path) -> dict[str, Any]:
     if py_root is not None:
         py = python_info(root, py_root)
         deps = set(py.pop("deps"))
+        runtime = set(py.pop("runtime_deps"))
         out["python"] = py
         stacks.append("python")
         evidence["python"] = f"{rel(root, py_root)}/pyproject.toml or requirements.txt"
-        if deps & MCP_DEPS:
+        if deps & MCP_DEPS and serves_mcp(py_root):
             stacks.append("mcp")
-            evidence["mcp"] = f"depends on {', '.join(sorted(deps & MCP_DEPS))}"
+            evidence["mcp"] = f"depends on {', '.join(sorted(deps & MCP_DEPS))} and builds a server"
         has_evals = any((py_root / d).is_dir() for d in ("evals", "eval", "evaluations"))
-        if deps & AGENT_DEPS or (deps & LLM_DEPS and has_evals):
+        # An LLM SDK only counts when the shipped code depends on it (not just evals).
+        if deps & AGENT_DEPS or (runtime & LLM_DEPS and has_evals):
             stacks.append("agent")
-            evidence["agent"] = f"depends on {', '.join(sorted((deps & AGENT_DEPS) or (deps & LLM_DEPS)))}" + (
+            evidence["agent"] = f"depends on {', '.join(sorted((deps & AGENT_DEPS) or (runtime & LLM_DEPS)))}" + (
                 " with an evals directory" if not deps & AGENT_DEPS else "")
         if "fastapi" in deps:
             stacks.append("fastapi")
