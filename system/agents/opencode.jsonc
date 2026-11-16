@@ -19,6 +19,12 @@
     { "action": "edit", "resource": "~/.aws/**", "effect": "deny" },
     { "action": "edit", "resource": "~/.kube/**", "effect": "deny" }
   ],
+  "lsp": {
+    "godot": {
+      "command": ["godot-lsp"],
+      "extensions": [".gd"]
+    }
+  },
   "plugins": [
     "@mohak34/opencode-notifier@1.1.1",
     "opencode-models-discovery@2.0.0"

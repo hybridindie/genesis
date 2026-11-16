@@ -1,0 +1,85 @@
+#!/usr/bin/env python3
+"""godot-lsp — bridge Godot 4's TCP language server onto stdin/stdout.
+
+LSP clients (OpenCode, editors) launch a language server as a child process and
+speak LSP over its stdin/stdout. Godot does the opposite: while the editor is
+open it *listens* on TCP 127.0.0.1:6005. This bridges the two, so a `.gd` file
+gets real diagnostics, completion, and go-to-definition.
+
+Godot must already be running with the project open — this does not start it.
+If nothing is listening the bridge exits quietly, leaving the client with no
+server rather than an error.
+
+    godot-lsp                        connect to 127.0.0.1:6005
+    GODOT_LSP_PORT=6010 godot-lsp    another port (Editor Settings -> Network ->
+                                     Language Server -> Remote Port)
+
+    GODOT_LSP_HOST / GODOT_LSP_CONNECT_TIMEOUT  override host / connect timeout
+"""
+
+from __future__ import annotations
+
+import os
+import socket
+import sys
+import threading
+
+HOST = os.environ.get("GODOT_LSP_HOST", "127.0.0.1")
+PORT = int(os.environ.get("GODOT_LSP_PORT", "6005"))
+TIMEOUT = float(os.environ.get("GODOT_LSP_CONNECT_TIMEOUT", "2"))
+BUFSIZE = 1 << 16
+
+
+def to_client(sock: socket.socket, out) -> None:
+    """Socket -> stdout, until Godot closes the connection."""
+    try:
+        while True:
+            chunk = sock.recv(BUFSIZE)
+            if not chunk:
+                break
+            out.write(chunk)
+            out.flush()
+    except OSError:
+        pass
+
+
+def main() -> int:
+    try:
+        sock = socket.create_connection((HOST, PORT), timeout=TIMEOUT)
+    except OSError as exc:
+        print(
+            f"godot-lsp: {HOST}:{PORT} unreachable ({exc}). "
+            "Is the Godot editor running with this project open?",
+            file=sys.stderr,
+        )
+        return 0
+    sock.settimeout(None)
+
+    reader = threading.Thread(target=to_client, args=(sock, sys.stdout.buffer), daemon=True)
+    reader.start()
+
+    # Client -> socket on the main thread, so a closed stdin unwinds promptly.
+    try:
+        while True:
+            chunk = sys.stdin.buffer.read1(BUFSIZE)
+            if not chunk:
+                break
+            sock.sendall(chunk)
+    except (OSError, ValueError):
+        pass
+    finally:
+        try:
+            sock.shutdown(socket.SHUT_WR)
+        except OSError:
+            pass
+
+    reader.join(timeout=1.0)
+    try:
+        sock.close()
+    except OSError:
+        pass
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

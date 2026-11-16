@@ -286,6 +286,9 @@ install_tool() { # <name>
 install_bin() {
   say "== bin"
   install_tool zed-wait
+  # Bridges Godot's TCP language server onto stdio for OpenCode. Inert when no
+  # editor is running, so it is installed unconditionally.
+  install_tool godot-lsp
   # The GDScript patch for graphify: only where graphify is installed and a
   # project under the dev root calls for it (a Godot project).
   if (( INSTALL_ALL )) || { command -v graphify >/dev/null 2>&1 && godot_project_under "$DEV_ROOT"; }; then

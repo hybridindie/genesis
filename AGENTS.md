@@ -38,6 +38,7 @@ Read these when you need the detail — they are not auto-loaded:
 | Skills, templates, evals, doctrine, wrappers, response states | [`docs/agents-sections/skills-and-references.md`](docs/agents-sections/skills-and-references.md) | Invoking a skill or checking references |
 | Full usage guide | [`prompts-skills.md`](prompts-skills.md) | Per-harness setup, hooks table, worked examples |
 | Editing contract (versioning, drift, hooks) | [`CONTRIBUTING-HARNESS.md`](CONTRIBUTING-HARNESS.md) | Editing this repo |
+| LSP / language servers | [`docs/agents-sections/lsp.md`](docs/agents-sections/lsp.md) | Enabling LSP or debugging missing diagnostics |
 
 ## Skills at a glance
 
