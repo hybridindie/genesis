@@ -23,7 +23,7 @@ import shutil
 import subprocess
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 # A repo-level marker says an automated reviewer is configured, but not which
@@ -38,6 +38,7 @@ KNOWN_REVIEWERS = (
     "open-code-review", "opencodereview", "ocr", "jds-code-reviewer",
     "qodo", "pr-agent", "coderabbit", "sourcery", "greptile",
 )
+CHECKS_GRACE_SECONDS = 180
 FIELDS = (
     "number,url,state,isDraft,mergeStateStatus,reviewDecision,"
     "statusCheckRollup,reviews,comments,commits,labels"
@@ -154,10 +155,15 @@ def evaluate(pr, checks, bots):
     if decision == "CHANGES_REQUESTED":
         return 20, "changes_requested", "review requested changes"
 
-    if checks is None and (pr.get("statusCheckRollup") or []):
-        # `gh pr checks` has no data yet, but the PR knows checks exist: they are
-        # still registering, not absent.
-        return None, "waiting", "checks are registering"
+    if checks is None:
+        # `gh pr checks` reports nothing both when CI has not registered yet and
+        # when no CI exists. The PR's own payload separates the first case; a
+        # recent head commit covers the seconds before the rollup appears.
+        if pr.get("statusCheckRollup") or []:
+            return None, "waiting", "checks are registering"
+        commit_time = last_commit_time(pr)
+        if commit_time and (datetime.now(timezone.utc) - commit_time).total_seconds() < CHECKS_GRACE_SECONDS:
+            return None, "waiting", "checks are registering"
 
     if checks is not None:
         if checks["fail"] or checks["cancel"]:
