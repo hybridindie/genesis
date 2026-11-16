@@ -160,6 +160,11 @@ def evaluate(pr, checks, bots):
     if decision == "CHANGES_REQUESTED":
         return 20, "changes_requested", "review requested changes"
 
+    if checks is None and (pr.get("statusCheckRollup") or []):
+        # `gh pr checks` has no data yet, but the PR knows checks exist: they are
+        # still registering, not absent.
+        return None, "waiting", "checks are registering"
+
     if checks is not None:
         if checks["fail"] or checks["cancel"]:
             return 10, "ci_failed", "one or more checks failed"
