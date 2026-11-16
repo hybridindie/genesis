@@ -18,8 +18,9 @@ exception, not a shortcut.
    `--no-verify`, no `|| true`, no disabled checks.
 5. **PR** — one concern; `closes #N`; a test plan naming the commands run.
    Note rollback for risky changes.
-6. **Review** — every comment gets a change or a reply; unrelated findings
-   become linked issues.
+6. **Review** — the automated reviewer comments inline; every finding gets a
+   change or a reply; unrelated findings become linked issues. `/review`
+   re-runs it on the current head.
 7. **Merge** — green CI and resolved threads. Merge commit
    (`gh pr merge --merge`), then delete the branch.
 

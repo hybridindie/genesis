@@ -44,7 +44,6 @@ used in path-scoped rules, commands and CI.
 | Pack | For | Adds |
 |---|---|---|
 | `production` | services deployed with Docker/compose/k8s | deploy safety (health, shutdown, migrations, rollback), service limits (rate, cache, timeouts), privacy |
-| `acd` | strict agent-generated delivery | spec artifacts, one-scenario sessions, `/start-session`, `/end-session`, `/fix` |
 
 ## Install a project harness
 
@@ -160,7 +159,7 @@ scripts/lint-skills.py   enforce the skill contract
 ```bash
 for s in python mcp agent fastapi,frontend godot,rust mcp,godot-addon; do
   out="/tmp/render-${s//,/-}"; rm -rf "$out"
-  python3 templates/scripts/render.py --output-dir "$out" --project-name Test --stacks "$s" --packs production,acd
+  python3 templates/scripts/render.py --output-dir "$out" --project-name Test --stacks "$s" --packs production
   python3 templates/scripts/check-harness-sync.py templates "$out"
   python3 "$out/.claude/hooks/check-project-drift.py" --root "$out"
 done

@@ -47,7 +47,7 @@ there once; all references inherit.
 
 Stack-only assets: `/migration-check`, `create-migration` and
 `gen-contract-test` ship with the `fastapi` stack; `e2e-assertion-audit` with
-`frontend`; `/start-session`, `/end-session` and `/fix` with the `acd` pack.
+`frontend`.
 
 The command names are identical across both harnesses. Each wrapper is a short
 pointer to `.agents/skills/<name>.md`; keep the body thin.

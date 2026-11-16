@@ -21,8 +21,10 @@
 
 ## Code review
 
-- PR-Agent reviews automatically; answer every comment with a change or a
-  reply.
+- OpenCodeReview reviews every PR automatically; answer every finding with a
+  change or a reply. Post `/review` to re-run it on the current head.
+- Findings land inline as `Important —` or `Nit —`; fix the Important ones,
+  reply to a Nit you're deliberately keeping.
 - No machine-specific paths in code, logs, or commits.
 
 ## Tooling
