@@ -26,19 +26,16 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-# A repo-level marker means an automated reviewer is configured; the values are
-# the logins that reviewer posts as. Login matching is loose (see matches_bot)
-# because it differs per forge: a GitHub App posts as `<slug>[bot]`, OpenCodeReview
-# keeps the slug configurable, and on Gitea the token's own user authors the
-# comments. A reviewer that runs cluster-side has no repo marker, so its presence
-# on the PR is what makes the watcher follow it. Set SHIP_PR_BOTS to name a
-# reviewer outright, or `SHIP_PR_BOTS=none` to never wait for one.
-REVIEW_MARKERS = {
-    ".opencodereview/rule.json": ("open-code-review", "opencodereview", "ocr"),
-    ".pr_agent.toml": ("qodo", "pr-agent", "coderabbit", "sourcery", "greptile"),
-}
+# A repo-level marker says an automated reviewer is configured, but not which
+# one: brix's OpenCodeReview App has been swapped in for PR-Agent cluster-side
+# while `.pr_agent.toml` files stayed behind, so the marker only decides whether
+# to wait. The logins below are the union of reviewer names seen in practice —
+# a GitHub App posts as `<slug>[bot]`, and on Gitea the token's own user authors
+# the comments. Set SHIP_PR_BOTS to name a reviewer outright, or `none` to never
+# wait for one.
+REVIEW_MARKERS = (".opencodereview/rule.json", ".pr_agent.toml")
 KNOWN_REVIEWERS = (
-    "open-code-review", "opencodereview", "ocr",
+    "open-code-review", "opencodereview", "ocr", "jds-code-reviewer",
     "qodo", "pr-agent", "coderabbit", "sourcery", "greptile",
 )
 FIELDS = (
@@ -81,20 +78,17 @@ def bot_names(pr=None):
         if override.lower() == "none":
             return ()
         return tuple(x.strip().lower() for x in override.split(",") if x.strip())
-    names = [
-        bot
-        for marker, bots in REVIEW_MARKERS.items()
-        if Path(marker).is_file()
-        for bot in bots
-    ]
-    if not names and pr is not None:
+    if any(Path(marker).is_file() for marker in REVIEW_MARKERS):
+        return KNOWN_REVIEWERS
+    if pr is not None:
         # No marker: a cluster-side reviewer still shows up in the PR history.
         logins = [
             ((item.get("author") or {}).get("login") or "")
             for item in (pr.get("reviews") or []) + (pr.get("comments") or [])
         ]
-        names = [b for b in KNOWN_REVIEWERS if any(matches_bot(x, (b,)) for x in logins)]
-    return tuple(dict.fromkeys(names))
+        if any(matches_bot(x, KNOWN_REVIEWERS) for x in logins):
+            return KNOWN_REVIEWERS
+    return ()
 
 
 def matches_bot(login, bots):
