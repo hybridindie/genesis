@@ -11,7 +11,7 @@
 Install, update, or extend the genesis harness in a target project. A project
 gets the core rules plus every stack it uses (`python`, `mcp`, `agent`,
 `fastapi`, `frontend`, `godot`, `godot-addon`, `rust`) and any opt-in packs
-(`production`, `acd`). The renderer detects stacks; the model only confirms the
+(`production`). The renderer detects stacks; the model only confirms the
 plan with the user and runs the semantic passes.
 
 ## Inputs
