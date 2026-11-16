@@ -101,9 +101,9 @@ jobs:
         include:
           - { name: python, stacks: python, packs: "" }
           - { name: mcp, stacks: mcp, packs: "" }
-          - { name: agent+acd, stacks: agent, packs: acd }
+          - { name: agent, stacks: agent, packs: "" }
           - { name: web+production, stacks: "fastapi,frontend", packs: production }
-          - { name: full-web, stacks: "mcp,agent,fastapi,frontend", packs: "production,acd" }
+          - { name: full-web, stacks: "mcp,agent,fastapi,frontend", packs: production }
           - { name: godot+rust, stacks: "godot,rust", packs: "" }
           - { name: godot-mcp, stacks: "mcp,godot-addon", packs: "" }
     env:

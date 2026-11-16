@@ -3,7 +3,7 @@
 
   core            always rendered (rules, shared agents/commands/skills)
   stacks/<id>/    one per detected or requested stack; several per project
-  packs/<id>/     opt-in rule packs (production, acd)
+  packs/<id>/     opt-in rule packs (production)
 
 Each source dir may hold articles/, agents/, commands/ and skills/. Article
 paths must be unique across everything rendered; stacks add rules, they never
@@ -49,7 +49,7 @@ STACKS: dict[str, list[str]] = {  # id -> implied stacks
     "godot-addon": ["godot"],
     "rust": [],
 }
-PACKS = ("production", "acd")
+PACKS = ("production",)
 LEGACY_PROFILES = {
     "web": ["fastapi", "frontend"], "fastapi+react": ["fastapi", "frontend"],
     "generic-python": ["python"],

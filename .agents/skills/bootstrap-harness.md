@@ -80,8 +80,7 @@ plan with the user and runs the semantic passes.
 
 - Whether a detected stack is real when the evidence is thin (e.g. an LLM SDK
   plus an `evals/` dir suggests `agent`). Ask rather than guess.
-- Whether to offer the `production` pack (`packs_suggested`) and, only if the
-  user asks for strict agent sessions, the `acd` pack.
+- Whether to offer the `production` pack (`packs_suggested`).
 
 Paths, versions, package managers and commands come from the renderer; don't
 override them by inspection.

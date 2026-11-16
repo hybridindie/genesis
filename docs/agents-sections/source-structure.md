@@ -23,7 +23,7 @@ templates/
     doctrine/                 ← skill-execution contract (rendered to rules/doctrine/)
     stacks/<id>/              ← python mcp agent fastapi frontend godot godot-addon rust
                                  each: articles/ agents/ commands/ skills/
-    packs/<id>/               ← production, acd (opt-in)
+    packs/<id>/               ← production (opt-in)
     ci/base.yml, ci/jobs/     ← CI composed from one job per stack
     githooks/                 ← tracked pre-commit / pre-push gates
     mirror-pairs.json         ← doctrine routing

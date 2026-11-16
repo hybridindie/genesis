@@ -18,7 +18,7 @@ rendered. The project drift gate holds the tree to that manifest.
 ```bash
 for s in python mcp agent fastapi,frontend godot,rust mcp,godot-addon; do
   out="/tmp/render-${s//,/-}"; rm -rf "$out"
-  python3 templates/scripts/render.py --output-dir "$out" --project-name Test --stacks "$s" --packs production,acd
+  python3 templates/scripts/render.py --output-dir "$out" --project-name Test --stacks "$s" --packs production
   python3 templates/scripts/check-harness-sync.py templates "$out"
   python3 "$out/.claude/hooks/check-project-drift.py" --root "$out"
 done

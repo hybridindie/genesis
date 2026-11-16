@@ -31,7 +31,7 @@ python3 templates/scripts/render.py --output-dir /path/to/project --auto-detect 
 | `--auto-detect` | Run `inspect-project.py` on the target (always on for a fresh install) |
 | `--stacks a,b` | Set the stacks explicitly |
 | `--add-stacks` / `--remove-stacks` | Adjust the stacks recorded in an installed `harness.json` |
-| `--packs production,acd` | Opt-in packs (`--packs ""` clears them) |
+| `--packs production` | Opt-in packs (`--packs ""` clears them) |
 | `--python-path`, `--frontend-path`, `--godot-path`, `--rust-path` | Override detected directories |
 | `--project-name`, `--project-slug` | Names used in the context files |
 | `--ci-platform github\|gitea\|none`, `--ci-runs-on LABEL` | CI target and runner |

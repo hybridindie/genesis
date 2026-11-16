@@ -51,6 +51,13 @@ caller asked for `--merge`.
    ```
    Exit codes: `0` settled, `10` CI failed, `20` changes requested, `30`
    blocked/draft/conflict, `40` timeout, `50` merged/closed. It never merges.
+   It waits for the configured reviewer: `.opencodereview/rule.json`
+   (OpenCodeReview) or `.pr_agent.toml`. With neither, it follows a reviewer
+   that already commented on the PR — so a cluster-side reviewer is picked up
+   from the second round on, and `SHIP_PR_BOTS=ocr-reviewer` names one outright
+   (`none` disables waiting). On Gitea, where the token's own user authors the
+   review, always set it. If no review lands, ask for one:
+   `gh pr comment "$PR" --body /review`.
 5. **Fetch unresolved threads.**
    ```bash
    python3 .claude/skills/ship-pr/scripts/pr_threads.py --pr "$PR"
