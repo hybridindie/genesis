@@ -230,7 +230,10 @@ def render_text(text: str, v: dict[str, str], flags: dict[str, bool]) -> str:
         if v.get(key) == ".":
             text = text.replace("{{%s}}/" % key, "")
     text = PLACEHOLDER.sub(lambda m: v.get(m.group(1), m.group(0)), text)
-    return re.sub(r"\n{3,}", "\n\n", text)
+    # Removed blocks can leave wide gaps, but PEP 8's two blank lines between
+    # top-level definitions are three newlines: only collapse past that, or the
+    # rendered Python fails its own ruff config.
+    return re.sub(r"\n{4,}", "\n\n\n", text)
 
 
 def sha(data: bytes) -> str:

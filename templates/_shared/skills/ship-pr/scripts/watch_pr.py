@@ -36,7 +36,7 @@ from pathlib import Path
 REVIEW_MARKERS = (".opencodereview/rule.json", ".pr_agent.toml")
 KNOWN_REVIEWERS = (
     "open-code-review", "opencodereview", "ocr", "jds-code-reviewer",
-    "qodo", "pr-agent", "coderabbit", "sourcery", "greptile",
+    "qodo", "qodo-merge", "pr-agent", "coderabbitai", "sourcery-ai", "greptile-app",
 )
 CHECKS_GRACE_SECONDS = 180
 FIELDS = (
@@ -93,11 +93,14 @@ def bot_names(pr=None):
 
 
 def matches_bot(login, bots):
-    """Loose login match: `ocr` covers `ocr-reviewer[bot]` but not `mediocre-dev`."""
+    """Loose login match: `ocr` covers `ocr-reviewer[bot]` and `acme-ocr[bot]`,
+    but not `mediocre-dev`."""
     login = (login or "").lower()
+    if login.endswith("[bot]"):
+        login = login[: -len("[bot]")]
     return any(
         login == bot
-        or login.startswith((bot + "[", bot + "-", bot + "_"))
+        or login.startswith((bot + "-", bot + "_", bot + "."))
         or login.endswith(("-" + bot, "_" + bot))
         for bot in bots
     )
@@ -159,7 +162,7 @@ def evaluate(pr, checks, bots):
         # `gh pr checks` reports nothing both when CI has not registered yet and
         # when no CI exists. The PR's own payload separates the first case; a
         # recent head commit covers the seconds before the rollup appears.
-        if pr.get("statusCheckRollup") or []:
+        if pr.get("statusCheckRollup"):
             return None, "waiting", "checks are registering"
         commit_time = last_commit_time(pr)
         if commit_time and (datetime.now(timezone.utc) - commit_time).total_seconds() < CHECKS_GRACE_SECONDS:
@@ -268,8 +271,12 @@ def main():
         if not pr:
             print("ERROR: could not read the pull request (auth or network?)", file=sys.stderr)
             return 2
-        if bots is None:
-            bots = bot_names(pr)
+        detected = bot_names(pr)
+        if detected != bots:
+            # Re-detect until a reviewer shows up: a cluster-side reviewer that
+            # has not posted yet leaves the first poll empty, and caching that
+            # empty result would settle before the mandated review.
+            bots = detected
             print(
                 f"Watching PR #{pr_number} (reviewers: {', '.join(bots) or 'none detected'})",
                 flush=True,
