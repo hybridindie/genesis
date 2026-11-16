@@ -300,11 +300,25 @@ class Writer:
         if mode is not None or os.access(src, os.X_OK):
             dst.chmod(mode or 0o755)
 
-    def tree(self, src_dir: Path, rel_dir: str) -> None:
+    def tree(self, src_dir: Path, rel_dir: str, skip: set[str] = frozenset()) -> None:
         for src in sorted(p for p in src_dir.rglob("*") if p.is_file()):
             if "__pycache__" in src.parts or src.suffix == ".pyc":
                 continue
-            self.file(src, f"{rel_dir}/{src.relative_to(src_dir).as_posix()}")
+            rel = src.relative_to(src_dir).as_posix()
+            if rel in skip:
+                continue
+            self.file(src, f"{rel_dir}/{rel}")
+
+
+def _loads_my_workflows(path: Path) -> bool:
+    """Whether an existing root opencode.json already loads my-workflows.md."""
+    try:
+        instructions = json.loads(path.read_text()).get("instructions") or []
+    except (OSError, json.JSONDecodeError, AttributeError):
+        return False
+    return isinstance(instructions, list) and any(
+        str(item).endswith("my-workflows.md") for item in instructions
+    )
 
 
 # ── Render ────────────────────────────────────────────────────────────────
@@ -389,8 +403,11 @@ def render(plan: dict[str, Any], args: argparse.Namespace) -> tuple[list[str], l
 
     w.tree(TEMPLATES / "claude-code" / ".claude", ".claude")
     if (out / "opencode.json").is_file() and not (out / ".opencode" / "opencode.json").exists():
-        # The project keeps its OpenCode config at the root; don't add a second one.
-        print("  Kept root opencode.json (add my-workflows.md to its instructions)", file=sys.stderr)
+        # The project keeps its OpenCode config at the root; don't add a second
+        # one, but still render the rest of the directory (e.g. ruff.toml).
+        if not _loads_my_workflows(out / "opencode.json"):
+            print("  Kept root opencode.json (add my-workflows.md to its instructions)", file=sys.stderr)
+        w.tree(TEMPLATES / "opencode" / ".opencode", ".opencode", skip={"opencode.json"})
     else:
         w.tree(TEMPLATES / "opencode" / ".opencode", ".opencode")
     w.file(TEMPLATES / "claude-code" / "CLAUDE.md", "CLAUDE.md")
