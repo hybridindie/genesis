@@ -3,10 +3,11 @@
 <!--
   Shared content — referenced by harness-specific SKILL.md wrappers.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 5.0.0, owner: John D
+  version: 5.1.0, owner: John D
   invokes: .agents/skills/task-decomposer.md,
            .agents/templates/epic/story-shell.md,
-           .agents/templates/epic/task-breakdown-shell.md
+           .agents/templates/epic/task-breakdown-shell.md,
+           .agents/evals/story-rubric.md
   doctrine: .agents/doctrine/parallelization-doctrine.md,
             .agents/doctrine/ai-readable-spec-rules.md,
             .agents/doctrine/source-discipline.md
@@ -43,8 +44,12 @@ uses `.agents/templates/epic/story-shell.md`; the execution map is fixed.
    python3 .agents/scripts/validate_artifact.py --kind story "$story_file"
    ```
    Stop on `FAIL`.
-9. **Emit the stories and map.** Do not create task checklists here; invoke the
-   task decomposer for each story that will be implemented.
+9. **Quality pass.** When the caller asks for a strict review, or Wave 1 is
+   about to be dispatched, apply `.agents/evals/story-rubric.md` (the story
+   table to each story, the parallel-plan table to the map). It advises; it
+   never blocks the output.
+10. **Emit the stories and map.** Do not create task checklists here; invoke the
+    task decomposer for each story that will be implemented.
 
 ## LLM Judgment
 
@@ -71,6 +76,7 @@ Do not invent requirements, file paths, or dependencies.
 
 - A coverage note: every Epic AC covered exactly once, or an explicit gap.
 - If the Epic is small enough to be one story, say so and emit one story.
+- When step 9 ran, the rubric findings per story and for the map.
 
 ## Stop Conditions
 

@@ -3,10 +3,11 @@
 <!--
   Shared content — referenced by harness-specific SKILL.md wrappers.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 5.0.0, owner: John D
+  version: 5.1.0, owner: John D
   invokes: .agents/skills/epic-interview.md,
            .agents/skills/epic-acceptance-linter.md,
-           .agents/templates/epic/epic-shell.md
+           .agents/templates/epic/epic-shell.md,
+           .agents/evals/epic-rubric.md
   doctrine: .agents/doctrine/source-discipline.md,
             .agents/doctrine/acceptance-criteria-rules.md,
             .agents/doctrine/context-discovery.md
@@ -49,6 +50,9 @@ synthesizes and plans; the shape, order, and checks are fixed.
    python3 .agents/scripts/validate_artifact.py --kind epic "$draft"
    ```
    Stop on `FAIL`; fix the shape, not the validator.
+9. **Quality pass.** When the caller asks for a strict review, or the Epic is
+   about to be decomposed, apply `.agents/evals/epic-rubric.md` and append its
+   report. It advises; it never blocks the output.
 
 ## LLM Judgment
 
@@ -66,7 +70,8 @@ content and unknowns.
 
 One Epic issue body using `.agents/templates/epic/epic-shell.md`, with the
 stable title `Epic: <outcome>`. Include the story table and parallelization map
-even when the stories do not have issue numbers yet (`#TBD`).
+even when the stories do not have issue numbers yet (`#TBD`). When step 9 ran,
+add the rubric report (Strong / Gaps / optional verdict) after the body.
 
 ## Stop Conditions
 

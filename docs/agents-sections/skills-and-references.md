@@ -21,8 +21,10 @@ On-demand section — read when invoking a skill or checking its references.
 - Task breakdown block (pasted under the story's `**Tasks**`):
   `.agents/templates/epic/task-breakdown-shell.md`
 - Traceability table: `.agents/templates/epic/traceability-template.md`
-- Optional Epic quality pass: `.agents/evals/epic-rubric.md`
-- Optional story/task quality pass: `.agents/evals/story-rubric.md`
+- Epic quality pass (epic-composer, on request or before decomposing):
+  `.agents/evals/epic-rubric.md`
+- Story/task quality pass (story- and task-decomposer, on request or before
+  dispatch): `.agents/evals/story-rubric.md`
 
 ## Doctrine (shared rules)
 
