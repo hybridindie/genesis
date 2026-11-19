@@ -540,10 +540,15 @@ def main() -> int:
             print(f"Kept {len(kept)} locally edited or deleted files (--force-overwrite replaces them):")
             for rel in kept:
                 print(f"  {rel}")
-        hooks_path = subprocess.run(["git", "-C", str(plan["output_dir"]), "config", "--get", "core.hooksPath"],
-                                    capture_output=True, text=True).stdout.strip()
-        if (Path(plan["output_dir"]) / ".git").exists() and hooks_path != ".githooks":
-            print("Git hooks are not enabled; run once per clone: bash .claude/hooks/install-git-hooks.sh")
+        if (Path(plan["output_dir"]) / ".git").exists():
+            try:
+                hooks_path = subprocess.run(
+                    ["git", "-C", str(plan["output_dir"]), "config", "--get", "core.hooksPath"],
+                    capture_output=True, text=True).stdout.strip()
+            except FileNotFoundError:
+                hooks_path = None  # no git binary: nothing to suggest
+            if hooks_path is not None and not hooks_path.rstrip("/").endswith(".githooks"):
+                print("Git hooks are not enabled; run once per clone: bash .claude/hooks/install-git-hooks.sh")
     return 0
 
 

@@ -103,14 +103,22 @@ def extract_acceptance(text: str) -> list[tuple[str, str]]:
     """AC-labelled lines (epics) and Given/When/Then checkboxes (stories)."""
     found: list[tuple[str, str]] = []
     boxes = 0
-    for line in text.splitlines():
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
         match = re.match(r"^\s*[-*]\s*(?:\*\*)?(AC\d+)(?:\*\*)?[:\s-]+(.*)$", line)
         if match:
             found.append((match.group(1), match.group(2).lstrip("*: -").strip()))
         elif AC_BOX.match(line):
             boxes += 1
-            body = re.sub(r"^\s*-\s*\[[ xX]\]\s*", "", line).replace("**", "").strip()
-            found.append((f"AC{boxes}", body))
+            parts = [re.sub(r"^\s*-\s*\[[ xX]\]\s*", "", line)]
+            indent = len(line) - len(line.lstrip())
+            # A wrapped criterion continues on more-indented, non-list lines.
+            for nxt in lines[i + 1:]:
+                if not nxt.strip() or len(nxt) - len(nxt.lstrip()) <= indent \
+                        or re.match(r"^\s*[-*]\s", nxt):
+                    break
+                parts.append(nxt.strip())
+            found.append((f"AC{boxes}", " ".join(parts).replace("**", "").strip()))
     return found
 
 
