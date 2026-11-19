@@ -87,6 +87,8 @@ jobs:
             || { echo "pointer hook misrouted an OpenCode template"; exit 1; }
           hook "templates/claude-code/CLAUDE.md" | grep -q 'templates/_shared' \
             || { echo "pointer hook missed a relative template path"; exit 1; }
+          hook "templates/claude-code/.claude/settings.json" | grep -q 'templates/_shared' \
+            || { echo "pointer hook misrouted a relative template path"; exit 1; }
           hook ".claude/settings.json" | grep -q 'edit the corresponding file in .agents/' \
             || { echo "pointer hook missed a relative wrapper path"; exit 1; }
           hook "$PWD/.claude/settings.json" | grep -q 'edit the corresponding file in .agents/' \
