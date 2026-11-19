@@ -305,7 +305,7 @@ install_brewfile() {
 
 check_tools() {
   local missing=() t
-  for t in zsh git rg fd eza bat yq delta direnv fzf zoxide starship uv gh zed opencode claude herdr kubectl docker; do
+  for t in zsh git rg fd eza bat jq yq delta direnv fzf zoxide starship uv gh zed opencode claude herdr kubectl docker; do
     command -v "$t" >/dev/null 2>&1 || missing+=("$t")
   done
   say "== tools"
@@ -353,4 +353,4 @@ say
 say "next:"
 say "  1. restart the shell (exec zsh -l) or open a new terminal"
 say "  2. review ~/.config/opencode/AGENTS.md and ~/.claude/CLAUDE.md"
-say "  3. create a project: $REPO_ROOT/new-project.sh ../myapp --profile mcp"
+say "  3. create a project: $REPO_ROOT/new-project.sh ../myapp --stacks mcp"

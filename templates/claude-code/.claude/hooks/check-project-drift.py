@@ -41,7 +41,11 @@ STACK_MARKERS = {
 PACK_MARKERS = {
     "production": "deploy-safety.md",
 }
-LEGACY_PROFILES = {"web": ["fastapi", "frontend"]}
+# Keep in sync with LEGACY_PROFILES in genesis templates/scripts/render.py.
+LEGACY_PROFILES = {
+    "web": ["fastapi", "frontend"], "fastapi+react": ["fastapi", "frontend"],
+    "generic-python": ["python"],
+}
 
 PLACEHOLDER = re.compile(r"\{\{[A-Z_][A-Z0-9_]*\}\}")
 

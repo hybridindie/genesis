@@ -9,12 +9,7 @@ Each source dir may hold articles/, agents/, commands/ and skills/. Article
 paths must be unique across everything rendered; stacks add rules, they never
 replace core ones.
 
-Usage:
-  render.py --output-dir DIR [--auto-detect] [--stacks a,b] [--add-stacks x]
-            [--remove-stacks y] [--packs p] [--project-name N] [--project-slug S]
-            [--python-path P] [--frontend-path P] [--godot-path P] [--rust-path P]
-            [--ci-runs-on LABEL] [--no-ci] [--force-ci] [--force-hooks]
-            [--plan]
+Usage: render.py --output-dir DIR [options]   (--help lists every option)
 
 On an existing harness (.claude/harness.json present) the stacks and packs
 recorded there are the starting point; --stacks replaces them and
@@ -146,7 +141,6 @@ def resolve(args: argparse.Namespace) -> dict[str, Any]:
         "godot": {**(manifest.get("godot") or {}), **(detected.get("godot") or {})},
         "ci_platform": args.ci_platform or detected.get("ci_platform") or manifest.get("ci_platform") or "github",
         "ci_runs_on": args.ci_runs_on or manifest.get("ci_runs_on") or "ubuntu-latest",
-        "has_ci": bool(detected.get("has_ci")),
         "evidence": detected.get("evidence") or {},
         "recorded": read_sums(out) or manifest.get("files") or {},
         "packs_suggested": detected.get("packs_suggested") or [],
@@ -170,7 +164,6 @@ def values(plan: dict[str, Any], args: argparse.Namespace) -> tuple[dict[str, st
 
     v = {
         "PROJECT_NAME": plan["project_name"],
-        "PROJECT_SLUG": plan["project_slug"],
         "BACKEND_PATH": paths["python"] or ".",
         "FRONTEND_PATH": paths["frontend"] or "frontend",
         "GODOT_PATH": paths["godot"] or ".",
@@ -398,8 +391,10 @@ def render(plan: dict[str, Any], args: argparse.Namespace) -> tuple[list[str], l
         skills = base / "skills"
         if skills.is_dir():
             for skill in sorted(p for p in skills.iterdir() if p.is_dir()):
-                for dest in (".claude/skills", ".opencode/skills"):
-                    w.tree(skill, f"{dest}/{skill.name}")
+                w.tree(skill, f".claude/skills/{skill.name}")
+                # Skill bodies call their scripts/assets under .claude/ (always
+                # rendered), so OpenCode only needs the SKILL.md.
+                w.file(skill / "SKILL.md", f".opencode/skills/{skill.name}/SKILL.md")
 
     w.tree(TEMPLATES / "claude-code" / ".claude", ".claude")
     if (out / "opencode.json").is_file() and not (out / ".opencode" / "opencode.json").exists():
@@ -501,29 +496,29 @@ def render_ci(plan: dict[str, Any], args: argparse.Namespace, w: Writer) -> None
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--output-dir", required=True)
-    ap.add_argument("--auto-detect", action="store_true")
-    ap.add_argument("--stacks")
-    ap.add_argument("--add-stacks")
-    ap.add_argument("--remove-stacks")
-    ap.add_argument("--packs")
+    ap.add_argument("--output-dir", required=True, help="project root to render into")
+    ap.add_argument("--auto-detect", action="store_true", help="detect stacks and paths (implied on a fresh install)")
+    ap.add_argument("--stacks", help=f"comma-separated stacks, replacing recorded ones ({','.join(STACKS)})")
+    ap.add_argument("--add-stacks", help="stacks to add to the recorded set")
+    ap.add_argument("--remove-stacks", help="stacks to drop from the recorded set")
+    ap.add_argument("--packs", help=f"comma-separated opt-in packs ({','.join(PACKS)})")
     ap.add_argument("--profile", help="legacy single profile (mcp|python|agent|web|godot)")
-    ap.add_argument("--project-name")
-    ap.add_argument("--project-slug")
+    ap.add_argument("--project-name", help="display name (default: directory name)")
+    ap.add_argument("--project-slug", help="kebab-case slug (default: derived from the name)")
     for key in ("python", "frontend", "godot", "rust"):
-        ap.add_argument(f"--{key}-path")
+        ap.add_argument(f"--{key}-path", help=f"{key} code root, relative to the project")
     ap.add_argument("--backend-path", dest="python_path", help=argparse.SUPPRESS)
-    ap.add_argument("--python-version")
-    ap.add_argument("--py-pkg-manager", choices=["uv", "pip", "poetry"])
-    ap.add_argument("--db-provider")
-    ap.add_argument("--ci-platform", choices=["github", "gitea", "none"])
-    ap.add_argument("--ci-runs-on")
-    ap.add_argument("--custom-instructions")
-    ap.add_argument("--custom-tech-stack")
-    ap.add_argument("--no-ci", action="store_true")
-    ap.add_argument("--force-ci", action="store_true")
-    ap.add_argument("--force-hooks", action="store_true")
-    ap.add_argument("--force-workflows", action="store_true")
+    ap.add_argument("--python-version", help="Python version for CI (default: detected, else 3.12)")
+    ap.add_argument("--py-pkg-manager", choices=["uv", "pip", "poetry"], help="default: detected, else uv")
+    ap.add_argument("--db-provider", help="database named in the fastapi rules (default: Postgres)")
+    ap.add_argument("--ci-platform", choices=["github", "gitea", "none"], help="default: detected, else github")
+    ap.add_argument("--ci-runs-on", help="runner label for CI jobs")
+    ap.add_argument("--custom-instructions", help="text added to the rendered AGENTS.md")
+    ap.add_argument("--custom-tech-stack", help="tech-stack summary added to the rendered AGENTS.md")
+    ap.add_argument("--no-ci", action="store_true", help="don't render a CI workflow")
+    ap.add_argument("--force-ci", action="store_true", help="overwrite an existing CI workflow")
+    ap.add_argument("--force-hooks", action="store_true", help="overwrite existing .githooks/ files")
+    ap.add_argument("--force-workflows", action="store_true", help="overwrite an existing my-workflows.md")
     ap.add_argument("--force-overwrite", action="store_true",
                     help="replace locally edited harness files instead of keeping them")
     ap.add_argument("--plan", action="store_true", help="print the resolved plan; write nothing")
@@ -544,6 +539,10 @@ def main() -> int:
             print(f"Kept {len(kept)} locally edited or deleted files (--force-overwrite replaces them):")
             for rel in kept:
                 print(f"  {rel}")
+        hooks_path = subprocess.run(["git", "-C", str(plan["output_dir"]), "config", "--get", "core.hooksPath"],
+                                    capture_output=True, text=True).stdout.strip()
+        if (Path(plan["output_dir"]) / ".git").exists() and hooks_path != ".githooks":
+            print("Git hooks are not enabled; run once per clone: bash .claude/hooks/install-git-hooks.sh")
     return 0
 
 
