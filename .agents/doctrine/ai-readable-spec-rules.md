@@ -1,8 +1,7 @@
 <!--
   ai-readable-spec-rules.md — Shared rules for AI-readable writing
-  Referenced by: story-decomposer (AI-Readable Writing Guidelines),
-                 task-decomposer (AI-Readable Task Writing Rules)
-  version: 1.1.0, owner: John D
+  Referenced by: story-decomposer, task-decomposer
+  version: 1.1.1, owner: John D
   Single source of truth for the "name specifics, state exists-vs-new, no
   pronouns, executable specs" rules previously restated in both decomposers.
 -->

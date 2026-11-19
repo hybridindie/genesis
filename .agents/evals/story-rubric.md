@@ -1,7 +1,7 @@
 <!--
   story-rubric.md — optional story/task quality pass
-  Referenced by: story-decomposer, task-decomposer
-  version: 3.0.0, owner: John D
+  Referenced by: no skill; an optional pass run on request
+  version: 3.0.1, owner: John D
   Advice, not a gate. Use it before dispatching a wave or when the user asks
   for a strict review.
 -->

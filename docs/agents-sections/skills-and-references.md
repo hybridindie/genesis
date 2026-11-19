@@ -29,11 +29,11 @@ On-demand section — read when invoking a skill or checking its references.
 | Module | Referenced by | Purpose |
 |---|---|---|
 | `parallelization-doctrine.md` | story-decomposer, task-decomposer | Contract → parallel tracks → integration; the metadata (`owns`, `depends_on`, `parallel_with`, `verify`) that makes work dispatchable |
-| `acceptance-criteria-rules.md` | epic-composer, epic-interview, epic-acceptance-linter, story-decomposer | What makes a criterion observable and testable |
+| `acceptance-criteria-rules.md` | epic-composer, epic-acceptance-linter | What makes a criterion observable and testable |
 | `ai-readable-spec-rules.md` | story-decomposer, task-decomposer | Name files/APIs, exists-vs-new, no pronouns, executable specs |
-| `source-discipline.md` | all epic skills | Separate stated/inferred/unknown; never invent; surface contradictions |
-| `context-discovery.md` | epic-composer, story-decomposer, task-decomposer | Greenfield vs brownfield probes |
-| `review-checkpoint.md` | epic-composer, story-decomposer (optional) | Present a draft → ask → incorporate |
+| `source-discipline.md` | epic-composer, epic-interview, story-decomposer | Separate stated/inferred/unknown; never invent; surface contradictions |
+| `context-discovery.md` | epic-composer, task-decomposer | Greenfield vs brownfield probes |
+| `review-checkpoint.md` | none — apply on request | Present a draft → ask → incorporate |
 
 The execution contract every skill body follows (fixed sections, LLM-only
 zones) is `templates/_shared/doctrine/skill-execution.md` — see

@@ -1,7 +1,7 @@
 <!--
   epic-rubric.md — optional Epic quality pass
-  Referenced by: epic-composer (optional), epic-rubric use
-  version: 4.0.0, owner: John D
+  Referenced by: no skill; an optional pass run on request
+  version: 4.0.1, owner: John D
   This is advice, not a gate. Use it when the user asks for a strict review or
   when the Epic is about to be decomposed.
 -->

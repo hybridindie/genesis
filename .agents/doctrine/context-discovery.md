@@ -1,7 +1,7 @@
 <!--
   context-discovery.md — Shared greenfield/brownfield discovery probe
-  Referenced by: epic-composer, story-decomposer, task-decomposer
-  version: 1.1.0, owner: John D
+  Referenced by: epic-composer, task-decomposer
+  version: 1.1.1, owner: John D
   Single source of truth for the greenfield/brownfield detection previously
   duplicated across skills.
 -->
@@ -43,5 +43,5 @@ If greenfield:
 
 - `epic-composer` runs this before shaping the outcome and records the
   findings as constraints.
-- `story-decomposer` and `task-decomposer` use it to name real files and
-  components (brownfield) or mark new ones "(new)" (greenfield).
+- `task-decomposer` uses it to name real files and components (brownfield) or
+  mark new ones "(new)" (greenfield).

@@ -1,7 +1,7 @@
 <!--
   review-checkpoint.md — optional stakeholder-review pattern
-  Referenced by: docs and any skill that wants a review step
-  version: 2.0.0, owner: John D
+  Referenced by: no skill; apply it when the user asks for a review step
+  version: 2.0.1, owner: John D
   Present → ask → incorporate → loop. Use it when the user wants a checkpoint;
   it is not a mandatory phase.
 -->
