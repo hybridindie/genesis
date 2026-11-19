@@ -1,7 +1,7 @@
 <!--
   acceptance-criteria-rules.md — Shared linting rules for acceptance criteria
-  Referenced by: epic-acceptance-linter, epic-composer, story-decomposer
-  version: 1.1.0, owner: John D
+  Referenced by: epic-acceptance-linter, epic-composer
+  version: 1.2.0, owner: John D
   Single source of truth for the six linting rules. Optional quality passes
   reuse them; skills apply them; nothing restates them.
 -->
@@ -28,6 +28,9 @@ For each acceptance criterion, check:
    - Is the behavior or outcome described precisely?
    - Does it avoid vague phrases like "easy", "fast", "intuitive", "robust", or "user-friendly"?
    - If such terms appear, are they backed by thresholds or examples?
+   - Does it name the actor, trigger and condition?
+   - Is it bounded by the non-functional constraint it depends on (latency,
+     volume, permission)?
 
 4. **Outcome focus**
    - Does the criterion describe an outcome rather than an implementation step?
@@ -39,6 +42,8 @@ For each acceptance criterion, check:
 6. **Coverage**
    - Do the criteria collectively cover the main success path, alternate paths,
      key edge cases, and validation or permission aspects?
+   - Edges to check: empty, invalid, duplicate, permission denied, timeout,
+     partial failure.
 
 ## Example lints
 

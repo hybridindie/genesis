@@ -1,8 +1,7 @@
 <!--
   source-discipline.md — Shared discipline for handling source material
-  Referenced by: epic-composer, epic-interview, epic-acceptance-linter,
-                 story-decomposer, task-decomposer
-  version: 1.0.0, owner: John D
+  Referenced by: epic-composer, epic-interview, story-decomposer
+  version: 1.0.1, owner: John D
   Single source of truth for the rules every skill in the epic-pipeline
   repeats. Skills keep their own interview-/skill-specific rules inline and
   reference this file only for the common ones.
@@ -43,9 +42,9 @@ Apply these in every skill that handles source material:
 
 ## Response-state labeling
 
-Every skill that declares a response state labels it at the **top** of every
-reply. The specific states differ per skill (see each skill's own Response
-States table); the top-of-reply convention is universal.
+A skill that declares a response state (for example a `Ready` / `Needs work` /
+`Blocked` verdict) labels it at the **top** of its reply. The states differ per
+skill and are listed in its Output section.
 
 ## How callers use this file
 

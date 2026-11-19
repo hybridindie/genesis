@@ -3,7 +3,7 @@
 <!--
   Shared content — referenced by harness-specific SKILL.md wrappers.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 4.0.0, owner: John D
+  version: 4.1.0, owner: John D
   doctrine: .agents/doctrine/acceptance-criteria-rules.md
 -->
 
@@ -22,15 +22,8 @@ replacements; do not rewrite the whole document.
 1. **Extract criteria.** Run
    `python3 .agents/scripts/validate_artifact.py --kind acceptance <artifact>`;
    use its `ACn` labels and text. Stop if it reports no criteria.
-2. **Run the fixed checklist** on each criterion:
-   - observable by a user, operator, or test;
-   - testable with a clear pass/fail;
-   - specific actor, trigger, and condition;
-   - outcome-focused, not implementation;
-   - consistent with the other criteria and constraints;
-   - covers the relevant empty/invalid/duplicate/permission/timeout/partial-
-     failure edges;
-   - bounded by the non-functional constraint it depends on.
+2. **Apply the six rules** in `.agents/doctrine/acceptance-criteria-rules.md`
+   to each criterion (rule 6, coverage, applies to the set).
 3. **Classify each finding:** `Blocking`, `Improve`, or `Optional`.
 4. **Write one replacement** per finding. Do not add requirements the sources do
    not support.
