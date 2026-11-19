@@ -18,6 +18,7 @@ Usage: python generate-harness-mirrors.py <output_dir>
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import re
 import sys
@@ -93,10 +94,9 @@ def mirror(out: Path, recorded: dict[str, str]) -> tuple[list[str], list[str], l
 
 
 def main() -> int:
-    if len(sys.argv) < 2:
-        print("Usage: generate-harness-mirrors.py <output_dir>", file=sys.stderr)
-        return 1
-    out = Path(sys.argv[1])
+    parser = argparse.ArgumentParser(description="Mirror .claude/{agents,commands} into .opencode/.")
+    parser.add_argument("output_dir", help="rendered project root (or the genesis repo)")
+    out = Path(parser.parse_args().output_dir)
     recorded = {}
     sums = out / ".claude" / "harness.sums"
     if sums.is_file():

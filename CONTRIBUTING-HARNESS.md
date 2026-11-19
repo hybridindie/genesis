@@ -30,7 +30,7 @@ sessions — open it on demand when editing.
 - **Add a new command**: add `.md` to `templates/_shared/commands/` or `stacks/<id>/commands/` / `packs/<id>/commands/`. The mirror and the AGENTS.md command list are generated.
 - **Add shared doctrine** (rare — prefer one canonical rule file that others link to): add `.md` to `templates/_shared/doctrine/` and a `doctrine_entries` entry in `mirror-pairs.json`.
 - **Skills are deterministic**: every body uses the six sections in `templates/_shared/doctrine/skill-execution.md` — Inputs, Deterministic Steps, LLM Judgment, Output, Stop Conditions, Token Budget. Run `python3 scripts/lint-skills.py` before committing; CI runs it too.
-- **Check for drift**: `bash .claude/hooks/check-primitive-drift.sh` in a rendered project (or run the cross-harness checker from the repo), then `python3 templates/scripts/check-harness-sync.py templates <rendered-project>`.
+- **Check for drift**: `bash templates/claude-code/.claude/hooks/check-primitive-drift.sh` from the genesis root (or `bash .claude/hooks/check-primitive-drift.sh` in a rendered project), then `python3 templates/scripts/check-harness-sync.py templates <rendered-project>`.
 - **Test a render**: `python3 templates/scripts/render.py --output-dir /tmp/test-harness --project-name Test --stacks mcp,godot-addon --packs production`.
 
 ## Versioning

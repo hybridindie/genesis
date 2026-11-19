@@ -49,9 +49,9 @@ caller asked for `--merge`.
 4. **Watch.** Run the watcher in the background:
    ```bash
    gitdir=$(git rev-parse --git-dir)
-   watcher=.claude/skills/ship-pr/scripts/watch_pr.py
-   [[ -f $watcher ]] || watcher=templates/_shared/skills/ship-pr/scripts/watch_pr.py
-   python3 "$watcher" "$PR" --timeout 1200 > "$gitdir/ship-pr-watch.log" 2>&1 &
+   scripts=.claude/skills/ship-pr/scripts
+   [[ -d $scripts ]] || scripts=templates/_shared/skills/ship-pr/scripts  # genesis itself
+   python3 "$scripts/watch_pr.py" "$PR" --timeout 1200 > "$gitdir/ship-pr-watch.log" 2>&1 &
    ```
    Exit codes: `0` settled, `10` CI failed, `20` changes requested, `30`
    blocked/draft/conflict, `40` timeout, `50` merged/closed. It never merges.
@@ -64,7 +64,7 @@ caller asked for `--merge`.
    `gh pr comment "$PR" --body /review`.
 5. **Fetch unresolved threads.**
    ```bash
-   python3 .claude/skills/ship-pr/scripts/pr_threads.py --pr "$PR"
+   python3 "$scripts/pr_threads.py" --pr "$PR"
    ```
    The script owns the GraphQL query, repo lookup, and resolved/outdated filter.
 6. **Triage each.** Real defect → fix + test + rerun preflight + push. Misread →

@@ -76,6 +76,18 @@ jobs:
             exit 1
           fi
 
+          # Pointer-edit hook: template dirs must hit the templates/_shared branch
+          # before the generic .claude/ pointer branch.
+          hook() { printf '{"tool_input":{"file_path":"%s"}}' "$1" | bash .claude/hooks/warn-pointer-edit.sh; }
+          hook "$PWD/templates/claude-code/CLAUDE.md" | grep -q 'templates/_shared' \
+            || { echo "pointer hook missed a template file"; exit 1; }
+          hook "$PWD/templates/claude-code/.claude/settings.json" | grep -q 'templates/_shared' \
+            || { echo "pointer hook misrouted a template file"; exit 1; }
+          hook "$PWD/templates/opencode/.opencode/opencode.json" | grep -q 'templates/_shared' \
+            || { echo "pointer hook misrouted an OpenCode template"; exit 1; }
+          hook "$PWD/.claude/settings.json" | grep -q 'edit the corresponding file in .agents/' \
+            || { echo "pointer hook missed a wrapper file"; exit 1; }
+
       - name: Validate rendered system layer
         run: |
           fail=0

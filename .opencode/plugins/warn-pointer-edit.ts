@@ -15,10 +15,13 @@ export default Plugin.define({
       const filePath = input?.filePath ?? input?.path ?? ""
       if (!filePath) return
 
-      const lower = filePath.toLowerCase()
+      // Prefix "/" so a bare relative path matches the same patterns.
+      const lower = "/" + filePath.toLowerCase().replace(/^\/+/, "")
 
       let message: string | null = null
-      if (lower.includes("/.opencode/") || lower.includes("/.claude/")) {
+      if (lower.includes("/templates/claude-code/") || lower.includes("/templates/opencode/")) {
+        message = `Editing a harness-specific template: ${filePath}. If the content is shared by both harnesses, edit templates/_shared/ instead. If it is genuinely harness-specific, proceed.`
+      } else if (lower.includes("/.opencode/") || lower.includes("/.claude/")) {
         message = `Editing harness pointer file: ${filePath}. Edit canonical content in .agents/ instead.`
       } else if (lower.includes("/.agents/doctrine/")) {
         message = `Editing load-bearing doctrine file: ${filePath}. Multiple skills and rubrics reference it by path — edits here propagate everywhere. Confirm the change is intended for all callers; if a rule needs to diverge per skill, it does not belong in shared doctrine.`
