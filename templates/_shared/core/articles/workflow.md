@@ -17,7 +17,10 @@ exception, not a shortcut.
 4. **Preflight** — run `/preflight`. Fix the cause, never the gate: no
    `--no-verify`, no `|| true`, no disabled checks.
 5. **PR** — one concern; `closes #N`; a test plan naming the commands run.
-   Note rollback for risky changes.
+   Note rollback for risky changes. Keep title + body ≤ 2000 characters
+   combined: the automated reviewer truncates anything past that. Tight
+   bullets over prose; detail that won't fit goes in the issue or a PR
+   comment, not the body.
 6. **Review** — the automated reviewer comments inline; every finding gets a
    change or a reply; unrelated findings become linked issues. `/review`
    re-runs it on the current head.

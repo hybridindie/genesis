@@ -13,15 +13,15 @@ disable-model-invocation: true
 
 <!--
   contract: .claude/rules/doctrine/skill-execution.md
-  version: 2.0.0, owner: John D
+  version: 2.0.1, owner: John D
 -->
 
-Run fixed searches over `tests/e2e/**`, then judge whether each hit is a real
+Run fixed searches over `{{FRONTEND_PATH}}/tests/e2e/**`, then judge whether each hit is a real
 confidence gap. Do not edit tests unless asked.
 
 ## Inputs
 
-- Required: the E2E test root (`tests/e2e/**` or the project's configured path).
+- Required: the E2E test root (`{{FRONTEND_PATH}}/tests/e2e/**` or the project's configured path).
 - Read: only the matching file and the surrounding assertion block.
 - Do not read: unit tests, production source, or unrelated repositories.
 
@@ -29,12 +29,12 @@ confidence gap. Do not edit tests unless asked.
 
 1. **Scan once.**
    ```bash
-   python3 .claude/skills/e2e-assertion-audit/scripts/scan.py tests/e2e
+   python3 .claude/skills/e2e-assertion-audit/scripts/scan.py {{FRONTEND_PATH}}/tests/e2e
    ```
    The script owns the no-op, permissive, and fragile-selector patterns.
 2. **Missing negative cases.** For each journey file, list the tested actions and
    check whether there is at least one rejection, unauthorized, empty, or failure
-   assertion. Use `rg -n 'unauthorized|forbidden|404|422|error|invalid' tests/e2e 2>/dev/null || true`.
+   assertion. Use `rg -n 'unauthorized|forbidden|404|422|error|invalid' {{FRONTEND_PATH}}/tests/e2e 2>/dev/null || true`.
 3. **Triage each hit** as:
    - `ERROR` — the assertion can pass without validating the feature.
    - `WARNING` — it may be too permissive or fragile.
@@ -74,7 +74,7 @@ out-of-scope product bug, add a one-line note; do not expand the audit.
 
 ## Stop Conditions
 
-- Stop if `tests/e2e/` does not exist; report the configured path instead.
+- Stop if `{{FRONTEND_PATH}}/tests/e2e/` does not exist; report the configured path instead.
 - Do not audit unit tests or production code.
 - Do not apply fixes without an explicit request.
 

@@ -12,7 +12,7 @@ user-invocable: true
 
 <!--
   contract: .claude/rules/doctrine/skill-execution.md
-  version: 2.0.0, owner: John D
+  version: 2.1.0, owner: John D
   invokes: ship-pr/scripts/watch_pr.py
 -->
 
@@ -37,11 +37,15 @@ caller asked for `--merge`.
    gh pr view --json number,url,state 2>/dev/null
    ```
 3. **Open if missing.** Compose the body from the real change: what/why, verified
-   commands, risks/rollback, issue link. Then:
+   commands, risks/rollback, issue link. Title + body must fit in 2000
+   characters (`.claude/rules/workflow.md`, step 5) — check before creating or
+   editing, and trim until it passes:
    ```bash
-   gh pr create --base main --title "<type>(<scope>): <summary>" --body-file <file>
+   { printf '%s' "$TITLE"; cat "$BODY_FILE"; } | wc -m   # must be ≤ 2000
+   gh pr create --base main --title "$TITLE" --body-file "$BODY_FILE"
    ```
-   Update the body only when scope or verification changed.
+   Title format: `<type>(<scope>): <summary>`. Update the body only when scope
+   or verification changed, and re-check the length when you do.
 4. **Watch.** Run the watcher in the background:
    ```bash
    gitdir=$(git rev-parse --git-dir)
