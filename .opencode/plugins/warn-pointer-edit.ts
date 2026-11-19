@@ -15,7 +15,8 @@ export default Plugin.define({
       const filePath = input?.filePath ?? input?.path ?? ""
       if (!filePath) return
 
-      const lower = filePath.toLowerCase()
+      // Prefix "/" so a bare relative path matches the same patterns.
+      const lower = "/" + filePath.toLowerCase().replace(/^\/+/, "")
 
       let message: string | null = null
       if (lower.includes("/templates/claude-code/") || lower.includes("/templates/opencode/")) {

@@ -14,7 +14,9 @@ FILE=$(echo "$INPUT" | jq -r '.tool_input.file_path // ""')
 [ -z "$FILE" ] && exit 0
 
 # Check if the file is in a harness pointer directory or is a doctrine module
-CASE=$(echo "$FILE" | tr 'A-Z' 'a-z')
+# Prefix / so a bare relative path matches the same */dir/* patterns.
+CASE="/${FILE#/}"
+CASE=$(echo "$CASE" | tr 'A-Z' 'a-z')
 WARN=0
 CONTEXT=""
 case "$CASE" in

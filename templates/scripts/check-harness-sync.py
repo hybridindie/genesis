@@ -261,7 +261,8 @@ class HarnessSyncChecker:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
+    parser = argparse.ArgumentParser(
+        description="Check that a rendered harness matches the genesis template sources.")
     parser.add_argument("templates_dir", nargs="?", default=str(Path(__file__).resolve().parent.parent),
                         help="genesis templates/ directory (default: the one next to this script)")
     parser.add_argument("output_dir", nargs="?", default="",
