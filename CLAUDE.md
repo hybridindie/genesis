@@ -14,4 +14,4 @@ belong here.
   from `templates/_shared/` — see the **Drift policy** in `AGENTS.md` before
   editing.
 - The drift check is a Claude Code hook: `bash templates/claude-code/.claude/hooks/check-primitive-drift.sh`
-  (run from repo root with a bootstrapped harness in scope).
+  from the repo root checks genesis's own `.claude/` ↔ `.opencode/` mirrors.

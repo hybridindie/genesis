@@ -7,12 +7,12 @@ check even if an earlier one fails, except where noted.
 
 ## Checks
 
-1. **Skips** — `bash .claude/hooks/check-no-skipped-tests.sh`. A forbidden
+- **Skips** — `bash .claude/hooks/check-no-skipped-tests.sh`. A forbidden
    skip/xfail is fixed first; the test results below don't count until it is.
-2. **Harness** — `python3 .claude/hooks/check-project-drift.py --quiet` and
+- **Harness** — `python3 .claude/hooks/check-project-drift.py --quiet` and
    `python3 .claude/hooks/check-secrets.py --all --quiet`.
 {{#STACK_PYTHON}}
-3. **Python**{{#PY_IN_SUBDIR}} (in `{{BACKEND_PATH}}/`){{/PY_IN_SUBDIR}} —
+- **Python**{{#PY_IN_SUBDIR}} (in `{{BACKEND_PATH}}/`){{/PY_IN_SUBDIR}} —
    `{{LINT_BACKEND_CMD}}`, `{{TYPE_BACKEND_CMD}}`, then
    `{{TEST_BACKEND_CMD}} -x -q{{#STACK_AGENT}} -m "not slow and not integration"{{/STACK_AGENT}}`.
 {{#STACK_MCP}}
@@ -25,15 +25,15 @@ check even if an earlier one fails, except where noted.
 {{/STACK_AGENT}}
 {{/STACK_PYTHON}}
 {{#STACK_FRONTEND}}
-4. **Frontend** (in `{{FRONTEND_PATH}}/`) — `{{LINT_FRONTEND_CMD}}`,
+- **Frontend** (in `{{FRONTEND_PATH}}/`) — `{{LINT_FRONTEND_CMD}}`,
    `{{TYPE_FRONTEND_CMD}}`, `{{TEST_FRONTEND_CMD}}`.
 {{/STACK_FRONTEND}}
 {{#STACK_GODOT}}
-5. **Godot**{{#GODOT_IN_SUBDIR}} (in `{{GODOT_PATH}}/`){{/GODOT_IN_SUBDIR}} — `gdlint .`, then
+- **Godot**{{#GODOT_IN_SUBDIR}} (in `{{GODOT_PATH}}/`){{/GODOT_IN_SUBDIR}} — `gdlint .`, then
    `{{GODOT_TEST_CMD}}`.
 {{/STACK_GODOT}}
 {{#STACK_RUST}}
-6. **Rust**{{#RUST_IN_SUBDIR}} (in `{{RUST_PATH}}/`){{/RUST_IN_SUBDIR}} — `cargo fmt --check`,
+- **Rust**{{#RUST_IN_SUBDIR}} (in `{{RUST_PATH}}/`){{/RUST_IN_SUBDIR}} — `cargo fmt --check`,
    `cargo clippy --all-targets -- -D warnings`, `cargo test`.
 {{/STACK_RUST}}
 
