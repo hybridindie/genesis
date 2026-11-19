@@ -201,6 +201,7 @@ def values(plan: dict[str, Any], args: argparse.Namespace) -> tuple[dict[str, st
         "HAS_LANGGRAPH": bool(py.get("has_langgraph")),
         "PY_UV": py_mgr == "uv",
         "PY_PIP": py_mgr != "uv",
+        "PY_POETRY": py_mgr == "poetry",
         "FE_NPM": fe_mgr == "npm",
         "FE_PNPM": fe_mgr == "pnpm",
         "FE_BUN": fe_mgr == "bun",
