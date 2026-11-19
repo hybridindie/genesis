@@ -13,6 +13,7 @@ and `<!-- SKILL_LIST -->` from the rendered commands and skills.
 Usage: python generate-rule-index.py <output_dir>
 """
 
+import argparse
 import re
 import sys
 from pathlib import Path
@@ -32,10 +33,9 @@ def frontmatter_field(text, field):
 
 
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: generate-rule-index.py <output_dir>", file=sys.stderr)
-        sys.exit(1)
-    out = Path(sys.argv[1])
+    parser = argparse.ArgumentParser(description="Build the AGENTS.md rule, command and skill index.")
+    parser.add_argument("output_dir", help="rendered project root")
+    out = Path(parser.parse_args().output_dir)
     rules_dir = out / ".claude" / "rules"
     agents = out / "AGENTS.md"
     if not rules_dir.is_dir():

@@ -19,6 +19,7 @@ Usage:
 Exits 0 if clean, non-zero with grouped FAIL lines if drift detected.
 """
 
+import argparse
 import re
 import sys
 from pathlib import Path
@@ -260,13 +261,14 @@ class HarnessSyncChecker:
 
 
 def main() -> int:
-    if len(sys.argv) >= 2:
-        templates_dir = sys.argv[1]
-        output_dir = sys.argv[2] if len(sys.argv) > 2 else ""
-    else:
-        script_dir = Path(__file__).resolve().parent
-        templates_dir = script_dir.parent
-        output_dir = ""
+    parser = argparse.ArgumentParser(
+        description="Check that a rendered harness matches the genesis template sources.")
+    parser.add_argument("templates_dir", nargs="?", default=str(Path(__file__).resolve().parent.parent),
+                        help="genesis templates/ directory (default: the one next to this script)")
+    parser.add_argument("output_dir", nargs="?", default="",
+                        help="a rendered project to check against the sources")
+    args = parser.parse_args()
+    templates_dir, output_dir = args.templates_dir, args.output_dir
     checker = HarnessSyncChecker(templates_dir, output_dir)
     return checker.run()
 

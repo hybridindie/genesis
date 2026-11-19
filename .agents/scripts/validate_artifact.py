@@ -6,7 +6,7 @@ Usage:
   python3 .agents/scripts/validate_artifact.py --kind story <file>
   python3 .agents/scripts/validate_artifact.py --kind task <file>
   python3 .agents/scripts/validate_artifact.py --kind acceptance <file>
-  ... --summary      print counts instead of the full report
+  ... --summary      print one line of counts and gaps; always exit 0
 
 Exit 0 on a valid shape. Semantic quality remains the skill's LLM judgment.
 """
@@ -100,11 +100,25 @@ def check_task(text: str) -> list[str]:
 
 
 def extract_acceptance(text: str) -> list[tuple[str, str]]:
+    """AC-labelled lines (epics) and Given/When/Then checkboxes (stories)."""
     found: list[tuple[str, str]] = []
-    for line in text.splitlines():
+    boxes = 0
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
         match = re.match(r"^\s*[-*]\s*(?:\*\*)?(AC\d+)(?:\*\*)?[:\s-]+(.*)$", line)
         if match:
             found.append((match.group(1), match.group(2).lstrip("*: -").strip()))
+        elif AC_BOX.match(line):
+            boxes += 1
+            parts = [re.sub(r"^\s*-\s*\[[ xX]\]\s*", "", line)]
+            indent = len(line) - len(line.lstrip())
+            # A wrapped criterion continues on more-indented, non-list lines.
+            for nxt in lines[i + 1:]:
+                if not nxt.strip() or len(nxt) - len(nxt.lstrip()) <= indent \
+                        or re.match(r"^\s*[-*]\s", nxt):
+                    break
+                parts.append(nxt.strip())
+            found.append((f"AC{boxes}", " ".join(parts).replace("**", "").strip()))
     return found
 
 
@@ -118,8 +132,12 @@ def main() -> int:
 
     if args.kind == "acceptance":
         criteria = extract_acceptance(text)
+        if args.summary:
+            weak = sum(1 for _, b in criteria if not re.search(r"\bwhen\b.*\bthen\b", b, re.I))
+            print(f"acceptance: criteria={len(criteria)} weak={weak}")
+            return 0
         if not criteria:
-            print("FAIL: no AC-labelled criteria found", file=sys.stderr)
+            print("FAIL: no acceptance criteria found (ACn lines or Given/When/Then checkboxes)", file=sys.stderr)
             return 1
         for label, body in criteria:
             weak = "" if re.search(r"\bwhen\b.*\bthen\b", body, re.I) else " (weak: no when/then)"
@@ -137,6 +155,10 @@ def main() -> int:
         errors = check_task(text)
         summary = f"tasks={len(re.findall(r'^\s*-\s*\[[ xX]\]\s*\*\*T\d+', text, re.MULTILINE))}"
 
+    if args.summary:
+        gaps = "; ".join(errors) if errors else "none"
+        print(f"{args.kind}: {summary} gaps={len(errors)} ({gaps})")
+        return 0
     if errors:
         for error in errors:
             print(f"FAIL: {error}", file=sys.stderr)
