@@ -19,6 +19,13 @@
           cache-dependency-path: "{{FRONTEND_PATH}}/package-lock.json"
       - run: npm ci
 {{/FE_NPM}}
+{{#FE_PNPM}}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: corepack enable pnpm
+      - run: pnpm install --frozen-lockfile
+{{/FE_PNPM}}
       - run: {{LINT_FRONTEND_CMD}}
       - run: {{TYPE_FRONTEND_CMD}}
       - run: {{TEST_FRONTEND_CMD}}

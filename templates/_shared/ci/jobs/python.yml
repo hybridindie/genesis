@@ -16,6 +16,9 @@
         with:
           python-version: "{{PYTHON_VERSION}}"
 {{/PY_PIP}}
+{{#PY_POETRY}}
+      - run: pipx install poetry
+{{/PY_POETRY}}
       - run: {{PY_SYNC_CMD}}
       - run: {{LINT_BACKEND_CMD}}
       - run: {{TYPE_BACKEND_CMD}}

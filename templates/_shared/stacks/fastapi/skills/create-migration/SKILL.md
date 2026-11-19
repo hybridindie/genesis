@@ -19,7 +19,7 @@ arguments:
 
 <!--
   contract: .claude/rules/doctrine/skill-execution.md
-  version: 2.0.0, owner: John D
+  version: 2.1.0, owner: John D
 -->
 
 Generate one SQL migration file. The filename and checklist are deterministic;
@@ -40,26 +40,15 @@ the model designs the table columns and constraints.
      --description "{{description}}" --tables "{{tables}}"
    ```
    The script owns the timestamp, filename, table skeleton, and overwrite guard.
+   It writes to the first of `supabase/migrations/`, `migrations/` or
+   `db/migrations/` that exists; pass `--dir <path>` for anything else. Exit `2`
+   means no SQL migrations directory (or an Alembic project) — stop.
 2. **Fill the skeleton** at the printed path; never invent a timestamp or path.
-3. **Use this table checklist** for the columns/constraints you add:
-   - `CREATE TABLE IF NOT EXISTS public.{table} (...)`;
-   - `id UUID DEFAULT gen_random_uuid() PRIMARY KEY`;
-   - `created_at` and `updated_at` as `TIMESTAMPTZ DEFAULT now()`;
-   - a `BEFORE UPDATE` trigger for `updated_at`;
-   - `TEXT` for strings; no `VARCHAR` or `ENUM`;
-   - named `CHECK` constraints;
-   - `{parent}_id UUID REFERENCES public.{parent}(id) ON DELETE …`;
-   - indexes for FK columns;
-   - schema-qualified references (`public.`).
-4. **Add a commented rollback**:
-   ```sql
-   -- DOWN
-   -- DROP TABLE IF EXISTS public.{table} CASCADE;
-   ```
-5. **Validate against the Migration Checklist** in `sql-standards.md`: no
-   `VARCHAR`, no `ENUM`, every FK has `ON DELETE`, every table has `updated_at`
-   and its trigger, no redundant indexes.
-6. **Report** the path and any checklist item the caller must decide.
+   Columns, types, constraints and indexes follow `sql-standards.md` (Data
+   Types, Table Structure, Indexes, Constraints).
+3. **Keep the commented rollback** the script wrote under `-- DOWN`.
+4. **Validate** against "Checking a migration" in `sql-standards.md`.
+5. **Report** the path and any checklist item the caller must decide.
 
 ## LLM Judgment
 
@@ -80,8 +69,8 @@ Include a one-line summary of tables changed and the validation result.
 
 - Stop if `description` or `tables` is missing.
 - Stop if the target file already exists; do not overwrite it.
-- Stop if the project is not a {{DB_PROVIDER}} project or has no
-  `supabase/migrations/` directory.
+- Stop if the script exits `2`: no SQL migrations directory, or an Alembic
+  project (use `alembic revision -m` instead).
 - Stop if a requested change violates `sql-standards.md`.
 
 ## Token Budget
