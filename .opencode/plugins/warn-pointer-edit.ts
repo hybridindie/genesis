@@ -18,8 +18,8 @@ export default Plugin.define({
       const lower = filePath.toLowerCase()
 
       let message: string | null = null
-      if (lower.includes("/templates/claude-code/.claude/") || lower.includes("/templates/opencode/.opencode/")) {
-        message = `Editing a harness-specific template: ${filePath}. If the content is shared by both harnesses, edit templates/_shared/ instead.`
+      if (lower.includes("/templates/claude-code/") || lower.includes("/templates/opencode/")) {
+        message = `Editing a harness-specific template: ${filePath}. If the content is shared by both harnesses, edit templates/_shared/ instead. If it is genuinely harness-specific, proceed.`
       } else if (lower.includes("/.opencode/") || lower.includes("/.claude/")) {
         message = `Editing harness pointer file: ${filePath}. Edit canonical content in .agents/ instead.`
       } else if (lower.includes("/.agents/doctrine/")) {

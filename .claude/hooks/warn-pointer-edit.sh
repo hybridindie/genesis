@@ -18,7 +18,7 @@ CASE=$(echo "$FILE" | tr 'A-Z' 'a-z')
 WARN=0
 CONTEXT=""
 case "$CASE" in
-  */templates/claude-code/.claude/*|*/templates/opencode/.opencode/*)
+  */templates/claude-code/*|*/templates/opencode/*)
     WARN=1
     CONTEXT="Reminder: templates/claude-code/ and templates/opencode/ hold harness-specific template files. If the content is shared by both harnesses, edit templates/_shared/ instead. If it is genuinely harness-specific, proceed."
     ;;
