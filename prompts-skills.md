@@ -1,130 +1,16 @@
 # Epic Scoping Skills
 
-Reusable prompts, skills, and optional quality passes for building solid epics when
-scoping new work. Migrated from the standalone `prompts-skills` project into
-this repository; the skills, templates, and evals now live alongside the
-harness templates and target the same two AI coding harnesses:
-**OpenCode** and **Claude Code**.
+Usage guide for the epic-scoping skills: how to invoke them in each harness and
+worked examples. `AGENTS.md` is the concise entrypoint; the genesis harness is
+documented in `README.md` and [`docs/agents-sections/`](docs/agents-sections/).
 
-This is the full usage guide. `AGENTS.md` holds the concise cross-harness
-entrypoint; the harness-generation system is documented in the
-top-level `README.md` and `CLAUDE.md`.
-
-## Architecture
-
-Shared content lives in `.agents/` as plain markdown — no frontmatter, no
-harness-specific fields. Each harness has its own thin, frontmatter-only
-wrapper files that reference the shared content by path. Rules shared across
-multiple skills and rubrics live in `.agents/doctrine/` and are referenced
-rather than restated — this is what keeps the skills from drifting apart.
-
-```
-.agents/   Shared content — skills, doctrine, templates, evals   ← EDIT HERE
-   │  ├── skills/     epic-* skills (procedure + doctrine pointers)
-   │  ├── doctrine/   shared rules referenced by multiple skills and rubrics
-   │  ├── templates/  epic/story/traceability shells
-   │  └── evals/      optional quality passes (reuse doctrine, don't restate)
-   │
-   │  wrapped by thin, frontmatter-only pointers per harness:
-   ├── Opencode        .opencode/skills/<name>/SKILL.md   + opencode.json commands
-   └── Claude Code     .claude/skills/<name>/SKILL.md     (skills double as /commands)
-```
-
-The full file tree is under [Layout](#layout).
-
-**Golden rule:** Edit content in `.agents/`. Edit frontmatter in the harness
-wrappers. Never duplicate content into a wrapper. When a rule is shared by
-two or more skills/rubrics, it belongs in `.agents/doctrine/` — edit there
-once; all references inherit.
-
-## Layout
-
-```
-.agents/                          # Shared content — edit here
-  skills/
-    epic-composer.md               # Main skill body
-    epic-acceptance-linter.md      # Acceptance criteria linter body (canonical AC-rules applier)
-    epic-interview.md              # Guided interview body
-    story-decomposer.md            # Story decomposition body
-    task-decomposer.md             # Task breakdown + AI-parallelization body
-  doctrine/                        # Shared rules referenced by multiple skills and rubrics
-    acceptance-criteria-rules.md   # The six AC linting rules — single source
-    parallelization-doctrine.md   # Contract → tracks/waves → integration
-    ai-readable-spec-rules.md      # Name files/APIs, exists-vs-new, no pronouns
-    source-discipline.md           # Don't invent / surface unknowns / label inferred
-    review-checkpoint.md           # Present → ask → incorporate → declare-or-loop
-    context-discovery.md           # Greenfield/brownfield probe
-  templates/epic/
-    epic-shell.md                  # Epic structural skeleton
-    story-shell.md                 # Story issue body (AC, owns, wave, contract)
-    task-breakdown-shell.md        # Contract → tracks → integration checklist
-    traceability-template.md       # Optional traceability table
-  evals/
-    epic-rubric.md                 # Optional Epic quality pass
-    story-rubric.md                # Optional story/task quality pass
-
-AGENTS.md                          # Cross-harness entrypoint
-
-.opencode/
-  opencode.json                   # Config: skills -> .opencode/skills
-  skills/                          # Opencode wrappers (frontmatter only)
-    epic-composer/SKILL.md
-    epic-acceptance-linter/SKILL.md
-    epic-interview/SKILL.md
-    story-decomposer/SKILL.md
-    task-decomposer/SKILL.md
-  plugins/                         # Opencode hooks (JS/TS plugins)
-    warn-pointer-edit.ts
-
-.claude/
-  CLAUDE.md                        # Imports AGENTS.md only (rest on-demand)
-  settings.json                   # hooks configuration
-  skills/                          # Claude Code skill wrappers (also serve as /commands)
-    epic-composer/SKILL.md
-    epic-acceptance-linter/SKILL.md
-    epic-interview/SKILL.md
-    story-decomposer/SKILL.md
-    task-decomposer/SKILL.md
-  hooks/                           # Claude Code hooks (shell scripts)
-    log-instructions-loaded.sh
-    warn-pointer-edit.sh
-
-```
-
-## Workflow
-
-Source material → **Epic issue** → **story issues** → **task checklist inside
-each story**. Parallelism is planned at every level, so a wave can be handed to
-subagents or teams without re-reading the whole plan.
-
-```mermaid
-flowchart TD
-    src(["Transcripts, docs, notes, codebase"]) --> compose["epic-composer"]
-    compose --> blockers{"Blocking gaps?"}
-    blockers -->|yes| interview["epic-interview: smallest set of questions"]
-    interview --> compose
-    blockers -->|no| epic["Epic issue: outcome, 3–8 ACs, scope, story map + waves"]
-    epic --> stories["story-decomposer: one issue per story<br/>ACs, owns, wave, shared contract"]
-    stories --> tasks["task-decomposer: checklist in each story<br/>contract → parallel tracks → integration"]
-    tasks --> dispatch["Dispatch Wave 1 → Wave 2 …<br/>one track per agent/team; integrate last"]
-    epic -.optional.-> linter["epic-acceptance-linter"]
-    epic -.optional.-> er["epic-rubric (quality pass)"]
-    stories -.optional.-> sr["story-rubric (quality pass)"]
-```
-
-**Outputs**
-
-- **Epic issue** — `Epic: <outcome>` with outcome, 3–8 observable criteria,
-  scope, constraints, risks, success measures, a story map and a parallel map.
-- **Story issues** — `Story N: <outcome>` (or `story(scope): …`) with
-  acceptance criteria, estimate, `owns`, `depends_on`, `parallel_with`, wave,
-  shared contract, and files.
-- **Task checklist** — inside each story: shared contract → parallel tracks
-  with disjoint file ownership → integration, each task naming `owns`,
-  `depends`, and `verify`.
-
-The acceptance linter and rubrics are optional quality passes; a verdict
-(`Ready`, `Needs work`, `Blocked`) is advice, not a gate.
+- Architecture, golden rule and file tree:
+  [`architecture.md`](docs/agents-sections/architecture.md)
+- Skills, templates, doctrine and wrappers:
+  [`skills-and-references.md`](docs/agents-sections/skills-and-references.md)
+- The epic → story → task pipeline and its outputs:
+  [`workflow.md`](docs/agents-sections/workflow.md)
+- Editing hooks and versioning: [`CONTRIBUTING-HARNESS.md`](CONTRIBUTING-HARNESS.md)
 
 ## Harness setup
 
@@ -136,51 +22,26 @@ Every skill can be invoked **two ways**:
   fits its `description` (and `when_to_use`, where supported), so you can just
   describe your goal without naming a command.
 
-### Opencode
+### OpenCode
 
-- **Directly:** `/epic-composer`, `/epic-interview`, `/epic-acceptance-linter`,
-  `/story-decomposer`, `/task-decomposer` — `command` entries in `opencode.json`
-  (Opencode skills are model-invoked only, so the commands are the slash path).
+- **Directly:** each skill has a `commands` entry in `.opencode/opencode.json`
+  (OpenCode skills are model-invoked only, so the commands are the slash path).
 - **Automatically:** skills in `.opencode/skills/<name>/SKILL.md` are discovered
-  by their `name`/`description`; `permission.skill` allows them.
-- Config: `opencode.json` sets `skills` → `.opencode/skills` and
+  by their `name`/`description`.
+- Config: `.opencode/opencode.json` sets `skills` → `.opencode/skills` and
   `instructions` → `AGENTS.md`. Frontmatter is `name`/`description` only, and
-  `name` must match the directory. Restart Opencode after changing config.
-- Docs: [Opencode Skills](https://opencode.ai/docs/skills)
+  `name` must match the directory. Restart OpenCode after changing config.
+- Docs: [OpenCode Skills](https://opencode.ai/docs/skills)
 
 ### Claude Code
 
-- **Directly:** `/epic-composer`, `/epic-acceptance-linter`, `/epic-interview`,
-  `/story-decomposer`, `/task-decomposer` — skills double as slash commands and
-  accept `$ARGUMENTS`.
+- **Directly:** skills double as slash commands and accept `$ARGUMENTS`.
 - **Automatically:** Claude loads a skill when your request matches its
   `description`/`when_to_use` — no command needed.
 - Config: `.claude/CLAUDE.md` imports `AGENTS.md` (everything else loads on
   demand); skills auto-discover from `.claude/skills/` with no enable flag.
   Frontmatter is `name`, `description`, `when_to_use`.
 - Docs: [Claude Code Skills](https://code.claude.com/docs/en/skills)
-
-## Hooks
-
-The hooks matter only when **editing this repo** — they don't affect using the
-skills. Each harness ships a non-blocking "pointer-edit" guardrail that
-enforces the golden rule: it fires a reminder (warns; never blocks) if you try
-to edit a thin wrapper (in `.opencode/` or `.claude/`) instead of
-the canonical content in `.agents/`, **or** if you edit a load-bearing file
-under `.agents/doctrine/` — those are referenced by path from multiple
-skills and rubrics, so edits there propagate everywhere.
-
-| Harness | Config | Event | Mechanism |
-|---|---|---|---|
-| Opencode | `.opencode/plugins/warn-pointer-edit.ts` | `tool.execute.before` | TS plugin; logs a warning via `client.app.log` |
-| Claude Code | `.claude/hooks/warn-pointer-edit.sh` | `PreToolUse` (Edit\|Write) | Shell script; returns an `additionalContext` reminder |
-
-Claude Code additionally runs an `InstructionsLoaded` hook that logs which
-instruction files load (to `.claude/hooks/instructions-loaded.log`) — purely for
-observability; safe to remove.
-
-Docs: [Opencode plugins](https://opencode.ai/docs/plugins) ·
-[Claude Code hooks](https://code.claude.com/docs/en/hooks)
 
 ## Example workflows
 
@@ -196,8 +57,8 @@ Each task uses the **same slash command in every harness** — the skill's name:
 
 Type the command from the `/` menu, then paste your content after it — or just
 describe your goal and let the matching skill auto-load from its `description`.
-(In Opencode these names are `command` entries in `opencode.json`; in Claude
-Code they are the skills themselves.)
+(In OpenCode these names are `commands` entries in `.opencode/opencode.json`; in
+Claude Code they are the skills themselves.)
 
 To adapt any example, replace the **[bracketed placeholder]** with your own
 material and keep the rest.

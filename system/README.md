@@ -14,6 +14,7 @@ system/
   herdr/config.toml   optional, installed when herdr is present
   zed/settings.json   optional, installed when zed is present
   bin/zed-wait        blocking editor wrapper -> ~/.local/bin
+  bin/godot-lsp       stdio bridge to the Godot editor's LSP port -> ~/.local/bin
   bin/graphify-gdscript  teaches the machine's graphify to parse GDScript -> ~/.local/bin
                          (only with graphify installed and a Godot project under --dev-root)
   Brewfile            macOS/Linuxbrew package set

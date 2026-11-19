@@ -126,25 +126,8 @@ render           → core + stacks + packs, placeholders, generated rule index
 
 ## Repository layout
 
-```
-system/                  machine layer (shell, global agent rules, git)
-templates/
-  _shared/
-    AGENTS.md            project context template (stack blocks, generated lists)
-    core/articles/       rules for every project
-    agents/ commands/ skills/ doctrine/   shared by every project
-    stacks/<id>/         articles/ agents/ commands/ skills/ per stack
-    packs/<id>/          opt-in rule packs
-    ci/                  base.yml + jobs/<stack>.yml, composed per project
-    githooks/
-    my-workflows.md
-  claude-code/           Claude harness assets (hooks, thin CLAUDE.md)
-  opencode/              OpenCode config
-  scripts/               render.py (renderer), inspect-project.py (detection),
-                         rule index, mirrors, checks, scaffold
-new-project.sh           create a repo + render the harness
-scripts/lint-skills.py   enforce the skill contract
-```
+The file tree and how rendering works are in
+[`docs/agents-sections/source-structure.md`](docs/agents-sections/source-structure.md).
 
 ## Editing contract
 
@@ -154,17 +137,8 @@ scripts/lint-skills.py   enforce the skill contract
   and never replaces a core one.
 - Every rule needs `read_when:` frontmatter.
 - Each rule lives in one file; other files link to it rather than restating it.
-- Re-render and check after changes (CI runs this matrix):
-
-```bash
-for s in python mcp agent fastapi,frontend godot,rust mcp,godot-addon; do
-  out="/tmp/render-${s//,/-}"; rm -rf "$out"
-  python3 templates/scripts/render.py --output-dir "$out" --project-name Test --stacks "$s" --packs production
-  python3 templates/scripts/check-harness-sync.py templates "$out"
-  python3 "$out/.claude/hooks/check-project-drift.py" --root "$out"
-done
-```
-
+- Re-render and check after changes: the matrix CI runs is in
+  [`templates/TEMPLATE_README.md`](templates/TEMPLATE_README.md#checks).
 - Deeper reference: [`docs/agents-sections/`](docs/agents-sections/),
   [`CONTRIBUTING-HARNESS.md`](CONTRIBUTING-HARNESS.md),
   [`INSTALL.md`](INSTALL.md), [`prompts-skills.md`](prompts-skills.md).

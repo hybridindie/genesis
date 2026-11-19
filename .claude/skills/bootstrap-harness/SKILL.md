@@ -3,7 +3,7 @@ name: bootstrap-harness
 description: >
   Install, update, or extend the AI harness (OpenCode + Claude Code) in a
   project: core rules plus every detected stack (python, mcp, agent, fastapi,
-  frontend, godot, godot-addon, rust) and opt-in packs (production, acd).
+  frontend, godot, godot-addon, rust) and opt-in packs (production).
 when_to_use: >
   Trigger phrases: "bootstrap harness", "generate harness", "install harness",
   "scaffold AI rules", "set up Claude and Opencode rules", "add the rust stack",

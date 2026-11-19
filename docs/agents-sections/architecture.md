@@ -20,11 +20,12 @@ shared content by path.
    ├── Opencode        .opencode/skills/<name>/SKILL.md   + opencode.json commands
    └── Claude Code     .claude/skills/<name>/SKILL.md     (skills double as /commands)
                        .claude/agents/<name>.md           (agents point at the same bodies)
+                       .opencode/agents/<name>.md         (generated mirror of .claude/agents)
 ```
 
 Both the epic-scoping skills **and** the genesis meta-flow follow this rule.
 `bootstrap-harness` is the single canonical body for installing/tailoring a
-harness; the `install-harness` agent (Claude Code) is just another
+harness; the `install-harness` agent is just another
 thin entry point pointing at that same file. Only genesis template *output*
 (the rendered `.claude/rules/` and `.opencode/` files) is exempt — that is
 deduped by `templates/_shared/`, not `.agents/`.

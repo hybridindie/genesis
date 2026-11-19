@@ -14,15 +14,14 @@
 - Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`, `refactor:`,
   `test:`); imperative subject ≤ 72 chars; the body says why.
 - Short-lived branches off `main`, named after the issue
-  (`<type>/<issue>-<slug>`). Merge with a merge commit, then delete the branch.
+  (`<type>/<issue>-<slug>`). Merging follows `.claude/rules/workflow.md`.
 - Force-push only with `--force-with-lease`.
 - Read the full diff before committing. Never commit generated output, `.env`,
   or credentials.
 
 ## Code review
 
-- OpenCodeReview reviews every PR automatically; answer every finding with a
-  change or a reply. Post `/review` to re-run it on the current head.
+- The automated reviewer is OpenCodeReview (review loop: `.claude/rules/workflow.md`).
 - Findings land inline as `Important —` or `Nit —`; fix the Important ones,
   reply to a Nit you're deliberately keeping.
 - No machine-specific paths in code, logs, or commits.
