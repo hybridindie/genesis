@@ -56,12 +56,23 @@ the doctrine it references, and vice versa. The header `invokes:` and
 
 ## Hooks
 
-The hooks matter only when **editing** this content — they don't affect using
+The hooks matter only when **editing** this repo — they don't affect using
 the skills. Each harness ships a non-blocking "pointer-edit" guardrail that
-fires a reminder (warns, never blocks) in three cases: editing a thin wrapper
-instead of the canonical `.agents/` content, editing a load-bearing
-`.agents/doctrine/` file, and editing a load-bearing
-`templates/_shared/doctrine/` file. Both doctrine layers are referenced by
-path from multiple skills/rubrics (epic side) or articles/agents (genesis
-side), so edits there propagate everywhere. Configs:
-`.opencode/plugins/warn-pointer-edit.ts`, `.claude/hooks/warn-pointer-edit.sh`.
+fires a reminder (warns, never blocks) when you edit:
+
+- a thin wrapper in `.claude/` or `.opencode/` instead of the canonical
+  `.agents/` content;
+- a harness-specific template in `templates/claude-code/` or
+  `templates/opencode/` that may belong in `templates/_shared/`;
+- a load-bearing `.agents/doctrine/` or `templates/_shared/doctrine/` file —
+  both are referenced by path from many skills, rubrics or articles, so edits
+  propagate everywhere.
+
+| Harness | File | Event | Output |
+|---|---|---|---|
+| OpenCode | `.opencode/plugins/warn-pointer-edit.ts` | `execute.before` on `edit`/`write` | `console.warn` |
+| Claude Code | `.claude/hooks/warn-pointer-edit.sh` | `PreToolUse` (Edit\|Write) | `additionalContext` reminder |
+
+Claude Code also runs an `InstructionsLoaded` hook that logs which instruction
+files load (to `.claude/hooks/instructions-loaded.log`); it is for
+observability only and safe to remove.

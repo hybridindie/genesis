@@ -10,7 +10,9 @@ system/                       ← machine layer (SYSTEM.md, system/README.md)
   install.sh                  ← renders into $HOME (idempotent, --diff/--force)
   shell/ agents/ git/ herdr/ zed/ bin/ Brewfile
 
+install.sh                    ← curl | bash entry: fetch genesis, render into cwd
 new-project.sh                ← create a repo + render the harness
+.agents/                      ← epic scoping skills (see architecture.md)
 scripts/lint-skills.py        ← enforce the deterministic skill contract
 .agents/scripts/validate_artifact.py ← validate Epic/story/task/AC shapes
 

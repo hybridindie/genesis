@@ -6,8 +6,10 @@ elsewhere.
 
 ## How to use this harness
 
-- **Rules load on demand.** `.claude/rules/**` is the single rule store; the
-  [rule index](#rule-index) says which file to read for which task.
+- **One rule store.** `.claude/rules/**` holds every rule. Claude Code loads
+  rules without `paths:` at launch and path-scoped ones when matching files are
+  touched; OpenCode reads them on demand. The [rule index](#rule-index) says
+  which file to read for which task.
 - **This harness is yours.** It was rendered for this project and is edited in
   place. `/harness-eval` trims rules that don't fit and suggests missing ones;
   `/customize-harness` adds the domain and `my-workflows.md` conventions here.
@@ -102,11 +104,11 @@ Issue → red → green → `/preflight` → PR → review → merge. Details in
 | Capability | Claude Code | OpenCode |
 |---|---|---|
 | Project context | `CLAUDE.md` (`@AGENTS.md`) | `AGENTS.md` (this file) |
-| Rules | `.claude/rules/**` (path-scoped) | `.claude/rules/**` (read via the index) |
+| Rules | `.claude/rules/**` (at launch, or by `paths:`) | `.claude/rules/**` (read via the index) |
 | Commands | `.claude/commands/*.md` | `.opencode/commands/*.md` |
 | Subagents | `.claude/agents/*.md` | `.opencode/agents/*.md` (read-only) |
 | Skills | `.claude/skills/*/SKILL.md` | `.opencode/skills/*/SKILL.md` |
-| Language servers | `/ide` IDE attachment, or an MCP bridge | Built-in LSP via `"lsp"` in `.opencode/opencode.json` |
+| Language servers | Code-intelligence plugins, or `/ide` | None in v2 (`lsp` is kept but not run) |
 | Gates | `.githooks/*` + `.claude/hooks/*` | CI + `/preflight` |
 
 ### Commands

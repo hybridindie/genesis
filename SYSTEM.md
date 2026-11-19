@@ -7,9 +7,9 @@ This repository has two layers. The **system** layer configures the machine; the
 machine                                    project
 ───────                                    ───────
 system/install.sh                          install.sh  /  new-project.sh
-  ├─ ~/.config/zsh          (shell)          ├─ .claude/rules/  .claude/skills/
+  ├─ ~/.config/zsh          (shell)          ├─ .claude/{rules,agents,commands,skills,hooks}
   ├─ ~/.config/opencode/AGENTS.md (user)     ├─ .opencode/{skills,agents,commands}
-  ├─ ~/.claude/{CLAUDE.md,settings.json}     ├─ .claude/{rules,skills,hooks}
+  ├─ ~/.claude/{CLAUDE.md,settings.json}     ├─ .githooks/  CI workflow
   ├─ ~/.config/system/gitconfig (git)        ├─ CLAUDE.md  AGENTS.md
   └─ herdr / zed (optional)                  └─ my-workflows.md
 ```
@@ -71,7 +71,7 @@ bootstrap.sh        → render (deterministic: placeholders, overlays, condition
 |---|---|---|
 | Shell, git defaults, user-level agent rules | machine (`~/.config/...`) | this repo, rendered by `system/install.sh` |
 | Per-machine tweaks, secrets, personal skills | machine (`conf.d/99-local.zsh`, `~/.envrc`, private dotfiles repo) | the machine |
-| Project rules (`Articles I–X`, agents, commands, skills) | target repo | this repo, rendered by `bootstrap.sh` |
+| Project rules (core, stack and pack articles; agents, commands, skills) | target repo | this repo, rendered by `bootstrap.sh` |
 | Project-specific tailoring | target repo | the project (never edit `templates/`) |
 
 One path, one writer: if a private dotfiles repo symlinks `~/.zshenv`,

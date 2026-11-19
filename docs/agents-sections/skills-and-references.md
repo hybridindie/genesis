@@ -12,6 +12,7 @@ On-demand section — read when invoking a skill or checking its references.
 | story-decomposer | `.agents/skills/story-decomposer.md` | Turn an Epic into story issues with waves, contracts and file ownership |
 | task-decomposer | `.agents/skills/task-decomposer.md` | Break one story into a parallel task checklist for delegation |
 | bootstrap-harness | `.agents/skills/bootstrap-harness.md` | Install/tailor a project harness (also `install-harness` and `install.sh`) |
+| ship-pr | `templates/_shared/skills/ship-pr/SKILL.md` | Open a PR, watch CI and review, address threads, merge on `--merge` (also ships to every project) |
 
 ## Templates and evals
 
@@ -33,7 +34,10 @@ On-demand section — read when invoking a skill or checking its references.
 | `source-discipline.md` | all epic skills | Separate stated/inferred/unknown; never invent; surface contradictions |
 | `context-discovery.md` | epic-composer, story-decomposer, task-decomposer | Greenfield vs brownfield probes |
 | `review-checkpoint.md` | epic-composer, story-decomposer (optional) | Present a draft → ask → incorporate |
-| `skill-execution.md` | all shipped/body skills | Fixed execution order, LLM-only zones, output/stop/token contracts |
+
+The execution contract every skill body follows (fixed sections, LLM-only
+zones) is `templates/_shared/doctrine/skill-execution.md` — see
+[Deterministic execution](#deterministic-execution).
 
 When a rule is shared by two or more skills, it belongs in `doctrine/`. Edit
 there once; all references inherit.
@@ -42,8 +46,8 @@ there once; all references inherit.
 
 | Harness | Skill location | Commands | Hooks | Frontmatter fields |
 |---|---|---|---|---|
-| OpenCode | `.opencode/skills/<name>/SKILL.md` | `opencode.json` command entries: `/epic-composer`, `/epic-interview`, `/epic-acceptance-linter`, `/story-decomposer`, `/task-decomposer` | `.opencode/plugins/*.ts` | `name`, `description` |
-| Claude Code | `.claude/skills/<name>/SKILL.md` | skills double as `/epic-composer`, `/epic-acceptance-linter`, `/epic-interview`, `/story-decomposer`, `/task-decomposer` (accept `$ARGUMENTS`) | `.claude/hooks/*.sh` | `name`, `description`, `when_to_use` |
+| OpenCode | `.opencode/skills/<name>/SKILL.md` | `commands` entries in `.opencode/opencode.json` (the epic skills, `bootstrap-harness` and `harness-eval`) | `.opencode/plugins/*.ts` | `name`, `description` |
+| Claude Code | `.claude/skills/<name>/SKILL.md` | skills double as slash commands of the same name (accept `$ARGUMENTS`) | `.claude/hooks/*.sh` | `name`, `description`, `when_to_use` |
 
 Stack-only assets: `/migration-check`, `create-migration` and
 `gen-contract-test` ship with the `fastapi` stack; `e2e-assertion-audit` with

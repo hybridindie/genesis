@@ -14,7 +14,7 @@ packs. The stack and pack tables are in the top-level
 | Platform | Entry point | Rules location |
 |----------|-------------|----------------|
 | OpenCode | `AGENTS.md` | `.claude/rules/` (read via the generated index) |
-| Claude Code | `CLAUDE.md` (`@AGENTS.md`) | `.claude/rules/` (path-scoped) |
+| Claude Code | `CLAUDE.md` (`@AGENTS.md`) | `.claude/rules/` (at launch, or by `paths:`) |
 
 ## Install
 
@@ -35,6 +35,10 @@ python3 templates/scripts/render.py --output-dir /path/to/project --auto-detect 
 | `--python-path`, `--frontend-path`, `--godot-path`, `--rust-path` | Override detected directories |
 | `--project-name`, `--project-slug` | Names used in the context files |
 | `--ci-platform github\|gitea\|none`, `--ci-runs-on LABEL` | CI target and runner |
+| `--no-ci` | Don't render a CI workflow |
+| `--python-version`, `--py-pkg-manager uv\|pip\|poetry` | Python toolchain for CI and commands (default: detected, else 3.12 / uv) |
+| `--db-provider` | Database named in the fastapi rules (default: Postgres) |
+| `--custom-instructions`, `--custom-tech-stack` | Text added to the rendered `AGENTS.md` |
 | `--force-ci`, `--force-hooks`, `--force-workflows` | Replace an existing CI workflow, git hooks, or `my-workflows.md` |
 | `--force-overwrite` | Replace harness files edited since the last render (kept by default) |
 | `--plan` | Print the resolved plan as JSON and write nothing |
@@ -42,3 +46,5 @@ python3 templates/scripts/render.py --output-dir /path/to/project --auto-detect 
 
 On an installed harness, `harness.json` is the starting point and detection
 only fills gaps. Old single-profile manifests (schema 1) are re-detected.
+
+`render.py --help` lists every flag.

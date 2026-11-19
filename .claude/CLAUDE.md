@@ -8,4 +8,5 @@ accepts `$ARGUMENTS` for user-provided input. The model reads the `.agents/`
 body on demand when a skill is invoked.
 
 Invoke with `/epic-composer`, `/epic-acceptance-linter`, `/epic-interview`,
-`/story-decomposer`, `/task-decomposer`, or let Claude load them when relevant.
+`/story-decomposer`, `/task-decomposer`, `/bootstrap-harness` or `/ship-pr`, or
+let Claude load them when relevant.
