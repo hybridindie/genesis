@@ -3,8 +3,9 @@
 <!--
   Shared content — referenced by harness-specific SKILL.md wrappers.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 3.0.0, owner: John D
-  invokes: .agents/templates/epic/task-breakdown-shell.md
+  version: 3.1.0, owner: John D
+  invokes: .agents/templates/epic/task-breakdown-shell.md,
+           .agents/evals/story-rubric.md
   doctrine: .agents/doctrine/parallelization-doctrine.md,
             .agents/doctrine/ai-readable-spec-rules.md,
             .agents/doctrine/context-discovery.md
@@ -41,7 +42,10 @@ The checklist lives inside the story issue, not in separate task issues.
    ```
    Confirm every task has a verify step, every track has a disjoint ownership set,
    and every task traces to an AC or a prerequisite. Stop on `FAIL`.
-8. **Emit the block.** Append the shell output under the story's `**Tasks**`
+8. **Quality pass.** When the caller asks for a strict review, or the tracks are
+   about to be dispatched, apply the parallel-plan table of
+   `.agents/evals/story-rubric.md` to the block. It advises; it never blocks.
+9. **Emit the block.** Append the shell output under the story's `**Tasks**`
    section. Do not create task issues.
 
 ## LLM Judgment
@@ -64,7 +68,7 @@ One task block using `.agents/templates/epic/task-breakdown-shell.md`:
   merge order.
 
 A single sequential list is valid for an S-sized story; state why parallelizing
-would add overhead.
+would add overhead. When step 8 ran, add the rubric findings after the block.
 
 ## Stop Conditions
 
