@@ -1,7 +1,7 @@
 <!--
   agent-plan-schema.md — the machine-readable plan carried by Epic and story issues
   Referenced by: epic-composer, story-decomposer, task-decomposer, wave-dispatcher
-  version: 1.0.0, owner: John D
+  version: 1.1.0, owner: John D
   Single source of truth for the `agent-plan` block. `.agents/scripts/plan.py`
   enforces it; skills write it; the dispatcher schedules from it.
 -->
@@ -139,11 +139,12 @@ change.
 
 ```bash
 plan=.agents/scripts/plan.py
-python3 $plan validate epic.md story-*.md   # schema, refs, cycles, ownership
-python3 $plan waves    epic.md story-*.md   # computed waves
-python3 $plan sync     story.md             # regenerate the human tables
+python3 $plan check    epic.md story-*.md   # validate + regenerate tables + prose shape + waves
+python3 $plan scaffold epic.md --out .      # story-<id>.md skeletons with the plan prefilled
 python3 $plan next     epic.md story-*.md   # tracks that can start now (JSON)
 python3 $plan brief    story.md --track A   # the subagent brief
 ```
 
-`plan.py` needs PyYAML; without it, it re-runs itself under `uv` to fetch it.
+`.agents/scripts/dispatch.py` runs a plan (load, prepare, check, merge, block,
+integrate, report); `wave-dispatcher` is the skill that drives it. Both scripts
+need PyYAML; without it they re-run themselves under `uv` to fetch it.
