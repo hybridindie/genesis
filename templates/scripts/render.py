@@ -269,6 +269,15 @@ class Writer:
         self.written: list[str] = []
         self.kept: list[str] = []
         self.deleted: list[str] = []
+        self.preserved: list[str] = []
+
+    def preserve(self, rel: str) -> None:
+        """Note a file that exists and is intentionally not rewritten.
+
+        Its recorded hash has to survive, or the next render stops treating it
+        as rendered output (and the sums file changes on every run).
+        """
+        self.preserved.append(rel)
 
     def file(self, src: Path, rel: str, mode: int | None = None) -> None:
         dst = self.out / rel
@@ -333,7 +342,8 @@ def load_script(name: str) -> Any:
 
 # Harness content the renderer owns; anything else (CI, git hooks, docs) is never removed.
 OWNED_PREFIXES = (".claude/rules/", ".claude/agents/", ".claude/commands/", ".claude/skills/",
-                  ".opencode/agents/", ".opencode/commands/", ".opencode/skills/")
+                  ".opencode/agents/", ".opencode/commands/", ".opencode/skills/",
+                  ".opencodereview/")
 
 
 def remove_stale(out: Path, recorded: dict[str, str], current: set[str], w: Writer) -> list[str]:
@@ -407,17 +417,20 @@ def render(plan: dict[str, Any], args: argparse.Namespace) -> tuple[list[str], l
     else:
         w.tree(TEMPLATES / "opencode" / ".opencode", ".opencode")
     w.file(TEMPLATES / "claude-code" / "CLAUDE.md", "CLAUDE.md")
+    w.tree(SHARED / ".opencodereview", ".opencodereview")
     w.file(SHARED / "AGENTS.md", "AGENTS.md")
     w.file(GENESIS / "docs" / "harness-eval.md", "docs/harness-eval.md")
 
     if (out / "my-workflows.md").exists() and not args.force_workflows:
         print("  Kept existing my-workflows.md (use --force-workflows to replace)", file=sys.stderr)
+        w.preserve("my-workflows.md")
     else:
         w.file(SHARED / "my-workflows.md", "my-workflows.md")
 
     for src in sorted((SHARED / "githooks").iterdir()):
         if (out / ".githooks" / src.name).exists() and not args.force_hooks:
             print(f"  Kept existing .githooks/{src.name} (use --force-hooks to replace)", file=sys.stderr)
+            w.preserve(f".githooks/{src.name}")
             continue
         w.file(src, f".githooks/{src.name}", 0o755)
 
@@ -455,7 +468,8 @@ def render(plan: dict[str, Any], args: argparse.Namespace) -> tuple[list[str], l
     # still matches is safe to replace on the next render; anything else is a
     # local edit.
     sums = {
-        **{rel: plan["recorded"][rel] for rel in w.kept + w.deleted if rel in plan["recorded"]},
+        **{rel: plan["recorded"][rel]
+           for rel in w.kept + w.deleted + w.preserved if rel in plan["recorded"]},
         **{rel: sha((out / rel).read_bytes()) for rel in w.written if (out / rel).is_file()},
     }
     write_sums(out, sums)
@@ -484,6 +498,7 @@ def render_ci(plan: dict[str, Any], args: argparse.Namespace, w: Writer) -> None
     existing = target.is_dir() and any(target.glob("*.y*ml"))
     if existing and not args.force_ci:
         print(f"  Kept existing {folder}/ (use --force-ci to write ci.yml)", file=sys.stderr)
+        w.preserve(f"{folder}/ci.yml")
         return
     parts = [(SHARED / "ci" / "base.yml").read_text(encoding="utf-8")]
     for stack, job in (("python", "python"), ("frontend", "frontend"), ("godot", "godot"), ("rust", "rust")):
