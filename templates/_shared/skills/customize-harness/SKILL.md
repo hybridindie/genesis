@@ -38,6 +38,8 @@ skill owns semantic fit and workflow weaving. It never needs the genesis repo.
 4. **Report language-server fit.** OpenCode v2 keeps the `lsp` key but runs no
    servers, so don't add or change `lsp` in `opencode.json` (root or
    `.opencode/`). Trust the inventory's `lsp` block; do not probe yourself.
+   OpenCode merges both files when they exist, so the inventory reads both and
+   `config_path` names the first one it found.
    - `detected_servers` are the languages a Claude Code code-intelligence plugin
      would help with; list them as a suggestion, never install one.
    - `current` is `<no-config>`, `<absent>`, `<invalid>` (an OpenCode config

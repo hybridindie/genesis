@@ -10,9 +10,14 @@ ALLOW='skip-ok:'
 
 check() {  # label, extended regex, paths...
   local label="$1" pattern="$2"; shift 2
-  local roots=()
-  for p in "$@"; do [[ -d $p ]] && roots+=("$p"); done
-  (( ${#roots[@]} )) || return 0
+  local roots=() missing=()
+  for p in "$@"; do
+    if [[ -d $p ]]; then roots+=("$p"); else missing+=("$p"); fi
+  done
+  # A missing root means that suite is never scanned: say so instead of
+  # printing a PASS that covered nothing.
+  (( ${#missing[@]} )) && echo "WARN: no such test root for '$label': ${missing[*]}" >&2
+  (( ${#roots[@]} )) || { echo "WARN: '$label' scanned nothing" >&2; return 0; }
   local hits
   hits=$(grep -rnE "$pattern" "${roots[@]}" 2>/dev/null | grep -v "$ALLOW" || true)
   if [[ -n $hits ]]; then
@@ -29,9 +34,10 @@ check "unconditional skip/xfail in Python tests" \
   "{{BACKEND_PATH}}/tests"
 {{/STACK_PYTHON}}
 {{#STACK_FRONTEND}}
-# Jest/Vitest/Playwright: .skip, .todo, xit, xdescribe
+# Jest/Vitest/Playwright: .skip, .todo, xit, xdescribe. `\b` after skip/todo
+# keeps `it.skip.each(...)` and a bare `it.skip` while letting `.skipIf` through.
 check "skip/todo in frontend tests" \
-  '\b(it|test|describe)\.(skip|todo)\(|\bx(it|describe|test)\(' \
+  '\b(it|test|describe)\.(skip|todo)\b|\bx(it|describe|test)\(' \
   "{{FRONTEND_PATH}}/src" "{{FRONTEND_PATH}}/tests" "{{FRONTEND_PATH}}/e2e"
 {{/STACK_FRONTEND}}
 {{#STACK_GODOT}}
