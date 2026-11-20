@@ -15,7 +15,7 @@ description: >
   The skill itself. OpenCode reads it here; Claude Code loads it through the
   generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 4.0.0, owner: John D
+  version: 4.1.0, owner: John D
   invokes: .agents/scripts/plan.py,
            .agents/scripts/tracker.py,
            .agents/evals/story-rubric.md
@@ -39,7 +39,7 @@ that track's subagent brief.
 
 ## Deterministic Steps
 
-1. **Gate the input.** Run `plan.py validate story.md`. If it fails, the story
+1. **Gate the input.** Run `python3 .agents/scripts/plan.py check story.md`. If it fails, the story
    has no ACs, or it is larger than L, return it to `story-decomposer`.
 2. **Keep the tracks.** Track ids, `owns`, `depends_on` and `verify` stay as
    planned. If a track must split or merge, change `tracks` first and
@@ -55,13 +55,10 @@ that track's subagent brief.
    Put a test with the code it tests, in the same track.
 4. **Cover every AC.** Each story AC has at least one task; each task serves an
    AC or is a stated prerequisite of one.
-5. **Validate and render.**
-   ```bash
-   python3 .agents/scripts/plan.py validate story.md
-   python3 .agents/scripts/plan.py sync story.md
-   python3 .agents/scripts/plan.py brief story.md --track <id>   # spot-check one
-   ```
-   Read one brief as if you were the subagent: if it could not start without
+5. **Check and read a brief.**
+   `python3 .agents/scripts/plan.py check story.md` (add `epic.md` when you have
+   it), then `python3 .agents/scripts/plan.py brief story.md --track <id>`.
+   Read the brief as if you were the subagent: if it could not start without
    asking something, add that to `context` or the task. Fix the plan on `FAIL`.
 6. **Quality pass.** When the caller asks for a strict review, or the tracks are
    about to be dispatched, apply the parallel-plan table of

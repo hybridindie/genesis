@@ -16,7 +16,7 @@ description: >
   The skill itself. OpenCode reads it here; Claude Code loads it through the
   generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 6.0.0, owner: John D
+  version: 6.1.0, owner: John D
   invokes: .agents/skills/task-decomposer/SKILL.md,
            .agents/templates/epic/story-shell.md,
            .agents/scripts/plan.py,
@@ -44,39 +44,36 @@ whole brief a subagent gets, so anything it needs to know goes in it.
 
 ## Deterministic Steps
 
-1. **Gate the input.** Run `plan.py validate epic.md`. If it fails, or the Epic
-   has no outcome or ACs, stop and send it back to `epic-composer`.
-2. **Take the stories from the Epic plan.** Keep every story id, `acs`,
-   `depends_on` and `owns`; you refine them, you do not re-slice. If a story
-   must change shape, change the Epic plan first and re-validate it.
-3. **Write each story body** from `story-shell.md`:
+1. **Gate the input.** `python3 .agents/scripts/plan.py check epic.md`. If it
+   fails, or the Epic has no outcome or ACs, stop and send it back to
+   `epic-composer`.
+2. **Scaffold.** `python3 .agents/scripts/plan.py scaffold epic.md --out .`
+   writes `story-<id>.md` for every Epic story with the plan block filled from
+   the Epic — id, ACs and their wording, `depends_on`, `owns`, `verify`, a
+   `branch`, and `must_not_touch` (everything the stories that can run at the
+   same time own) — and one default track. Keep those fields; you refine, you
+   do not re-slice. If a story must change shape, change the Epic plan first,
+   re-check it and re-scaffold that story (`--stories S2 --force`).
+3. **Write each story's prose** in its scaffolded file:
    - the user-story frame (or What/Why for spikes and technical stories);
    - **Context** a subagent with no other knowledge can act on: current
      behaviour, the files involved (named per `ai-readable-spec-rules.md`),
-     what exists vs. what is new;
-   - Given/When/Then criteria for each Epic AC the story covers, copied into
-     `ac_text` with the same labels.
-4. **Fill the plan block.** `story`, `epic`, `branch` (`<type>/<issue>-<slug>`),
-   `acs`, `ac_text`, `depends_on`, `owns`, `must_not_touch` (the paths parallel
-   stories own), `verify`, `context`.
-5. **Split into tracks.** One track per independent stream of work inside the
-   story, each a subagent in its own worktree:
+     what exists vs. what is new — copy it into the plan's `context`;
+   - Given/When/Then criteria for each AC, and the same wording in `ac_text`.
+4. **Split into tracks** only where it pays. The default single `main` track is
+   right for an S-sized, single-concern story — say so. Otherwise:
    - a shared surface inside the story becomes a `kind: contract` track that
      the others depend on;
    - tracks that can run together own disjoint paths (tests go with the code
-     they test);
-   - an S-sized, single-concern story is one track — say so, don't invent
-     parallelism;
-   - every track has an exact `verify`.
-   Add `integration` (`merge_order`, `verify`) when there is more than one track.
-6. **Validate the set and render.** For every story file:
-   ```bash
-   python3 .agents/scripts/plan.py validate epic.md story-*.md
-   python3 .agents/scripts/plan.py sync "$story"
-   python3 .agents/scripts/validate_artifact.py --kind story "$story"
-   python3 .agents/scripts/plan.py waves epic.md story-*.md
-   ```
-   Fix the plan on `FAIL`, never the validator.
+     they test), each with an exact `verify` and, when the story context
+     mentions work it must not do, its own `context`;
+   - add `integration` (`merge_order`, `verify`).
+5. **Check the set.** `python3 .agents/scripts/plan.py check epic.md story-*.md`
+   validates every plan against the Epic, regenerates the tables, checks the
+   prose and prints the track waves. Fix the plan on `FAIL`, never the checker.
+6. **Read one brief as the subagent would.**
+   `python3 .agents/scripts/plan.py brief story-S1.md --track main` — if it
+   could not start without asking something, add that to `context`.
 7. **Quality pass.** When the caller asks for a strict review, or Wave 1 is
    about to be dispatched, apply `.agents/evals/story-rubric.md` (the story
    table to each story, the parallel-plan table to the waves). It advises; it
@@ -104,8 +101,8 @@ could not confirm is marked `(new)` in Context.
 - One story body per Epic story, titled `Story N: <outcome>` or
   `story(scope): <outcome>`, each with the generated track table and exactly one
   `agent-plan` block.
-- The computed waves across all stories (`plan.py waves`), so the caller sees
-  which tracks start first.
+- The track waves `plan.py check` printed, so the caller sees which tracks
+  start first.
 - A coverage note: every Epic AC covered by at least one story, or the gap.
 - When step 7 ran, the rubric findings per story and for the waves.
 

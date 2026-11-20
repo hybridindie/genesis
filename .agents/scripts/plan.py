@@ -21,6 +21,9 @@ Commands (FILE is a markdown body, a bare YAML file, or - for stdin):
   brief    FILE --track ID      the subagent brief for one track
   scope    FILE --track ID --changed PATH...   fail if a path is outside `owns`
   status   FILE --track ID --set todo|running|done|blocked [--note TEXT]
+  check    FILE... [--no-sync]   validate + sync + prose shape + waves, one report
+  scaffold EPIC [--out DIR] [--stories S1,S2] [--force]
+                                write story-<id>.md skeletons with the plan prefilled
 
 Exit codes: 0 ok, 1 validation/scope failure, 2 usage or unreadable input.
 """
@@ -55,6 +58,17 @@ TRACK_KINDS = ("contract", "track")
 
 class PlanError(Exception):
     pass
+
+
+class _PlainDumper(yaml.SafeDumper):
+    """No `&id001` anchors: a plan is read by people and agents, not just yaml."""
+
+    def ignore_aliases(self, data):  # noqa: ARG002
+        return True
+
+
+def dump(data: dict) -> str:
+    return yaml.dump(data, Dumper=_PlainDumper, sort_keys=False, allow_unicode=True, width=100)
 
 
 # ── loading ──────────────────────────────────────────────────────────────────
@@ -597,7 +611,7 @@ def set_status(text: str, track: str, status: str, note: str | None) -> str:
     hit["status"] = status
     if note:
         hit["note"] = note
-    dumped = yaml.safe_dump(plan, sort_keys=False, allow_unicode=True, width=100)
+    dumped = dump(plan)
     new = text[: m.start(1)] + dumped + text[m.end(1):]
     return sync(new, plan)
 
@@ -659,6 +673,134 @@ def brief(story: dict, track_id: str) -> str:
     return "\n".join(lines)
 
 
+# ── check: everything a planner runs before handing a plan on ──────────────
+
+def _validate_artifact():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("validate_artifact", Path(__file__).with_name("validate_artifact.py"))
+    module = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
+    spec.loader.exec_module(module)  # type: ignore[union-attr]
+    return module
+
+
+def check(paths: list[str], write: bool = True) -> tuple[bool, list[str]]:
+    """Validate the plan set, re-sync generated tables, check each body's prose
+    shape, and summarize the waves. Returns (ok, report lines)."""
+    lines: list[str] = []
+    epic, stories = load(paths)
+    errs = validate_set(epic, stories)
+    lines += [f"FAIL plan: {e}" for e in errs]
+    va = _validate_artifact()
+    for path in paths:
+        text = read_text(path)
+        plan = extract(text, path)
+        if write and not errs:
+            new = sync(text, plan)
+            if new != text:
+                Path(path).write_text(new, encoding="utf-8")
+                lines.append(f"synced {path}")
+                text = new
+        shape = va.check_epic(text) if plan.get("kind") == "epic" else va.check_story(text)
+        lines += [f"FAIL shape {path}: {e}" for e in shape]
+        errs += shape
+    if not errs:
+        if epic:
+            ss = as_list(epic.get("stories"))
+            deps = {str(x.get("id")): [str(d) for d in as_list(x.get("depends_on"))] for x in ss}
+            for n, level in enumerate(topo_levels(list(deps), deps, "stories")):
+                lines.append(f"stories wave {n + 1}: {', '.join(level)}")
+        nodes, deps = units(epic, stories)
+        if nodes:
+            for n, level in enumerate(topo_levels(list(nodes), deps, "tracks")):
+                lines.append(f"tracks wave {n + 1}: {', '.join(level)}")
+        n_tracks = sum(len(as_list(x.get("tracks"))) for x in stories)
+        lines.append(f"PASS: {'epic + ' if epic else ''}{len(stories)} stories, {n_tracks} tracks")
+    return not errs, lines
+
+
+# ── scaffold: story skeletons from the epic plan ─────────────────────────────
+
+BRANCH_TYPE = {"user": "feat", "technical": "feat", "bug": "fix", "spike": "spike"}
+EPIC_AC_LINE = re.compile(r"^\s*[-*]\s*\*\*(AC\d+):?\*\*:?\s*(.+)$", re.MULTILINE)
+
+
+def slug(text: str, words: int = 5) -> str:
+    parts = re.findall(r"[a-z0-9]+", str(text).lower())
+    return "-".join(parts[:words]) or "story"
+
+
+def issue_number(ref) -> str | None:
+    m = re.fullmatch(r"#?(\d+)", str(ref or "").strip())
+    return m.group(1) if m else None
+
+
+def branch_name(entry: dict) -> str:
+    kind = BRANCH_TYPE.get(str(entry.get("type", "user")), "feat")
+    num = issue_number(entry.get("issue")) or str(entry.get("id")).lower()
+    return f"{kind}/{num}-{slug(entry.get('title', ''))}"
+
+
+def parallel_peers(epic: dict) -> dict[str, list[str]]:
+    """For each story, the stories that can run at the same time as it."""
+    ss = as_list(epic.get("stories"))
+    ids = [str(x.get("id")) for x in ss]
+    deps = {str(x.get("id")): [str(d) for d in as_list(x.get("depends_on"))] for x in ss}
+    anc = {i: ancestors(i, deps) for i in ids}
+    return {a: [b for b in ids if b != a and a not in anc[b] and b not in anc[a]] for a in ids}
+
+
+def scaffold(epic_text: str, template: str, only: list[str] | None = None) -> dict[str, str]:
+    """Story bodies keyed by story id: the template's prose with the plan block
+    filled from the epic (ids, ACs, ownership, dependencies, verify, branch, and
+    must_not_touch = what parallel stories own) and one default track. The
+    planner then writes context, Given/When/Then criteria and real tracks."""
+    epic = extract(epic_text, "epic")
+    if epic.get("kind") != "epic":
+        raise PlanError("scaffold needs an epic plan")
+    errs = validate_epic(epic)
+    if errs:
+        raise PlanError("the epic plan does not validate: " + "; ".join(errs))
+    ac_prose = dict(EPIC_AC_LINE.findall(epic_text))
+    peers = parallel_peers(epic)
+    entries = {str(x.get("id")): x for x in as_list(epic.get("stories"))}
+    out = {}
+    for sid, entry in entries.items():
+        if only and sid not in only:
+            continue
+        owns = as_list(entry.get("owns"))
+        forbidden = sorted({str(p) for peer in peers[sid] for p in as_list(entries[peer].get("owns"))})
+        block = {
+            "version": 1,
+            "kind": "story",
+            "story": sid,
+            "epic": epic.get("epic", "#TBD"),
+            "issue": entry.get("issue", "#TBD"),
+            "branch": branch_name(entry),
+            "acs": as_list(entry.get("acs")),
+            "ac_text": {a: ac_prose.get(a, "") for a in as_list(entry.get("acs"))},
+            "depends_on": as_list(entry.get("depends_on")),
+            "owns": owns,
+            "must_not_touch": forbidden,
+            "verify": entry.get("verify"),
+            "context": "",
+            "tracks": [{"id": "main", "kind": "track", "owns": owns, "verify": entry.get("verify")}],
+        }
+        if entry.get("constraint"):
+            block["constraint"] = entry["constraint"]
+        if not block["acs"]:
+            del block["ac_text"]
+        body = template
+        body = re.sub(r"\A<!--.*?-->\s*", "", body, flags=re.DOTALL)
+        body = body.replace("Part of #<epic> · Story S<n>",
+                            f"Part of {block['epic']} · Story {sid} — {entry.get('title', '')}")
+        dumped = dump(block)
+        body = FENCE.sub(lambda _: "```yaml agent-plan\n" + dumped + "```", body, count=1)
+        if not FENCE.search(body):
+            body = body.rstrip() + "\n\n```yaml agent-plan\n" + dumped + "```\n"
+        out[sid] = sync(body, block)
+    return out
+
+
 # ── CLI ──────────────────────────────────────────────────────────────────────
 
 def main() -> int:
@@ -673,6 +815,11 @@ def main() -> int:
     p = sub.add_parser("brief"); p.add_argument("file"); p.add_argument("--track", required=True)
     p = sub.add_parser("scope"); p.add_argument("file"); p.add_argument("--track", required=True)
     p.add_argument("--changed", nargs="*", default=[])
+    p = sub.add_parser("check"); p.add_argument("files", nargs="+"); p.add_argument("--no-sync", action="store_true")
+    p = sub.add_parser("scaffold"); p.add_argument("epic"); p.add_argument("--out", default=".")
+    p.add_argument("--stories", help="comma-separated story ids (default: all)")
+    p.add_argument("--template", default=str(Path(__file__).resolve().parents[1] / "templates" / "epic" / "story-shell.md"))
+    p.add_argument("--force", action="store_true", help="overwrite existing story files")
     p = sub.add_parser("status"); p.add_argument("file"); p.add_argument("--track", required=True)
     p.add_argument("--set", dest="value", choices=STATUSES, required=True); p.add_argument("--note")
     args = ap.parse_args()
@@ -735,6 +882,24 @@ def main() -> int:
             if outside:
                 return 1
             print(f"PASS: {len(args.changed)} changed paths inside track {args.track}")
+            return 0
+        if args.cmd == "check":
+            ok, lines = check(args.files, write=not args.no_sync)
+            for line in lines:
+                print(line, file=sys.stdout if ok or not line.startswith("FAIL") else sys.stderr)
+            return 0 if ok else 1
+        if args.cmd == "scaffold":
+            only = [x.strip() for x in args.stories.split(",")] if args.stories else None
+            bodies = scaffold(read_text(args.epic), read_text(args.template), only)
+            out = Path(args.out)
+            out.mkdir(parents=True, exist_ok=True)
+            for sid, body in bodies.items():
+                dst = out / f"story-{sid}.md"
+                if dst.exists() and not args.force:
+                    print(f"kept {dst} (exists; --force to replace)")
+                    continue
+                dst.write_text(body, encoding="utf-8")
+                print(f"wrote {dst}")
             return 0
         if args.cmd == "status":
             text = read_text(args.file)

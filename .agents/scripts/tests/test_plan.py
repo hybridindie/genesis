@@ -513,3 +513,111 @@ def test_rejects_a_story_plan_whose_dependencies_differ_from_the_epic():
     ss = stories_for(e)
     ss[2]["depends_on"] = ["S1"]  # the epic says S1 and S2
     assert any("depends_on" in x for x in plan.validate_set(e, ss))
+
+
+# ── scaffold ─────────────────────────────────────────────────────────────────
+
+TEMPLATE = (HERE.parent.parent / "templates" / "epic" / "story-shell.md").read_text(encoding="utf-8")
+
+
+def epic_md(e, prose=""):
+    import yaml
+    return prose + "\n\n```yaml agent-plan\n" + yaml.safe_dump(e, sort_keys=False) + "```\n"
+
+
+def scaffolded(e, prose=""):
+    return {sid: plan.extract(body) for sid, body in plan.scaffold(epic_md(e, prose), TEMPLATE).items()}
+
+
+def test_scaffold_writes_one_story_per_epic_story_and_the_set_validates():
+    e = three_story_epic()
+    out = scaffolded(e)
+    assert sorted(out) == ["S1", "S2", "S3"]
+    assert plan.validate_set(e, list(out.values())) == []
+
+
+def test_scaffold_forbids_what_parallel_stories_own():
+    out = scaffolded(three_story_epic())
+    assert out["S1"]["must_not_touch"] == ["frontend/**"]   # S2 runs alongside S1
+    assert out["S2"]["must_not_touch"] == ["backend/**"]
+
+
+def test_scaffold_does_not_forbid_what_ordered_stories_own():
+    # S3 runs after S1 and S2, so their paths are not off limits to it.
+    assert scaffolded(three_story_epic())["S3"]["must_not_touch"] == []
+
+
+def test_scaffold_copies_ownership_dependencies_and_verify_from_the_epic():
+    s3 = scaffolded(three_story_epic())["S3"]
+    assert s3["owns"] == ["docs/**"] and s3["depends_on"] == ["S1", "S2"] and s3["verify"] == "make test"
+    assert s3["tracks"] == [{"id": "main", "kind": "track", "owns": ["docs/**"], "verify": "make test"}]
+
+
+def test_scaffold_names_branches_from_type_issue_and_title():
+    e = three_story_epic()
+    e["stories"][0].update(type="bug", issue="#41", title="Empty CSV has no header!")
+    assert scaffolded(e)["S1"]["branch"] == "fix/41-empty-csv-has-no-header"
+    assert scaffolded(e)["S2"]["branch"] == "feat/s2-story-s2"   # no issue number yet
+
+
+def test_scaffold_copies_ac_wording_from_the_epic_prose():
+    prose = "**Acceptance criteria**\n\n- **AC1:** When X, then Y, so that Z.\n- **AC2:** …\n- **AC3:** …\n"
+    assert scaffolded(three_story_epic(), prose)["S1"]["ac_text"] == {"AC1": "When X, then Y, so that Z."}
+
+
+def test_scaffold_refuses_an_epic_that_does_not_validate():
+    e = three_story_epic()
+    e["stories"][1]["owns"] = ["backend/**"]  # overlaps S1 in parallel
+    with pytest.raises(plan.PlanError):
+        plan.scaffold(epic_md(e), TEMPLATE)
+
+
+def test_scaffold_output_passes_the_prose_shape_check():
+    va = plan._validate_artifact()
+    for body in plan.scaffold(epic_md(three_story_epic()), TEMPLATE).values():
+        assert va.check_story(body) == []
+
+
+# ── check ────────────────────────────────────────────────────────────────────
+
+def write(tmp_path, name, text):
+    p = tmp_path / name
+    p.write_text(text, encoding="utf-8")
+    return str(p)
+
+
+EPIC_TEMPLATE = (HERE.parent.parent / "templates" / "epic" / "epic-shell.md").read_text(encoding="utf-8")
+
+
+def full_epic_md(e):
+    import yaml
+    return plan.FENCE.sub(lambda _: "```yaml agent-plan\n" + yaml.safe_dump(e, sort_keys=False) + "```",
+                          EPIC_TEMPLATE, count=1)
+
+
+def test_check_passes_and_syncs_a_good_set(tmp_path):
+    e = three_story_epic()
+    paths = [write(tmp_path, "epic.md", full_epic_md(e))]
+    for sid, body in plan.scaffold(epic_md(e), TEMPLATE).items():
+        paths.append(write(tmp_path, f"story-{sid}.md", body))
+    ok, lines = plan.check(paths)
+    assert ok, lines
+    assert any(line.startswith("synced") and "epic.md" in line for line in lines)
+    assert "| S3 |" in (tmp_path / "epic.md").read_text()  # generated story table
+
+
+def test_check_fails_on_a_plan_error_and_writes_nothing(tmp_path):
+    e = three_story_epic()
+    e["stories"][1]["owns"] = ["backend/**"]
+    path = write(tmp_path, "epic.md", epic_md(e))
+    before = (tmp_path / "epic.md").read_text()
+    ok, lines = plan.check([path])
+    assert not ok and any("can run in parallel" in x for x in lines)
+    assert (tmp_path / "epic.md").read_text() == before
+
+
+def test_check_fails_on_missing_prose_sections(tmp_path):
+    e = three_story_epic()
+    body = plan.scaffold(epic_md(e), TEMPLATE)["S1"].replace("**Context**", "**Background**")
+    ok, lines = plan.check([write(tmp_path, "story-S1.md", body)])
+    assert not ok and any("missing **Context**" in x for x in lines)

@@ -17,7 +17,7 @@ description: >
   The skill itself. OpenCode reads it here; Claude Code loads it through the
   generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 6.0.0, owner: John D
+  version: 6.1.0, owner: John D
   invokes: .agents/skills/epic-interview/SKILL.md,
            .agents/skills/epic-acceptance-linter/SKILL.md,
            .agents/templates/epic/epic-shell.md,
@@ -77,15 +77,11 @@ read, so it has to be right, not just plausible.
 8. **Gap gate.** If a gap changes scope, actors, ownership or acceptance, run
    `.agents/skills/epic-interview/SKILL.md` and ask only its blockers. If the criteria
    need review, run `.agents/skills/epic-acceptance-linter/SKILL.md`.
-9. **Validate and render.** Write the body to a file, then:
-   ```bash
-   python3 .agents/scripts/plan.py validate "$epic"
-   python3 .agents/scripts/plan.py sync "$epic"      # writes the story table + map
-   python3 .agents/scripts/validate_artifact.py --kind epic "$epic"
-   python3 .agents/scripts/plan.py waves "$epic"
-   ```
-   Fix the plan on `FAIL` (overlapping `owns` between parallel stories means
-   re-slice or add a dependency), never the validator.
+9. **Check.** Write the body to a file, then
+   `python3 .agents/scripts/plan.py check "$epic"` — it validates the plan,
+   writes the story table and map, checks the prose sections and prints the
+   waves. Fix the plan on `FAIL` (overlapping `owns` between parallel stories
+   means re-slice or add a dependency), never the checker.
 10. **Quality pass.** When the caller asks for a strict review, or the Epic is
     about to be decomposed, apply `.agents/evals/epic-rubric.md` and append its
     report. It advises; it never blocks the output.
@@ -111,18 +107,18 @@ prose and a note in Risks.
 One Epic issue body from `epic-shell.md`, titled `Epic: <outcome>`, containing:
 
 - the prose sections;
-- the generated story table and parallelization map (from `plan.py sync`);
+- the generated story table and parallelization map (from `plan.py check`);
 - exactly one `agent-plan` block that passes `plan.py validate`.
 
-Then one line per computed wave (`plan.py waves`) so the caller sees what can
-start immediately. When step 10 ran, add the rubric report after the body.
+Then the waves `plan.py check` printed, so the caller sees what can start
+immediately. When step 10 ran, add the rubric report after the body.
 
 ## Stop Conditions
 
 - Stop and ask if the source has no identifiable problem or outcome.
 - Stop and ask if two sources contradict each other on scope or acceptance.
 - Stop and split if the work has two unrelated outcomes or more than 8 ACs.
-- Stop if `plan.py validate` still fails after one re-slice; report the conflict.
+- Stop if `plan.py check` still fails after one re-slice; report the conflict.
 - Do not write story bodies or tasks; that is `story-decomposer` and
   `task-decomposer`.
 
