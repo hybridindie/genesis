@@ -1,6 +1,6 @@
 <!--
   epic-shell.md — Epic issue body (paste under the issue title `Epic: <outcome>`)
-  Referenced by: .agents/skills/epic-composer.md
+  Referenced by: .agents/skills/epic-composer/SKILL.md
   version: 4.0.0, owner: John D
 -->
 

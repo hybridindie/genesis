@@ -3,7 +3,7 @@ description: "Install, update, or extend the AI harness in a target project. Fet
 mode: subagent
 ---
 
-Read and follow the complete instructions at `.agents/skills/bootstrap-harness.md` —
+Read and follow the complete instructions at `.agents/skills/bootstrap-harness/SKILL.md` —
 the full flow (fetch genesis, plan, confirm, render,
 validate, report). Treat the argument below as the target
 `output-dir` (default: current directory).

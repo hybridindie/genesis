@@ -44,12 +44,12 @@ Read these when you need the detail — they are not auto-loaded:
 
 | Skill | Invoke | Shared content |
 |---|---|---|
-| epic-composer | `/epic-composer` | `.agents/skills/epic-composer.md` |
-| epic-interview | `/epic-interview` | `.agents/skills/epic-interview.md` |
-| epic-acceptance-linter | `/epic-acceptance-linter` | `.agents/skills/epic-acceptance-linter.md` |
-| story-decomposer | `/story-decomposer` | `.agents/skills/story-decomposer.md` |
-| task-decomposer | `/task-decomposer` | `.agents/skills/task-decomposer.md` |
-| bootstrap-harness | `/bootstrap-harness` | `.agents/skills/bootstrap-harness.md` |
+| epic-composer | `/epic-composer` | `.agents/skills/epic-composer/SKILL.md` |
+| epic-interview | `/epic-interview` | `.agents/skills/epic-interview/SKILL.md` |
+| epic-acceptance-linter | `/epic-acceptance-linter` | `.agents/skills/epic-acceptance-linter/SKILL.md` |
+| story-decomposer | `/story-decomposer` | `.agents/skills/story-decomposer/SKILL.md` |
+| task-decomposer | `/task-decomposer` | `.agents/skills/task-decomposer/SKILL.md` |
+| bootstrap-harness | `/bootstrap-harness` | `.agents/skills/bootstrap-harness/SKILL.md` |
 | ship-pr | `/ship-pr` | `templates/_shared/skills/ship-pr/SKILL.md` |
 
 Post-bootstrap flow: `bootstrap.sh` (render) → `/harness-eval` (trim + suggest)

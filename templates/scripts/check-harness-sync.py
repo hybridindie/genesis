@@ -7,7 +7,7 @@ deployed-project counterpart is .claude/hooks/check-project-drift.py.
 Checks:
   1. Every source article (core, stacks, packs) declares read_when
   2. Every rendered rule is indexed in AGENTS.md (and the index has no extras)
-  3. Opencode agents/skills are semantically aligned with Claude rules
+  3. OpenCode agents are aligned with Claude's; skills render once to .agents/skills
   4. No orphaned placeholders in rendered harnesses
   5. Agent version claims match AGENTS.md canonical versions
   6. Coverage tier requirements are present
@@ -203,14 +203,15 @@ class HarnessSyncChecker:
                     "FAIL: check-no-skipped-tests.sh renders no skip checks"
                 )
 
-        opencode_skills = self.output_dir / ".opencode" / "skills"
-        has_scanner = False
-        if opencode_skills.exists():
-            has_scanner = (opencode_skills / "test-hygiene-scanner" / "SKILL.md").exists()
-        if not has_scanner:
-            self.warnings.append(
-                "WARN: Opencode harness missing test-hygiene-scanner skill"
-            )
+        # One copy of each skill, in .agents/skills/, with a Claude pointer.
+        skill = self.output_dir / ".agents" / "skills" / "test-hygiene-scanner" / "SKILL.md"
+        pointer = self.output_dir / ".claude" / "skills" / "test-hygiene-scanner" / "SKILL.md"
+        if not skill.exists():
+            self.warnings.append("WARN: harness missing .agents/skills/test-hygiene-scanner")
+        elif not pointer.exists():
+            self.errors.append("FAIL: .claude/skills/test-hygiene-scanner pointer missing")
+        if (self.output_dir / ".opencode" / "skills").exists():
+            self.errors.append("FAIL: .opencode/skills exists; skills render once, to .agents/skills")
 
     # ── Helpers --------------------------------------------------------
 
@@ -238,6 +239,17 @@ class HarnessSyncChecker:
 
     # ── Runner ----------------------------------------------------------
 
+    def check_skill_script_paths(self) -> None:
+        """Every script a rendered skill tells the model to run must exist."""
+        if not self.output_dir:
+            return
+        call = re.compile(r"(?:python3?|bash|sh)\s+([.\w/-]+\.(?:py|sh))")
+        for skill in sorted(self.output_dir.glob(".agents/skills/*/SKILL.md")):
+            for rel in call.findall(skill.read_text(encoding="utf-8")):
+                if rel.startswith(("./", ".agents/", ".claude/")) and not (self.output_dir / rel).is_file():
+                    self.errors.append(
+                        f"FAIL: {skill.relative_to(self.output_dir)} runs {rel}, which the render does not contain")
+
     def run(self) -> int:
         self.check_article_sources()
         self.check_rendered_rules()
@@ -246,6 +258,7 @@ class HarnessSyncChecker:
         self.check_version_consistency()
         self.check_coverage_tiers()
         self.check_no_skipped_tests()
+        self.check_skill_script_paths()
 
         for w in self.warnings:
             eprint(w)

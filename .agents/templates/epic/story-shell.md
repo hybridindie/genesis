@@ -1,6 +1,6 @@
 <!--
   story-shell.md — Story issue body (title `Story N: <outcome>` or `story(scope): <outcome>`)
-  Referenced by: .agents/skills/story-decomposer.md
+  Referenced by: .agents/skills/story-decomposer/SKILL.md
   version: 3.0.0, owner: John D
 -->
 

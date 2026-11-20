@@ -6,12 +6,12 @@ On-demand section — read when invoking a skill or checking its references.
 
 | Skill | Shared content | Purpose |
 |---|---|---|
-| epic-composer | `.agents/skills/epic-composer.md` | Draft an Epic issue from source material, with a parallel story map |
-| epic-interview | `.agents/skills/epic-interview.md` | Ask the smallest set of questions that unblocks the Epic |
-| epic-acceptance-linter | `.agents/skills/epic-acceptance-linter.md` | Review acceptance criteria; suggest concrete rewrites |
-| story-decomposer | `.agents/skills/story-decomposer.md` | Turn an Epic into story issues with waves, contracts and file ownership |
-| task-decomposer | `.agents/skills/task-decomposer.md` | Break one story into a parallel task checklist for delegation |
-| bootstrap-harness | `.agents/skills/bootstrap-harness.md` | Install/tailor a project harness (also `install-harness` and `install.sh`) |
+| epic-composer | `.agents/skills/epic-composer/SKILL.md` | Draft an Epic issue from source material, with a parallel story map |
+| epic-interview | `.agents/skills/epic-interview/SKILL.md` | Ask the smallest set of questions that unblocks the Epic |
+| epic-acceptance-linter | `.agents/skills/epic-acceptance-linter/SKILL.md` | Review acceptance criteria; suggest concrete rewrites |
+| story-decomposer | `.agents/skills/story-decomposer/SKILL.md` | Turn an Epic into story issues with waves, contracts and file ownership |
+| task-decomposer | `.agents/skills/task-decomposer/SKILL.md` | Break one story into a parallel task checklist for delegation |
+| bootstrap-harness | `.agents/skills/bootstrap-harness/SKILL.md` | Install/tailor a project harness (also `install-harness` and `install.sh`) |
 | ship-pr | `templates/_shared/skills/ship-pr/SKILL.md` | Open a PR, watch CI and review, address threads, merge on `--merge` (also ships to every project) |
 
 ## Templates and evals

@@ -1,6 +1,6 @@
 <!--
   task-breakdown-shell.md — parallel task block appended under `**Tasks**` in a story issue
-  Referenced by: .agents/skills/task-decomposer.md
+  Referenced by: .agents/skills/task-decomposer/SKILL.md
   version: 1.0.0, owner: John D
 -->
 

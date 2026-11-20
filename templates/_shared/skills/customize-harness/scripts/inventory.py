@@ -195,8 +195,8 @@ def main() -> int:
         "rules": ".claude/rules/**/*.md",
         "agents": ".claude/agents/*.md",
         "commands": ".claude/commands/*.md",
-        "claude_skills": ".claude/skills/*/SKILL.md",
-        "opencode_skills": ".opencode/skills/*/SKILL.md",
+        "skills": ".agents/skills/*/SKILL.md",
+        "claude_skill_pointers": ".claude/skills/*/SKILL.md",
     }.items():
         counts[key] = len(list(root.glob(pattern)))
     agents = root / "AGENTS.md"

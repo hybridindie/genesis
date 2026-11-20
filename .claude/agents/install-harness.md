@@ -6,7 +6,7 @@ color: green
 argument-hint: "Optional: absolute path to the target project (default: current directory)"
 ---
 
-Read and follow the complete instructions at `.agents/skills/bootstrap-harness.md` —
+Read and follow the complete instructions at `.agents/skills/bootstrap-harness/SKILL.md` —
 the full flow (fetch genesis, plan, confirm, render,
 validate, report). Treat the argument below as the target
 `output-dir` (default: current directory).

@@ -1,4 +1,10 @@
 import { Plugin } from "@opencode/plugin"
+import { spawnSync } from "node:child_process"
+
+// The rules live once, in the Claude Code hook. This plugin hands it the same
+// JSON shape Claude Code would and surfaces its reminder, so the two harnesses
+// cannot drift apart.
+const HOOK = ".claude/hooks/warn-pointer-edit.sh"
 
 type ToolInput = {
   filePath?: string
@@ -15,21 +21,17 @@ export default Plugin.define({
       const filePath = input?.filePath ?? input?.path ?? ""
       if (!filePath) return
 
-      // Prefix "/" so a bare relative path matches the same patterns.
-      const lower = "/" + filePath.toLowerCase().replace(/^\/+/, "")
-
-      let message: string | null = null
-      if (lower.includes("/templates/claude-code/") || lower.includes("/templates/opencode/")) {
-        message = `Editing a harness-specific template: ${filePath}. If the content is shared by both harnesses, edit templates/_shared/ instead. If it is genuinely harness-specific, proceed.`
-      } else if (lower.includes("/.opencode/") || lower.includes("/.claude/")) {
-        message = `Editing harness pointer file: ${filePath}. Edit canonical content in .agents/ instead.`
-      } else if (lower.includes("/.agents/doctrine/")) {
-        message = `Editing load-bearing doctrine file: ${filePath}. Multiple skills and rubrics reference it by path — edits here propagate everywhere. Confirm the change is intended for all callers; if a rule needs to diverge per skill, it does not belong in shared doctrine.`
-      } else if (lower.includes("/templates/_shared/doctrine/")) {
-        message = `Editing load-bearing genesis doctrine file: ${filePath}. Multiple articles and agents reference it by path, and it renders into target projects at .claude/rules/doctrine/. Edits here propagate everywhere. Confirm the change is intended for all callers; if a rule needs to diverge per article, it does not belong in shared doctrine.`
+      const run = spawnSync("bash", [HOOK], {
+        input: JSON.stringify({ tool_input: { file_path: filePath } }),
+        encoding: "utf8",
+      })
+      if (run.status !== 0 || !run.stdout.trim()) return
+      try {
+        const reminder = JSON.parse(run.stdout)?.hookSpecificOutput?.additionalContext
+        if (reminder) console.warn(`[warn-pointer-edit] ${reminder}`)
+      } catch {
+        // a hook that prints something unexpected must never block an edit
       }
-
-      if (message !== null) console.warn(`[warn-pointer-edit] ${message}`)
     })
   },
 })

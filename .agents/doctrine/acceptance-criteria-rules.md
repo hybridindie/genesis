@@ -63,7 +63,7 @@ For each acceptance criterion, check:
 - Do not fabricate thresholds or metrics not supported by source material.
   If the source provides none, mark the threshold [UNKNOWN] rather than inventing.
 - When criteria are too vague for any of these rules to apply, the caller should
-  hand off to interview mode (`.agents/skills/epic-interview.md`) for clarity
+  hand off to interview mode (`.agents/skills/epic-interview/SKILL.md`) for clarity
   rather than guessing.
 
 ## How callers use this file

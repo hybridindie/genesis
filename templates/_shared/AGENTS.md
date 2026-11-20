@@ -107,7 +107,7 @@ Issue → red → green → `/preflight` → PR → review → merge. Details in
 | Rules | `.claude/rules/**` (at launch, or by `paths:`) | `.claude/rules/**` (read via the index) |
 | Commands | `.claude/commands/*.md` | `.opencode/commands/*.md` |
 | Subagents | `.claude/agents/*.md` | `.opencode/agents/*.md` (read-only) |
-| Skills | `.claude/skills/*/SKILL.md` | `.opencode/skills/*/SKILL.md` |
+| Skills | `.claude/skills/*/SKILL.md` (generated pointers) | `.agents/skills/*/SKILL.md` (the skills themselves) |
 | Language servers | Code-intelligence plugins, or `/ide` | None in v2 (`lsp` is kept but not run) |
 | Gates | `.githooks/*` + `.claude/hooks/*` | CI + `/preflight` |
 

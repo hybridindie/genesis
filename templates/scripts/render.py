@@ -271,13 +271,24 @@ class Writer:
         self.deleted: list[str] = []
 
     def file(self, src: Path, rel: str, mode: int | None = None) -> None:
-        dst = self.out / rel
         data = src.read_bytes()
         if src.suffix in TEXT_SUFFIXES:
             try:
                 data = render_text(data.decode("utf-8"), self.v, self.flags).encode("utf-8")
             except UnicodeDecodeError:
                 pass
+        executable = mode is not None or os.access(src, os.X_OK)
+        self.write(data, rel, (mode or 0o755) if executable else None)
+
+    def pointer(self, skill_dir: Path, name: str) -> None:
+        """The generated `.claude/skills/<name>/SKILL.md` that loads `.agents/skills/<name>`."""
+        rendered = render_text((skill_dir / "SKILL.md").read_text(encoding="utf-8"), self.v, self.flags)
+        text = load_script("sync-skill-wrappers", GENESIS / "scripts").pointer(
+            rendered, f".agents/skills/{name}/SKILL.md")
+        self.write(text.encode("utf-8"), f".claude/skills/{name}/SKILL.md", None)
+
+    def write(self, data: bytes, rel: str, mode: int | None) -> None:
+        dst = self.out / rel
         if not dst.exists() and rel in self.recorded and not self.force:
             self.deleted.append(rel)  # rendered before, deleted since: respect it
             return
@@ -291,8 +302,8 @@ class Writer:
             return
         dst.parent.mkdir(parents=True, exist_ok=True)
         dst.write_bytes(data)
-        if mode is not None or os.access(src, os.X_OK):
-            dst.chmod(mode or 0o755)
+        if mode is not None:
+            dst.chmod(mode)
 
     def tree(self, src_dir: Path, rel_dir: str, skip: set[str] = frozenset()) -> None:
         for src in sorted(p for p in src_dir.rglob("*") if p.is_file()):
@@ -323,17 +334,18 @@ def sources(plan: dict[str, Any]) -> list[Path]:
         [SHARED / "packs" / p for p in plan["packs"]]
 
 
-def load_script(name: str) -> Any:
+def load_script(name: str, directory: Path = SCRIPT_DIR) -> Any:
     import importlib.util
-    spec = importlib.util.spec_from_file_location(name.replace("-", "_"), SCRIPT_DIR / f"{name}.py")
+    spec = importlib.util.spec_from_file_location(name.replace("-", "_"), directory / f"{name}.py")
     module = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
     spec.loader.exec_module(module)  # type: ignore[union-attr]
     return module
 
 
 # Harness content the renderer owns; anything else (CI, git hooks, docs) is never removed.
+# `.opencode/skills/` stays listed so copies from older renders are removed.
 OWNED_PREFIXES = (".claude/rules/", ".claude/agents/", ".claude/commands/", ".claude/skills/",
-                  ".opencode/agents/", ".opencode/commands/", ".opencode/skills/")
+                  ".agents/skills/", ".opencode/agents/", ".opencode/commands/", ".opencode/skills/")
 
 
 def remove_stale(out: Path, recorded: dict[str, str], current: set[str], w: Writer) -> list[str]:
@@ -392,10 +404,10 @@ def render(plan: dict[str, Any], args: argparse.Namespace) -> tuple[list[str], l
         skills = base / "skills"
         if skills.is_dir():
             for skill in sorted(p for p in skills.iterdir() if p.is_dir()):
-                w.tree(skill, f".claude/skills/{skill.name}")
-                # Skill bodies call their scripts/assets under .claude/ (always
-                # rendered), so OpenCode only needs the SKILL.md.
-                w.file(skill / "SKILL.md", f".opencode/skills/{skill.name}/SKILL.md")
+                # One copy: the skill lives in .agents/skills/ (OpenCode reads it
+                # natively); Claude Code gets a generated pointer.
+                w.tree(skill, f".agents/skills/{skill.name}")
+                w.pointer(skill, skill.name)
 
     w.tree(TEMPLATES / "claude-code" / ".claude", ".claude")
     if (out / "opencode.json").is_file() and not (out / ".opencode" / "opencode.json").exists():

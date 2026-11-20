@@ -1,10 +1,22 @@
+---
+name: story-decomposer
+description: >
+  Turn a ready Epic into shippable story issues with acceptance criteria, file
+  ownership, waves, and a shared contract so the work can run in parallel across
+  subagents or teams. Trigger phrases: "decompose this epic", "break down this epic into
+  stories", "create stories from this epic", "split this epic", "generate a backlog from
+  this epic". Use when the user has a ready Epic and wants independent stories plus an
+  execution map they can dispatch.
+---
+
 # Story Decomposer
 
 <!--
-  Shared content — referenced by harness-specific SKILL.md wrappers.
+  The skill itself. OpenCode reads it here; Claude Code loads it through the
+  generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
   version: 5.1.0, owner: John D
-  invokes: .agents/skills/task-decomposer.md,
+  invokes: .agents/skills/task-decomposer/SKILL.md,
            .agents/templates/epic/story-shell.md,
            .agents/templates/epic/task-breakdown-shell.md,
            .agents/evals/story-rubric.md

@@ -10,7 +10,8 @@ Checks:
   1. The manifest is present and valid, and its stacks/packs match the rule files.
   2. `AGENTS.md` indexes every rule exactly once, and every rule has read_when.
   3. The Commands and Skills sections match the directories on disk.
-  4. The Claude/OpenCode mirrors have the same commands, skills, and agents.
+  4. The Claude/OpenCode mirrors have the same commands and agents, and every
+     .agents/skills skill has its .claude/skills pointer.
   5. `CLAUDE.md` stays a thin import of `AGENTS.md` and `my-workflows.md`.
   6. The Python version in `AGENTS.md` and `pyproject.toml` matches the manifest.
   7. No rendered placeholder survived.
@@ -189,16 +190,24 @@ class Drift:
     # ── Mirrors ────────────────────────────────────────────────────────
 
     def mirrors(self) -> None:
-        pairs = [("commands", "*.md", lambda p: p.stem), ("skills", "*/SKILL.md", lambda p: p.parent.name)]
-        for folder, pattern, name in pairs:
-            claude = self.root / ".claude" / folder
-            opencode = self.root / ".opencode" / folder
-            left = {name(p) for p in claude.glob(pattern)}
-            right = {name(p) for p in opencode.glob(pattern)}
-            for missing in sorted(left - right):
-                self.fail(f"DRIFT: .opencode/{folder} is missing {missing}")
-            for extra in sorted(right - left):
-                self.fail(f"DRIFT: .opencode/{folder} has no Claude counterpart: {extra}")
+        left = {p.stem for p in (self.root / ".claude" / "commands").glob("*.md")}
+        right = {p.stem for p in (self.root / ".opencode" / "commands").glob("*.md")}
+        for missing in sorted(left - right):
+            self.fail(f"DRIFT: .opencode/commands is missing {missing}")
+        for extra in sorted(right - left):
+            self.fail(f"DRIFT: .opencode/commands has no Claude counterpart: {extra}")
+        # Skills live once in .agents/skills/ (OpenCode reads it); Claude Code
+        # gets a pointer per skill in .claude/skills/. No .opencode/skills copy.
+        skills = {p.parent.name for p in (self.root / ".agents" / "skills").glob("*/SKILL.md")}
+        pointers = {p.parent.name for p in (self.root / ".claude" / "skills").glob("*/SKILL.md")}
+        for missing in sorted(skills - pointers):
+            self.fail(f"DRIFT: .claude/skills is missing the pointer for {missing}")
+        for extra in sorted(pointers - skills):
+            text = (self.root / ".claude" / "skills" / extra / "SKILL.md").read_text(encoding="utf-8")
+            if f".agents/skills/{extra}/SKILL.md" in text:
+                self.fail(f"DRIFT: .claude/skills/{extra} points at a missing .agents/skills/{extra}")
+        for old in sorted((self.root / ".opencode" / "skills").glob("*/SKILL.md")):
+            self.warn(f"WARN: {old.relative_to(self.root)} duplicates a skill; skills live in .agents/skills/")
         if (self.root / ".claude" / "agents").is_dir():
             left = {p.name for p in (self.root / ".claude" / "agents").glob("*.md")}
             right = {p.name for p in (self.root / ".opencode" / "agents").glob("*.md")}
@@ -250,10 +259,10 @@ class Drift:
             any(str(i).endswith("my-workflows.md") for i in instructions),
             "DRIFT: opencode.json must load my-workflows.md",
         )
-        self.check(
-            any(str(p).rstrip("/").endswith(".opencode/skills") for p in skill_paths),
-            "DRIFT: opencode.json must expose .opencode/skills",
-        )
+        # Skills live in .agents/skills/, which OpenCode discovers without config.
+        stale = [p for p in skill_paths if str(p).rstrip("/").endswith(".opencode/skills")]
+        if stale and not (self.root / ".opencode" / "skills").is_dir():
+            self.warn("WARN: opencode.json points skills at .opencode/skills, which no longer exists")
         if not any(self.denies_env(c) for c in configs):
             self.warn("WARN: opencode.json does not deny reading .env files")
 

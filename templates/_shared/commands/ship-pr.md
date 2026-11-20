@@ -4,8 +4,8 @@ description: Open or update a PR, watch CI and the automated review, address the
 
 Read and follow the ship-pr skill:
 
-- Claude Code: `.claude/skills/ship-pr/SKILL.md`
-- OpenCode: `.opencode/skills/ship-pr/SKILL.md`
+`.agents/skills/ship-pr/SKILL.md` (Claude Code reaches it through the
+`.claude/skills/ship-pr` pointer; OpenCode reads it directly).
 
 Arguments: `$ARGUMENTS`
 

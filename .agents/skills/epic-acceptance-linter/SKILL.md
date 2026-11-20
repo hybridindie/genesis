@@ -1,7 +1,18 @@
+---
+name: epic-acceptance-linter
+description: >
+  Review acceptance criteria for observability, testability, specificity, and coverage;
+  suggests concrete rewrites and an optional verdict. Trigger phrases: "lint these
+  acceptance criteria", "review the AC", "check if my criteria are testable", "validate
+  acceptance criteria", "strengthen the criteria on this epic". Use when criteria have
+  been drafted and need a quality pass before decomposition or review.
+---
+
 # Epic Acceptance Linter
 
 <!--
-  Shared content — referenced by harness-specific SKILL.md wrappers.
+  The skill itself. OpenCode reads it here; Claude Code loads it through the
+  generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
   version: 4.1.0, owner: John D
   doctrine: .agents/doctrine/acceptance-criteria-rules.md
