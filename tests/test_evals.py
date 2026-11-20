@@ -30,7 +30,7 @@ def run(kind: str, name: str) -> subprocess.CompletedProcess:
     )
 
 
-@pytest.mark.parametrize(("kind", "name"), [("epic", "epic"), ("story", "story")])
+@pytest.mark.parametrize(("kind", "name"), [("epic", "epic"), ("story", "story"), ("task", "task")])
 def test_golden_artifact_keeps_its_shape(kind, name):
     result = run(kind, name)
     assert result.returncode == 0, result.stderr
@@ -72,6 +72,19 @@ def test_story_declares_what_it_owns_and_does_not():
     assert files, "the story fixture needs a Files section"
     assert "Owns" in files.group(1)
     assert "Does not touch" in files.group(1)
+
+
+def test_every_task_has_a_verify_command():
+    text = (CASES / "task.md").read_text()
+    tasks = re.findall(r"^- \[ \] \*\*T\d+\*\*(.*)$", text, re.MULTILINE)
+    assert len(tasks) >= 2, "the task fixture needs a task list"
+    for task in tasks:
+        assert "verify:" in task, f"task without a verify command: {task}"
+
+
+def test_task_list_declares_ownership():
+    text = (CASES / "task.md").read_text()
+    assert "Owns" in text and "does not touch" in text
 
 
 @pytest.mark.parametrize(

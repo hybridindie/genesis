@@ -63,3 +63,8 @@ tests/evals/behaviour/<skill>/<case>.md
 
 Keep cases adversarial: thin input, contradictory input, input that pulls the
 skill outside its scope. A case that restates the happy path tests nothing.
+
+**Every skill must have at least one case** — `tests/test_eval_coverage.py`
+enumerates the skills from `.agents/skills/` and
+`templates/_shared/**/skills/` and fails when one has none, so coverage cannot
+regress as skills are added.
