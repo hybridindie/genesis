@@ -122,6 +122,18 @@ jobs:
       - name: Test the harness scripts
         run: python3 -m pytest -q tests
 
+  skill-evals:
+    name: Skill change report
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Which skills changed
+        run: python3 scripts/changed-skills.py --base "origin/${{ github.base_ref }}"
+
   templates:
     name: Harness / ${{ matrix.name }}
     runs-on: ubuntu-latest
