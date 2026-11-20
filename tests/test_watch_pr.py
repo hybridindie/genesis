@@ -22,6 +22,8 @@ def test_does_not_match_a_word_that_merely_contains_the_name():
 
 def test_any_bot_is_a_reviewer_except_reporters():
     assert watch.is_reviewer("some-new-reviewer[bot]", watch.KNOWN_REVIEWERS)
+    assert watch.is_reviewer("some-new-reviewer", watch.KNOWN_REVIEWERS)  # gh strips [bot]
+    assert watch.is_reviewer("acme-reviewer", watch.KNOWN_REVIEWERS)
     assert not watch.is_reviewer("dependabot[bot]", watch.KNOWN_REVIEWERS)
     assert not watch.is_reviewer("renovate[bot]", watch.KNOWN_REVIEWERS)
     assert not watch.is_reviewer("johnd", watch.KNOWN_REVIEWERS)
