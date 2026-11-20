@@ -72,3 +72,14 @@ def test_story_declares_what_it_owns_and_does_not():
     assert files, "the story fixture needs a Files section"
     assert "Owns" in files.group(1)
     assert "Does not touch" in files.group(1)
+
+
+@pytest.mark.parametrize(
+    "case", sorted((CASES / "behaviour").glob("*/*.md")), ids=lambda p: f"{p.parent.name}/{p.stem}"
+)
+def test_behavioural_case_is_well_formed(case):
+    text = case.read_text()
+    assert "## Input" in text, f"{case} has no Input section"
+    assert "## Expected properties" in text, f"{case} has no Expected properties section"
+    properties = text.split("## Expected properties", 1)[1]
+    assert len(re.findall(r"^- ", properties, re.MULTILINE)) >= 2, f"{case} needs checkable properties"
