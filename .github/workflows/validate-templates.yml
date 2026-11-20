@@ -110,6 +110,18 @@ jobs:
           fi
           exit "$fail"
 
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: pip install -q --user pytest pyyaml
+
+      - name: Test the harness scripts
+        run: python3 -m pytest -q tests
+
   templates:
     name: Harness / ${{ matrix.name }}
     runs-on: ubuntu-latest
