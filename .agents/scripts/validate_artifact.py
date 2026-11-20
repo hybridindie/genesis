@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Validate the deterministic shape of Epic, story, task and AC artifacts.
+"""Validate the prose shape of Epic and story bodies, and extract their ACs.
+
+The plan itself (stories, tracks, tasks, ownership, waves) lives in the
+`agent-plan` block and is checked by `.agents/scripts/plan.py validate`; this
+script only checks the human-facing sections and that the block is present.
 
 Usage:
   python3 .agents/scripts/validate_artifact.py --kind epic <file>
   python3 .agents/scripts/validate_artifact.py --kind story <file>
-  python3 .agents/scripts/validate_artifact.py --kind task <file>
   python3 .agents/scripts/validate_artifact.py --kind acceptance <file>
   ... --summary      print one line of counts and gaps; always exit 0
 
@@ -19,24 +22,23 @@ import sys
 from pathlib import Path
 
 AC = re.compile(r"^\s*[-*]\s*(?:\*\*)?(AC\d+)(?:\*\*)?[:\s]", re.MULTILINE)
-AC_BOX = re.compile(r"^\s*-\s*\[[ xX]\]\s*\*\*Given", re.MULTILINE)
+# A checkbox criterion: `- [ ] **Given** …`, optionally labelled `**AC1:**`,
+# with or without bold on Given.
+AC_BOX = re.compile(r"^\s*-\s*\[[ xX]\]\s*(?:\*\*(AC\d+):?\*\*:?\s*)?(?:\*\*)?Given\b", re.MULTILINE)
+PLAN_BLOCK = re.compile(r"^```ya?ml[ \t]+agent-plan[ \t]*$", re.MULTILINE)
 EPIC_LABELS = [
     "**Why**",
     "**Outcome**",
     "**Scope**",
     "**Acceptance criteria**",
-    "**Stories",
-    "**Parallelization map**",
     "**Constraints",
     "**Risks",
     "**Success measures**",
     "**Definition of done**",
 ]
 STORY_LABELS = [
+    "**Context**",
     "**Acceptance criteria**",
-    "**Parallelization**",
-    "**Files**",
-    "**Tasks**",
     "**Done when**",
 ]
 
@@ -51,22 +53,21 @@ def count_ac(text: str) -> int:
     return len(AC.findall(text)) + len(AC_BOX.findall(text))
 
 
+def plan_blocks(text: str) -> list[str]:
+    n = len(PLAN_BLOCK.findall(text))
+    if n == 0:
+        return ["no ```yaml agent-plan block"]
+    if n > 1:
+        return [f"{n} agent-plan blocks; keep exactly one"]
+    return []
+
+
 def check_epic(text: str) -> list[str]:
     errors = [f"missing {label}" for label in EPIC_LABELS if label not in text]
     acs = count_ac(text)
     if not 3 <= acs <= 8:
         errors.append(f"acceptance criteria count {acs} is outside 3–8")
-    story_rows = [
-        line for line in text.splitlines()
-        if re.match(r"^\|\s*(?:#\d+|#TBD)\b", line)
-    ]
-    if not story_rows:
-        errors.append("no story table rows")
-    if "Shared contract" not in text:
-        errors.append("parallelization map has no Shared contract")
-    if "Wave 1" not in text:
-        errors.append("parallelization map has no Wave 1")
-    return errors
+    return errors + plan_blocks(text)
 
 
 def check_story(text: str) -> list[str]:
@@ -75,28 +76,9 @@ def check_story(text: str) -> list[str]:
         errors.append("missing user-story frame (As a / What)")
     if "Part of #" not in text:
         errors.append("missing Part of #<epic>")
-    if "Estimate:" not in text or "Wave:" not in text:
-        errors.append("missing Estimate/Wave metadata")
     if count_ac(text) < 1:
         errors.append("no acceptance criteria")
-    if "owns" not in text.lower():
-        errors.append("no ownership scope")
-    return errors
-
-
-def check_task(text: str) -> list[str]:
-    errors = []
-    for heading in ("### Parallelization", "### Tasks", "### Dispatch notes"):
-        if heading not in text:
-            errors.append(f"missing {heading}")
-    tasks = re.findall(r"^\s*-\s*\[[ xX]\]\s*\*\*T\d+", text, re.MULTILINE)
-    if not tasks:
-        errors.append("no T-numbered task checklist")
-    if "verify" not in text.lower():
-        errors.append("no verify step")
-    if "owns" not in text.lower():
-        errors.append("no ownership")
-    return errors
+    return errors + plan_blocks(text)
 
 
 def extract_acceptance(text: str) -> list[tuple[str, str]]:
@@ -108,7 +90,7 @@ def extract_acceptance(text: str) -> list[tuple[str, str]]:
         match = re.match(r"^\s*[-*]\s*(?:\*\*)?(AC\d+)(?:\*\*)?[:\s-]+(.*)$", line)
         if match:
             found.append((match.group(1), match.group(2).lstrip("*: -").strip()))
-        elif AC_BOX.match(line):
+        elif box := AC_BOX.match(line):
             boxes += 1
             parts = [re.sub(r"^\s*-\s*\[[ xX]\]\s*", "", line)]
             indent = len(line) - len(line.lstrip())
@@ -118,13 +100,14 @@ def extract_acceptance(text: str) -> list[tuple[str, str]]:
                         or re.match(r"^\s*[-*]\s", nxt):
                     break
                 parts.append(nxt.strip())
-            found.append((f"AC{boxes}", " ".join(parts).replace("**", "").strip()))
+            body = re.sub(r"^(?:AC\d+:?\s*)", "", " ".join(parts).replace("**", "").strip())
+            found.append((box.group(1) or f"AC{boxes}", body))
     return found
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--kind", choices=("epic", "story", "task", "acceptance"), required=True)
+    parser.add_argument("--kind", choices=("epic", "story", "acceptance"), required=True)
     parser.add_argument("--summary", action="store_true")
     parser.add_argument("path", help="artifact path, or - for stdin")
     args = parser.parse_args()
@@ -148,12 +131,9 @@ def main() -> int:
     if args.kind == "epic":
         errors = check_epic(text)
         summary = f"ACs={count_ac(text)}"
-    elif args.kind == "story":
+    else:
         errors = check_story(text)
         summary = f"ACs={count_ac(text)}"
-    else:
-        errors = check_task(text)
-        summary = f"tasks={len(re.findall(r'^\s*-\s*\[[ xX]\]\s*\*\*T\d+', text, re.MULTILINE))}"
 
     if args.summary:
         gaps = "; ".join(errors) if errors else "none"

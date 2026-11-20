@@ -1,12 +1,14 @@
 ---
 name: epic-composer
 description: >
-  Draft an Epic issue from source material — one outcome, 3–8 observable acceptance
-  criteria, explicit scope, and a parallel story map with waves, a shared contract, and
-  file ownership. Trigger phrases: "compose an epic", "draft an epic", "scope new work",
-  "write an epic from these notes", "turn these transcripts into requirements", "create
-  an epic from this meeting". Use when the user brings a problem statement, transcripts,
-  documents or notes and wants a reviewable Epic issue they can decompose.
+  Draft an Epic issue from source material that both people and AI agents can work from:
+  one outcome, 3–8 observable acceptance criteria, explicit scope, and a validated
+  agent-plan block listing stories with file ownership, dependencies and verify
+  commands, from which parallel waves are computed. Trigger phrases: "compose an epic",
+  "draft an epic", "scope new work", "plan this feature for agents", "turn these notes
+  into an epic", "write an epic from this meeting". Use whenever the user brings a
+  problem statement, transcripts, documents or notes and wants work scoped so it can be
+  split across parallel agents or teams, even if they do not say "epic".
 ---
 
 # Epic Composer
@@ -15,25 +17,35 @@ description: >
   The skill itself. OpenCode reads it here; Claude Code loads it through the
   generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 5.1.0, owner: John D
+  version: 6.0.0, owner: John D
   invokes: .agents/skills/epic-interview/SKILL.md,
            .agents/skills/epic-acceptance-linter/SKILL.md,
            .agents/templates/epic/epic-shell.md,
+           .agents/scripts/plan.py,
+           .agents/scripts/tracker.py,
            .agents/evals/epic-rubric.md
   doctrine: .agents/doctrine/source-discipline.md,
             .agents/doctrine/acceptance-criteria-rules.md,
-            .agents/doctrine/context-discovery.md
+            .agents/doctrine/context-discovery.md,
+            .agents/doctrine/agent-plan-schema.md,
+            .agents/doctrine/parallelization-doctrine.md
 -->
 
-Shape one Epic from named source material into a GitHub issue body. The model
-synthesizes and plans; the shape, order, and checks are fixed.
+Shape one Epic from named source material into an issue body that people can
+review and agents can execute. The prose says why and what; the `agent-plan`
+block says which stories exist, what each owns, what it depends on and how it
+proves itself — that block is what `story-decomposer` and `wave-dispatcher`
+read, so it has to be right, not just plausible.
 
 ## Inputs
 
 - Required: the source paths, transcript, note, or problem statement named by the
   caller.
-- Read: `.agents/templates/epic/epic-shell.md` and the three doctrine files above.
-- Optional: the existing Epic or issue body when refining.
+- Read: `.agents/templates/epic/epic-shell.md`, `agent-plan-schema.md`, and the
+  other doctrine files above.
+- In a codebase: the top-level layout (`git ls-files | head -200` or the
+  directories the sources name) so `owns` paths are real, not guessed.
+- Optional: the existing Epic issue (`tracker.py get <ref>`) when refining.
 - Do not read: unrelated repositories, whole directory trees, or generated
   harness output.
 
@@ -43,59 +55,82 @@ synthesizes and plans; the shape, order, and checks are fixed.
 2. **Extract facts.** For each source, record only: problem, actors, desired
    outcome, constraints, prior decisions, and unknowns. Label each as stated,
    inferred, or unknown per `source-discipline.md`.
-3. **Draft the outcome and scope.** Use the exact headings in `epic-shell.md`.
+3. **Discover context** per `context-discovery.md`: greenfield or brownfield,
+   the modules the work touches, and the test/verify commands the repo uses
+   (from its `AGENTS.md`, `Makefile`, `package.json`, `pyproject.toml`).
+4. **Draft the outcome and scope.** Use the exact headings in `epic-shell.md`.
    Keep one outcome; list explicit exclusions.
-4. **Draft 3–8 acceptance criteria.** Use the form `When …, then …, so that …`.
-   If the count exceeds 8, split the Epic instead of shrinking the criteria.
-5. **Build the story map.** Assign every story a size (S/M/L), priority (P0–P2),
-   wave, dependency, and ownership scope. Default to parallel; name the real
-   dependency for every later wave.
-6. **Define the shared contract.** If parallel tracks share an interface, type,
-   schema, or file format, name it and its owner. Otherwise write `none`.
-7. **Gap gate.** If a gap changes scope, actors, or acceptance, run
+5. **Draft 3–8 acceptance criteria.** Use the form `When …, then …, so that …`,
+   labelled AC1…ACn. If the count exceeds 8, split the Epic instead.
+6. **Slice the stories for parallel agents.** Each story is a vertical slice one
+   agent could finish and verify alone. For each, decide in the plan block:
+   `acs` (or `constraint`), `size`, `priority`, `owns`, `depends_on`, `verify`.
+   - Make `owns` as narrow as the work allows: stories that can run together
+     must own disjoint paths. Two stories that would both edit a file either
+     share a contract story they both depend on, or are sequenced.
+   - Add `depends_on` only for a real output dependency, and name it in the
+     prose. Waves are computed from it — do not write wave numbers.
+   - `verify` is the exact command this repo uses (step 3), scoped to the story.
+7. **Name shared contracts.** When parallel stories share an interface, type,
+   schema, or file format, add a `contracts` entry owned by one story and make
+   the consumers depend on that story. Otherwise `contracts: []`.
+8. **Gap gate.** If a gap changes scope, actors, ownership or acceptance, run
    `.agents/skills/epic-interview/SKILL.md` and ask only its blockers. If the criteria
    need review, run `.agents/skills/epic-acceptance-linter/SKILL.md`.
-8. **Validate the shape.** Write the draft to a temporary file and run:
+9. **Validate and render.** Write the body to a file, then:
    ```bash
-   draft="$(mktemp)"
-   # write the Epic body to "$draft"
-   python3 .agents/scripts/validate_artifact.py --kind epic "$draft"
+   python3 .agents/scripts/plan.py validate "$epic"
+   python3 .agents/scripts/plan.py sync "$epic"      # writes the story table + map
+   python3 .agents/scripts/validate_artifact.py --kind epic "$epic"
+   python3 .agents/scripts/plan.py waves "$epic"
    ```
-   Stop on `FAIL`; fix the shape, not the validator.
-9. **Quality pass.** When the caller asks for a strict review, or the Epic is
-   about to be decomposed, apply `.agents/evals/epic-rubric.md` and append its
-   report. It advises; it never blocks the output.
+   Fix the plan on `FAIL` (overlapping `owns` between parallel stories means
+   re-slice or add a dependency), never the validator.
+10. **Quality pass.** When the caller asks for a strict review, or the Epic is
+    about to be decomposed, apply `.agents/evals/epic-rubric.md` and append its
+    report. It advises; it never blocks the output.
+11. **Publish when asked.** `tracker.py create --title "Epic: <outcome>"
+    --body-file "$epic"`, then set `epic:` in the block to the returned number
+    and `tracker.py put` the re-synced body. Without a request, return the body.
 
 ## LLM Judgment
 
 Use judgment only for:
 
 - synthesizing the problem and outcome from conflicting source material;
-- choosing the smallest coherent vertical slices;
-- sizing and wave assignment when dependencies are ambiguous;
+- choosing the smallest coherent vertical slices and their ownership boundaries;
+- sizing and dependency calls when the sources are ambiguous;
 - deciding whether a gap is a blocker or a deferrable.
 
-Do not invent facts, metrics, approvals, or acceptance criteria. Mark inferred
-content and unknowns.
+Do not invent facts, metrics, approvals, acceptance criteria, or paths. Mark
+inferred content and unknowns; a path you could not confirm gets `(new)` in the
+prose and a note in Risks.
 
 ## Output
 
-One Epic issue body using `.agents/templates/epic/epic-shell.md`, with the
-stable title `Epic: <outcome>`. Include the story table and parallelization map
-even when the stories do not have issue numbers yet (`#TBD`). When step 9 ran,
-add the rubric report (Strong / Gaps / optional verdict) after the body.
+One Epic issue body from `epic-shell.md`, titled `Epic: <outcome>`, containing:
+
+- the prose sections;
+- the generated story table and parallelization map (from `plan.py sync`);
+- exactly one `agent-plan` block that passes `plan.py validate`.
+
+Then one line per computed wave (`plan.py waves`) so the caller sees what can
+start immediately. When step 10 ran, add the rubric report after the body.
 
 ## Stop Conditions
 
 - Stop and ask if the source has no identifiable problem or outcome.
 - Stop and ask if two sources contradict each other on scope or acceptance.
 - Stop and split if the work has two unrelated outcomes or more than 8 ACs.
-- Do not decompose into tasks; that belongs to the story's task breakdown.
+- Stop if `plan.py validate` still fails after one re-slice; report the conflict.
+- Do not write story bodies or tasks; that is `story-decomposer` and
+  `task-decomposer`.
 
 ## Token Budget
 
-- Default: read the named sources, `epic-shell.md`, and the three doctrine files.
-- Do not enumerate the repository or load unrelated rules.
-- Target ≤ 1,200 words in the Epic body. If it is longer, split the Epic or
-  state why the extra length is needed; do not pad.
-- Reuse the template headings; do not restate them in prose.
+- Default: read the named sources, `epic-shell.md`, the doctrine files, and the
+  repo layout needed for real `owns` paths.
+- Do not enumerate the repository beyond the modules the work touches.
+- Target ≤ 1,200 words of prose. If it is longer, split the Epic or state why;
+  the plan block and generated tables do not count toward it.
+- Reuse the template headings; do not restate the plan in prose.

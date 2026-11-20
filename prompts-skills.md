@@ -6,7 +6,7 @@ documented in `README.md` and [`docs/agents-sections/`](docs/agents-sections/).
 
 - Architecture, golden rule and file tree:
   [`architecture.md`](docs/agents-sections/architecture.md)
-- Skills, templates, doctrine and wrappers:
+- Skills, templates, doctrine and harness layout:
   [`skills-and-references.md`](docs/agents-sections/skills-and-references.md)
 - The epic → story → task pipeline and its outputs:
   [`workflow.md`](docs/agents-sections/workflow.md)
@@ -26,11 +26,10 @@ Every skill can be invoked **two ways**:
 
 - **Directly:** each skill has a `commands` entry in `.opencode/opencode.json`
   (OpenCode skills are model-invoked only, so the commands are the slash path).
-- **Automatically:** skills in `.opencode/skills/<name>/SKILL.md` are discovered
-  by their `name`/`description`.
-- Config: `.opencode/opencode.json` sets `skills` → `.opencode/skills` and
-  `instructions` → `AGENTS.md`. Frontmatter is `name`/`description` only, and
-  `name` must match the directory. Restart OpenCode after changing config.
+- **Automatically:** OpenCode discovers `.agents/skills/<name>/SKILL.md` on its
+  own (no config) and picks a skill by its `description`.
+- Config: `.opencode/opencode.json` sets `instructions` → `AGENTS.md` and the
+  `commands`. Restart OpenCode after changing config.
 - Docs: [OpenCode Skills](https://opencode.ai/docs/skills)
 
 ### Claude Code
@@ -39,8 +38,8 @@ Every skill can be invoked **two ways**:
 - **Automatically:** Claude loads a skill when your request matches its
   `description`/`when_to_use` — no command needed.
 - Config: `.claude/CLAUDE.md` imports `AGENTS.md` (everything else loads on
-  demand); skills auto-discover from `.claude/skills/` with no enable flag.
-  Frontmatter is `name`, `description`, `when_to_use`.
+  demand). Claude Code reads `.claude/skills/`, where each skill is a generated
+  pointer to its `.agents/skills/` file.
 - Docs: [Claude Code Skills](https://code.claude.com/docs/en/skills)
 
 ## Example workflows

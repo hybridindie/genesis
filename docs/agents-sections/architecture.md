@@ -2,36 +2,46 @@
 
 On-demand section — read when understanding the skill/harness architecture.
 
-Shared content lives in `.agents/` as plain markdown — no frontmatter, no
-harness-specific fields. Each harness has its own thin wrapper files with
-only the frontmatter that harness recognizes. The wrappers reference the
-shared content by path.
+Every primitive both harnesses can share lives once, in `.agents/`. Each skill
+is a real skill folder — frontmatter, body, and any scripts or references —
+at `.agents/skills/<name>/SKILL.md`. OpenCode discovers `.agents/skills/`
+natively. Claude Code only reads `.claude/skills/`, so each skill gets a
+generated pointer there (`scripts/sync-skill-wrappers.py`; CI fails if one is
+stale). Nothing is written twice.
 
 ```
-.agents/   Shared content — skills, doctrine, templates, evals   (EDIT HERE)
-   │  ├── skills/     epic-* skills + bootstrap-harness (the harness install/tailor flow)
-   │  ├── doctrine/   shared rules referenced by multiple skills and rubrics
-   │  │               (acceptance-criteria, parallelization, AI-readable specs,
-   │  │                source discipline, review checkpoint, context discovery)
-   │  ├── templates/  epic/story/traceability shells
-   │  └── evals/      readiness rubrics
-   │
-   │  wrapped by thin, frontmatter-only pointers per harness:
-   ├── Opencode        .opencode/skills/<name>/SKILL.md   + opencode.json commands
-   └── Claude Code     .claude/skills/<name>/SKILL.md     (skills double as /commands)
-                       .claude/agents/<name>.md           (agents point at the same bodies)
-                       .opencode/agents/<name>.md         (generated mirror of .claude/agents)
+.agents/   Shared primitives                               (EDIT HERE)
+   ├── skills/<name>/SKILL.md   the skills (epic-*, story/task decomposers,
+   │                            wave-dispatcher, bootstrap-harness)
+   ├── doctrine/                shared rules referenced by several skills
+   ├── templates/               epic/story/traceability shells
+   ├── evals/                   rubrics, plus test cases for the skills
+   └── scripts/                 plan.py, tracker.py, validate_artifact.py
+
+.claude/skills/<name>/SKILL.md  generated pointers → .agents/skills/<name>/SKILL.md
+.claude/agents/<name>.md        agents (Claude format)
+.opencode/agents/<name>.md      generated mirror of .claude/agents (OpenCode has
+                                no compatibility path for agents)
+.opencode/opencode.json         `commands` give the skills a slash path in OpenCode
+.opencode/plugins/*.ts          call the matching .claude/hooks/*.sh, never reimplement
 ```
 
-Both the epic-scoping skills **and** the genesis meta-flow follow this rule.
-`bootstrap-harness` is the single canonical body for installing/tailoring a
-harness; the `install-harness` agent is just another
-thin entry point pointing at that same file. Only genesis template *output*
-(the rendered `.claude/rules/` and `.opencode/` files) is exempt — that is
-deduped by `templates/_shared/`, not `.agents/`.
+| Primitive | One copy at | Claude Code | OpenCode |
+|---|---|---|---|
+| Skills | `.agents/skills/` | generated pointer in `.claude/skills/` | reads `.agents/skills/` |
+| Instructions | `AGENTS.md` | `CLAUDE.md` imports it | reads it |
+| Agents | `.claude/agents/` | reads it | generated mirror |
+| Hooks | `.claude/hooks/*.sh` | runs it | plugin shells out to it |
 
-**Golden rule:** Edit content in `.agents/`. Edit frontmatter in the harness
-wrappers. Never duplicate content into a wrapper.
+Rendered projects use the same layout: `bootstrap.sh` writes skills to
+`.agents/skills/` and a pointer to `.claude/skills/`. The user-level install is
+the one place copies are allowed: `system/install.sh` puts the shared files in
+`~/.agents/` and a full copy of each skill into every installed harness's own
+skills folder (`~/.claude/skills/`, `~/.config/opencode/skills/`), only for
+harnesses that are present.
+
+**Golden rule:** Edit content in `.agents/`. Never hand-edit a generated pointer
+or mirror; regenerate it.
 
 **Doctrine layer:** `.agents/doctrine/` holds rules shared across multiple
 skills and rubrics (acceptance-criteria linting, parallelization, AI-readable

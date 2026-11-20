@@ -27,6 +27,8 @@ sessions — open it on demand when editing.
 - **Add a stack or pack rule**: add `.md` under `templates/_shared/stacks/<id>/articles/` or `packs/<id>/articles/`. Rule paths must be unique across core, stacks and packs (a collision fails the render). A new stack also needs an entry in `STACKS` in `render.py`, a marker in `check-project-drift.py`, and detection in `inspect-project.py`.
 - **Canonical context**: edit `templates/_shared/AGENTS.md`. Keep `templates/claude-code/CLAUDE.md` thin (`@AGENTS.md` + Claude-only notes); never copy the project context into it.
 - **Add a new agent**: add `.md` to `templates/_shared/agents/` (every project) or `stacks/<id>/agents/`. The OpenCode mirror is generated.
+- **Add an epic-pipeline skill**: create `.agents/skills/<name>/SKILL.md` (frontmatter with `name` and a `description` that includes the trigger phrases, then the body; scripts beside it), run `python3 scripts/sync-skill-wrappers.py` to generate the `.claude/skills` pointer, and add the name to `SKILLS` in `system/agents/stage_skills.py` if it should install user-wide. Never add an `.opencode/skills` copy — OpenCode reads `.agents/skills/`.
+- **Add a shipped skill**: add `templates/_shared/skills/<name>/` (or under a stack/pack). It renders once, to `.agents/skills/<name>/`, plus a generated `.claude/skills` pointer; its scripts are called as `.agents/skills/<name>/scripts/...`.
 - **Add a new command**: add `.md` to `templates/_shared/commands/` or `stacks/<id>/commands/` / `packs/<id>/commands/`. The mirror and the AGENTS.md command list are generated.
 - **Add shared doctrine** (rare — prefer one canonical rule file that others link to): add `.md` to `templates/_shared/doctrine/` and a `doctrine_entries` entry in `mirror-pairs.json`.
 - **Skills are deterministic**: every body uses the six sections in `templates/_shared/doctrine/skill-execution.md` — Inputs, Deterministic Steps, LLM Judgment, Output, Stop Conditions, Token Budget. Run `python3 scripts/lint-skills.py` before committing; CI runs it too.
@@ -60,7 +62,8 @@ The hooks matter only when **editing** this repo — they don't affect using
 the skills. Each harness ships a non-blocking "pointer-edit" guardrail that
 fires a reminder (warns, never blocks) when you edit:
 
-- a thin wrapper in `.claude/` or `.opencode/` instead of the canonical
+- a generated `.claude/skills` pointer (edit `.agents/skills/` and regenerate),
+  or another `.claude/`/`.opencode/` pointer, instead of the canonical
   `.agents/` content;
 - a harness-specific template in `templates/claude-code/` or
   `templates/opencode/` that may belong in `templates/_shared/`;
@@ -70,7 +73,7 @@ fires a reminder (warns, never blocks) when you edit:
 
 | Harness | File | Event | Output |
 |---|---|---|---|
-| OpenCode | `.opencode/plugins/warn-pointer-edit.ts` | `execute.before` on `edit`/`write` | `console.warn` |
+| OpenCode | `.opencode/plugins/warn-pointer-edit.ts` — runs the shell hook below, so the rules exist once | `execute.before` on `edit`/`write` | `console.warn` |
 | Claude Code | `.claude/hooks/warn-pointer-edit.sh` | `PreToolUse` (Edit\|Write) | `additionalContext` reminder |
 
 Claude Code also runs an `InstructionsLoaded` hook that logs which instruction

@@ -1,12 +1,12 @@
 ---
 name: task-decomposer
 description: >
-  Break a story into a checklist of PR-sized tasks grouped as a shared contract,
-  parallel tracks with file ownership, and an integration step — ready to hand to
-  subagents or teams. Trigger phrases: "break down this story into tasks", "decompose
-  this story", "what tasks does this story need", "split this story into tasks",
-  "parallelize this story". Use when a story is drafted and needs a task checklist that
-  can be delegated without collisions.
+  Break a story's tracks into PR-sized, ordered tasks inside its agent-plan block — each
+  naming the files, the AC it serves and an exact verify command — so a subagent can
+  execute its track without asking questions. Trigger phrases: "break down this story
+  into tasks", "decompose this story", "what tasks does this story need", "make this
+  story executable by an agent". Use when a story has tracks and needs a step-by-step
+  task list before dispatch.
 ---
 
 # Task Decomposer
@@ -15,84 +15,87 @@ description: >
   The skill itself. OpenCode reads it here; Claude Code loads it through the
   generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 3.1.0, owner: John D
-  invokes: .agents/templates/epic/task-breakdown-shell.md,
+  version: 4.0.0, owner: John D
+  invokes: .agents/scripts/plan.py,
+           .agents/scripts/tracker.py,
            .agents/evals/story-rubric.md
-  doctrine: .agents/doctrine/parallelization-doctrine.md,
+  doctrine: .agents/doctrine/agent-plan-schema.md,
+            .agents/doctrine/parallelization-doctrine.md,
             .agents/doctrine/ai-readable-spec-rules.md,
             .agents/doctrine/context-discovery.md
 -->
 
-Break one drafted story into a PR-sized task checklist for parallel dispatch.
-The checklist lives inside the story issue, not in separate task issues.
+Break one story's tracks into PR-sized tasks that a subagent can execute in
+order without asking questions. Tasks live in the story's `agent-plan` block
+(`tasks:`), not in separate issues; the dispatcher puts a track's tasks into
+that track's subagent brief.
 
 ## Inputs
 
-- Required: the story body, including acceptance criteria and files.
-- Read: `.agents/templates/epic/task-breakdown-shell.md` and the three doctrine
-  files above.
-- Optional: the named source files, only when a task needs a real path or API.
+- Required: the story body with a valid `agent-plan` block (a file, or
+  `tracker.py get <ref> -o story.md`).
+- Read: the doctrine files above and the files each track owns.
 - Do not read: unrelated modules or the whole repository.
 
 ## Deterministic Steps
 
-1. **Gate the input.** If the story has no acceptance criteria, stop and ask for
-   them. If the story is larger than L, return it to the story decomposer.
-2. **List the ACs and owned paths.** Keep the story's labels and ownership.
-3. **Define the shared contract.** Name the interface/type/schema/file format,
-   its owner, and a verification command. Skip it when there is no shared surface.
-4. **Plan tracks.** Each track is one subagent/team, owns a disjoint path set, and
-   depends only on the contract. Put dependent tasks in the same track.
-5. **Write tasks.** Each task is one PR-sized unit (≈100 lines, ≤3 files) and
-   names: verb, file/component, `(new)` if applicable, depends, verify command,
-   and AC.
-6. **Add integration.** One final task merges the tracks and runs the story-level
-   end-to-end check.
-7. **Validate the block.** Write the block to a temporary file and run:
+1. **Gate the input.** Run `plan.py validate story.md`. If it fails, the story
+   has no ACs, or it is larger than L, return it to `story-decomposer`.
+2. **Keep the tracks.** Track ids, `owns`, `depends_on` and `verify` stay as
+   planned. If a track must split or merge, change `tracks` first and
+   re-validate; a dispatched track (`status` not `todo`) never changes.
+3. **Write tasks per track,** in execution order. Each task is one PR-sized
+   step (≈100 lines, ≤3 files) with:
+   - `do` — verb + specific change, naming the file/function/endpoint per
+     `ai-readable-spec-rules.md`, `(new)` for things that don't exist yet;
+   - `files` — inside the track's `owns` (validation enforces it);
+   - `depends_on` — earlier task ids it needs;
+   - `verify` — the narrowest exact command that proves this task;
+   - `acs` — the story ACs it serves.
+   Put a test with the code it tests, in the same track.
+4. **Cover every AC.** Each story AC has at least one task; each task serves an
+   AC or is a stated prerequisite of one.
+5. **Validate and render.**
    ```bash
-   python3 .agents/scripts/validate_artifact.py --kind task "$task_file"
+   python3 .agents/scripts/plan.py validate story.md
+   python3 .agents/scripts/plan.py sync story.md
+   python3 .agents/scripts/plan.py brief story.md --track <id>   # spot-check one
    ```
-   Confirm every task has a verify step, every track has a disjoint ownership set,
-   and every task traces to an AC or a prerequisite. Stop on `FAIL`.
-8. **Quality pass.** When the caller asks for a strict review, or the tracks are
+   Read one brief as if you were the subagent: if it could not start without
+   asking something, add that to `context` or the task. Fix the plan on `FAIL`.
+6. **Quality pass.** When the caller asks for a strict review, or the tracks are
    about to be dispatched, apply the parallel-plan table of
-   `.agents/evals/story-rubric.md` to the block. It advises; it never blocks.
-9. **Emit the block.** Append the shell output under the story's `**Tasks**`
-   section. Do not create task issues.
+   `.agents/evals/story-rubric.md`. It advises; it never blocks.
+7. **Publish when asked.** `tracker.py put <story-ref> story.md`.
 
 ## LLM Judgment
 
 Use judgment only for:
 
-- task granularity and file boundaries;
-- the contract's shape when the story leaves it implicit;
-- which tasks truly depend on each other.
+- task granularity and order inside a track;
+- naming the concrete change and its narrowest verify command;
+- what context a cold subagent is missing.
 
-Do not invent APIs, files, or acceptance criteria.
+Do not invent APIs, files, commands, or acceptance criteria.
 
 ## Output
 
-One task block using `.agents/templates/epic/task-breakdown-shell.md`:
+The story body with `tasks:` filled in its plan block and the generated task
+checklist synced, plus one line per track: `<track> — N tasks — <verify>`.
 
-- `### Parallelization` — contract, tracks, ownership table, integration;
-- `### Tasks` — contract, per-track checklist, integration;
-- `### Dispatch notes` — one track per subagent, paths owned, verify command,
-  merge order.
-
-A single sequential list is valid for an S-sized story; state why parallelizing
-would add overhead. When step 8 ran, add the rubric findings after the block.
+A track with one obvious change may have a single task; an S-sized story with
+one track is valid — say why parallelizing would add overhead.
 
 ## Stop Conditions
 
-- Stop if the story has no ACs, no owned paths, or is larger than L.
-- Stop if two tracks need the same path; split or sequence them.
+- Stop if the story plan does not validate, has no ACs, or is larger than L.
+- Stop if a task needs a file outside its track's `owns`; move the file to the
+  right track or report the ownership gap.
 - Stop if a task cannot name a verify command.
 
 ## Token Budget
 
-- Default: read the story, the task shell, and the doctrine files; open only
-  named files. Read an additional file when a task would otherwise invent a
-  path or API, and say why.
-- Target ≤ 600 words for the task block; do not repeat the story. Exceed only
-  for a real dependency or contract detail.
-- One checklist per story; no separate task issues.
+- Default: read the story, the doctrine files, and the files the tracks own.
+  Read one more file when a task would otherwise invent a path or API, and say
+  why.
+- Target ≤ 600 words of tasks per story; do not repeat the story.

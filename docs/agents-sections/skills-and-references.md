@@ -1,4 +1,4 @@
-# Epic Scoping Skills — Skills, Templates, Doctrine, Wrappers
+# Epic Scoping Skills — Skills, Templates, Doctrine, Harness Layout
 
 On-demand section — read when invoking a skill or checking its references.
 
@@ -44,12 +44,15 @@ zones) is `templates/_shared/doctrine/skill-execution.md` — see
 When a rule is shared by two or more skills, it belongs in `doctrine/`. Edit
 there once; all references inherit.
 
-## Harness-specific wrappers
+## Harness layout
 
-| Harness | Skill location | Commands | Hooks | Frontmatter fields |
+| Harness | Skill location | Commands | Hooks | Frontmatter it reads |
 |---|---|---|---|---|
-| OpenCode | `.opencode/skills/<name>/SKILL.md` | `commands` entries in `.opencode/opencode.json` (the epic skills, `bootstrap-harness` and `harness-eval`) | `.opencode/plugins/*.ts` | `name`, `description` |
-| Claude Code | `.claude/skills/<name>/SKILL.md` | skills double as slash commands of the same name (accept `$ARGUMENTS`) | `.claude/hooks/*.sh` | `name`, `description`, `when_to_use` |
+| OpenCode | `.agents/skills/<name>/SKILL.md` (native) | `commands` entries in `.opencode/opencode.json` (OpenCode skills have no slash path of their own) | `.opencode/plugins/*.ts`, which run the `.claude/hooks/*.sh` scripts | `name`, `description`, `disable-model-invocation` |
+| Claude Code | `.claude/skills/<name>/SKILL.md` — a generated pointer to the `.agents/` skill | skills double as slash commands of the same name (accept `$ARGUMENTS`) | `.claude/hooks/*.sh` | all Claude skill fields |
+
+Put trigger phrases in `description`, not only `when_to_use`: OpenCode ignores
+`when_to_use`.
 
 Stack-only assets: `/migration-check`, `create-migration` and
 `gen-contract-test` ship with the `fastapi` stack; `e2e-assertion-audit` with

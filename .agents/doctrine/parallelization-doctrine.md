@@ -1,7 +1,7 @@
 <!--
   parallelization-doctrine.md — Shared parallel-first doctrine
-  Referenced by: story-decomposer, task-decomposer
-  version: 2.0.0, owner: John D
+  Referenced by: epic-composer, story-decomposer, task-decomposer, wave-dispatcher
+  version: 2.1.0, owner: John D
   Single source of truth for the contract → tracks → integration pattern and the
   metadata that makes work dispatchable to subagents and teams.
 -->
@@ -26,6 +26,10 @@ that a lead can dispatch a wave and know it will not collide.
 
 Two units may run in parallel only when their `owns` sets are disjoint and
 neither needs the other's output.
+
+These fields live in each issue's `agent-plan` block
+(`.agents/doctrine/agent-plan-schema.md`); `plan.py validate` enforces the rule
+above, and waves are computed from `depends_on` rather than written down.
 
 ## The pattern
 
@@ -54,6 +58,10 @@ A track is dispatchable when a subagent or team can start from the story alone:
 
 Give each subagent one track. Do not let two tracks edit the same file; if they
 must, stop and either split the file's scope or sequence the tracks.
+
+`wave-dispatcher` does this mechanically: one worktree and one subagent per
+runnable track, a scope check on the diff, the track's verify, then a merge
+into the story branch in `integration.merge_order`.
 
 ## When not to parallelize
 
