@@ -27,12 +27,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # A repo-level marker says an automated reviewer is configured, but not which
-# one: brix's OpenCodeReview App has been swapped in for PR-Agent cluster-side
-# while `.pr_agent.toml` files stayed behind, so the marker only decides whether
-# to wait. The logins below are the union of reviewer names seen in practice —
-# a GitHub App posts as `<slug>[bot]`, and on Gitea the token's own user authors
-# the comments. Set SHIP_PR_BOTS to name a reviewer outright, or `none` to never
-# wait for one.
+# one: the reviewer can be swapped out cluster-side while `.pr_agent.toml`
+# files stay behind, so the marker only decides whether to wait. The logins
+# below are the union of reviewer names seen in practice — a GitHub App posts
+# as `<slug>[bot]`, and on Gitea the token's own user authors the comments.
+# Set SHIP_PR_BOTS to name a reviewer outright, or `none` to never wait for one.
 REVIEW_MARKERS = (".opencodereview/rule.json", ".pr_agent.toml")
 KNOWN_REVIEWERS = (
     "open-code-review", "opencodereview", "ocr", "jds-code-reviewer",
