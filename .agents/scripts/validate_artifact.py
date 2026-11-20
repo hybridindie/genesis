@@ -49,7 +49,17 @@ def read(path: str) -> str:
     return Path(path).read_text(encoding="utf-8")
 
 
+PLAN_FENCE = re.compile(r"^```ya?ml[ \t]+agent-plan[ \t]*\n.*?^```[ \t]*$", re.MULTILINE | re.DOTALL)
+
+
+def prose(text: str) -> str:
+    """The body without its agent-plan block: list items such as `- AC1` inside
+    the YAML are plan data, not criteria."""
+    return PLAN_FENCE.sub("", text.replace("\r\n", "\n"))
+
+
 def count_ac(text: str) -> int:
+    text = prose(text)
     return len(AC.findall(text)) + len(AC_BOX.findall(text))
 
 
@@ -84,6 +94,7 @@ def check_story(text: str) -> list[str]:
 def extract_acceptance(text: str) -> list[tuple[str, str]]:
     """AC-labelled lines (epics) and Given/When/Then checkboxes (stories)."""
     found: list[tuple[str, str]] = []
+    text = prose(text)
     boxes = 0
     lines = text.splitlines()
     for i, line in enumerate(lines):

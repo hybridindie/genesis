@@ -37,3 +37,10 @@ def test_accepts_wrapped_given_when_then():
 ])
 def test_rejects_checklist_lines_that_are_not_criteria(line):
     assert va.extract_acceptance(line + "\n") == []
+
+
+def test_ignores_ac_labels_inside_the_plan_block():
+    text = ("- **AC1:** When x, then y.\n- **AC2:** When x, then y.\n- **AC3:** When x, then y.\n\n"
+            "```yaml agent-plan\nacs:\n- AC1\n- AC2\n- AC3\nstories:\n- acs:\n  - AC1\n```\n")
+    assert va.count_ac(text) == 3
+    assert [label for label, _ in va.extract_acceptance(text)] == ["AC1", "AC2", "AC3"]
