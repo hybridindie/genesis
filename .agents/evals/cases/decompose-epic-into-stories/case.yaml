@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: decompose-epic-into-stories
+expected_outcome: |
+  One standalone story file per Epic story (S1–S6), each with context a cold subagent can act on and an agent-plan block that validates together with epic.md.
+context:
+  scaffold_script: place-files.sh

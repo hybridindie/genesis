@@ -130,7 +130,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install dependencies
-        run: pip install -q --user pyyaml
+        run: pip install -q --user pyyaml pytest
 
       - name: Validate tracked JSON, YAML, shell and Python
         run: |
@@ -151,6 +151,7 @@ jobs:
           git ls-files 'templates/_shared/**/*.py' '.agents/scripts/*.py' \
             | xargs -r python3 -m py_compile || fail=1
           python3 scripts/lint-skills.py || fail=1
+          python3 -m pytest -q .agents/scripts/tests || fail=1
           exit "$fail"
 
       - name: Render ${{ matrix.name }}

@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: small-story-stays-single-track
+expected_outcome: |
+  One story file for S1 with a single track (no contract track, no artificial split), tasks that touch only service.py and its test, and a plan that validates.
+context:
+  scaffold_script: place-files.sh

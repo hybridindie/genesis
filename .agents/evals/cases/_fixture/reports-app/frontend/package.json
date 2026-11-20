@@ -1,0 +1,7 @@
+{
+  "name": "reports-frontend",
+  "private": true,
+  "scripts": { "dev": "vite", "test": "vitest", "lint": "eslint src" },
+  "dependencies": { "react": "^18.3.1", "react-dom": "^18.3.1" },
+  "devDependencies": { "vitest": "^2.1.0", "typescript": "^5.6.0", "@testing-library/react": "^16.0.0" }
+}
