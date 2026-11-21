@@ -71,6 +71,12 @@ def test_renames_use_the_destination_and_pure_renames_cost_nothing():
     m = size.measure(numstat, max_lines=400, max_files=25)
     assert (m["lines"], m["files"]) == (5, 1)
     assert m["largest"] == [{"path": "src/pkg/a.py", "lines": 5}]
+    assert m["excluded_files"] == 2  # the pure rename is reported, not dropped
+
+
+def test_a_path_containing_a_tab_is_still_counted():
+    m = size.measure(z(("7", "0", "src/odd\tname.py")), max_lines=400, max_files=25)
+    assert m["largest"] == [{"path": "src/odd\tname.py", "lines": 7}]
 
 
 def test_any_failure_is_exit_2_with_an_error(monkeypatch, capsys):

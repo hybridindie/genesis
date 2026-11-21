@@ -52,7 +52,7 @@ def parse(numstat: str) -> list[tuple[str, str, str]]:
     fields = numstat.split("\0")
     out, i = [], 0
     while i < len(fields):
-        parts = fields[i].split("\t")
+        parts = fields[i].split("\t", 2)  # a raw path may itself contain tabs
         i += 1
         if len(parts) != 3:
             continue
@@ -73,8 +73,10 @@ def measure(numstat: str, max_lines: int = MAX_LINES, max_files: int = MAX_FILES
             skipped.append(path)
             continue
         lines = int(added) + int(deleted)
-        if lines:  # a pure rename has nothing to read
-            counted.append({"path": path, "lines": lines})
+        if not lines:  # a pure rename: nothing to read, but still reported
+            skipped.append(path)
+            continue
+        counted.append({"path": path, "lines": lines})
     lines = sum(c["lines"] for c in counted)
     return {
         "lines": lines,
