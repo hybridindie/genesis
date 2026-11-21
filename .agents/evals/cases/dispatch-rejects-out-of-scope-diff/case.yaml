@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: dispatch-rejects-out-of-scope-diff
+expected_outcome: |
+  The lead finds that the track changed backend/uv.lock, which S1/main does not own, does not merge it, marks S1/main blocked with a note naming uv.lock, and says how to fix the plan.
+context:
+  scaffold_script: place-files.sh
