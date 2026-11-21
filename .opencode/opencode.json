@@ -86,6 +86,10 @@
       "description": "Break a story into PR-sized parallel tasks.",
       "template": "Load the task-decomposer skill and follow it.\n\n$ARGUMENTS"
     },
+    "wave-dispatcher": {
+      "description": "Run the next wave of a planned Epic or story with parallel subagents in worktrees.",
+      "template": "Load the wave-dispatcher skill and follow it.\n\n$ARGUMENTS"
+    },
     "harness-eval": {
       "description": "Evaluate the installed harness against the project's actual stack.",
       "template": "Read and follow docs/harness-eval.md. Present the plan before making any edits.\n\n$ARGUMENTS"

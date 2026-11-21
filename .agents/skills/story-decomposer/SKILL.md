@@ -30,7 +30,7 @@ description: >
 
 Turn a ready Epic into story issues that a subagent can pick up cold. Each story
 carries an `agent-plan` block with its ownership, verify command and tracks —
-the units a dispatcher hands to parallel subagents. A story body is the
+the units `wave-dispatcher` hands to parallel subagents. A story body is the
 whole brief a subagent gets, so anything it needs to know goes in it.
 
 ## Inputs

@@ -1,6 +1,6 @@
 <!--
   parallelization-doctrine.md — Shared parallel-first doctrine
-  Referenced by: epic-composer, story-decomposer, task-decomposer
+  Referenced by: epic-composer, story-decomposer, task-decomposer, wave-dispatcher
   version: 2.1.0, owner: John D
   Single source of truth for the contract → tracks → integration pattern and the
   metadata that makes work dispatchable to subagents and teams.
@@ -58,6 +58,10 @@ A track is dispatchable when a subagent or team can start from the story alone:
 
 Give each subagent one track. Do not let two tracks edit the same file; if they
 must, stop and either split the file's scope or sequence the tracks.
+
+`wave-dispatcher` does this mechanically: one worktree and one subagent per
+runnable track, a scope check on the diff, the track's verify, then a merge
+into the story branch in `integration.merge_order`.
 
 ## When not to parallelize
 
