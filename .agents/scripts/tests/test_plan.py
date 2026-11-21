@@ -217,6 +217,16 @@ def test_rejects_a_placeholder_verify_command():
     assert any("verify" in x for x in errors_epic(e))
 
 
+def test_accepts_verify_baseline_pass_on_a_refactor_track():
+    s = story("S1", ["a/**"], [track("main", ["a/**"], verify_baseline="pass")])
+    assert not [x for x in plan.validate_story(s) if "verify_baseline" in x]
+
+
+def test_rejects_an_unknown_verify_baseline():
+    s = story("S1", ["a/**"], [track("main", ["a/**"], verify_baseline="green")])
+    assert any("verify_baseline" in x for x in plan.validate_story(s))
+
+
 def test_rejects_ownership_of_the_whole_repo_alongside_parallel_work():
     e = three_story_epic()
     e["stories"][0]["owns"] = ["**"]
