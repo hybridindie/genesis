@@ -45,7 +45,11 @@ def test_golden_plans_pass_the_planner_check():
 def test_golden_plans_have_parallel_work_to_schedule():
     out = run("plan.py", "check", "--no-sync", *GOLDEN).stdout
     assert "stories wave 2" in out, "the epic fixture needs at least two waves"
-    assert "tracks wave 2" in out, "the story fixture needs a dependent track"
+    # S2 depends on S1, whose story isn't in the golden set, so its tracks wait
+    # rather than appearing in a wave the dispatcher would never run.
+    assert "tracks waiting on unplanned stories: S2/api, S2/web" in out
+    story = (CASES / "story.md").read_text()
+    assert "depends_on: [api]" in story, "the story fixture needs a dependent track"
 
 
 @pytest.mark.parametrize(

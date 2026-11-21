@@ -64,11 +64,14 @@ def count_ac(text: str) -> int:
 
 
 def plan_blocks(text: str) -> list[str]:
+    text = text.replace("\r\n", "\n")
     n = len(PLAN_BLOCK.findall(text))
     if n == 0:
         return ["no ```yaml agent-plan block"]
     if n > 1:
         return [f"{n} agent-plan blocks; keep exactly one"]
+    if not PLAN_FENCE.search(text):  # an open fence alone would leak plan data into the prose
+        return ["the agent-plan block is not closed with ```"]
     return []
 
 
