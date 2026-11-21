@@ -21,7 +21,8 @@ def to_csv(report: Report) -> str:
     if not report.rows:
         return ""
     out = io.StringIO()
-    writer = csv.DictWriter(out, fieldnames=list(report.rows[0]), restval="", lineterminator="\n")
+    fieldnames = list(dict.fromkeys(k for row in report.rows for k in row))  # rows may differ
+    writer = csv.DictWriter(out, fieldnames=fieldnames, restval="", lineterminator="\n")
     writer.writeheader()
     writer.writerows(report.rows)
     return out.getvalue()

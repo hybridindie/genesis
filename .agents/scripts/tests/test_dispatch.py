@@ -125,6 +125,46 @@ def test_accepts_prepare_dry_run_without_touching_git(repo):
     assert all(Path(u["brief"]).is_file() for u in data["units"])
 
 
+# ── weak checks (#72): a verify that passes before any work cannot fail ─────
+
+def test_accepts_prepare_flagging_a_verify_that_already_passes(repo):
+    root, plans = repo
+    load(root, plans)
+    units = {u["unit"]: u for u in run(root, "prepare", expect=0)["units"]}
+    assert units["S1/contract"]["baseline"] == "fail" and not units["S1/contract"]["weak_check"]
+    assert units["S2/main"]["baseline"] == "pass" and units["S2/main"]["weak_check"]
+    assert "already passes" in Path(units["S2/main"]["brief"]).read_text()
+    assert "already passes" not in Path(units["S1/contract"]["brief"]).read_text()
+
+
+def test_rejects_a_weak_check_when_the_diff_changes_no_test(repo):
+    root, plans = repo
+    load(root, plans)
+    run(root, "prepare", expect=0)
+    work_in(root, "S2", "main", **{"docs/guide.md": "x\n"})
+    data = run(root, "check", "S2/main", expect=1)
+    assert any("cannot fail" in f for f in data["findings"])
+
+
+def test_accepts_a_weak_check_once_the_diff_adds_a_test(repo):
+    root, plans = repo
+    load(root, plans)
+    run(root, "prepare", expect=0)
+    work_in(root, "S2", "main", **{"docs/guide.md": "x\n", "docs/tests/test_guide.py": "def test(): pass\n"})
+    assert run(root, "check", "S2/main", expect=0)["ok"]
+
+
+def test_accepts_a_refactor_track_that_declares_a_passing_baseline(repo):
+    root, plans = repo
+    s2 = dict(S2, tracks=[dict(S2["tracks"][0], verify_baseline="pass")])
+    (plans / "story-S2.md").write_text(body(s2))
+    load(root, plans)
+    units = {u["unit"]: u for u in run(root, "prepare", expect=0)["units"]}
+    assert not units["S2/main"]["weak_check"]
+    work_in(root, "S2", "main", **{"docs/guide.md": "x\n"})
+    assert run(root, "check", "S2/main", expect=0)["ok"]
+
+
 def test_accepts_prepare_creating_worktrees_and_marking_units_running(repo):
     root, plans = repo
     load(root, plans)
@@ -296,3 +336,196 @@ def test_accepts_block_with_a_note(repo):
     root, plans = prepared(repo)
     run(root, "block", "S2/main", "--note", "needs a docs owner", expect=0)
     assert status(plans, "S2", "main") == "blocked"
+
+
+# ── retry (#73): send the unit back with its evidence, capped at 3 attempts ──
+
+def failing_contract(repo):
+    root, plans = prepared(repo)
+    assert not run(root, "check", "S1/contract", expect=1)["ok"]   # nothing done: verify fails
+    return root, plans
+
+
+def test_accepts_a_retry_that_returns_the_evidence_and_keeps_the_worktree(repo):
+    root, plans = failing_contract(repo)
+    data = run(root, "retry", "S1/contract", "--note", "create app/types.py", expect=0)
+    assert data["attempt"] == 2 and data["max_attempts"] == 3
+    brief = Path(data["brief"]).read_text()
+    assert "Attempt 2 of 3" in brief and "verify failed" in brief and "create app/types.py" in brief
+    assert "only" in brief.lower()                                   # scope restated
+    assert (root.parent / "proj-tracks" / "S1-contract").is_dir()   # the worktree is kept
+    assert status(plans, "S1", "contract") == "running"
+
+
+def test_accepts_a_retry_that_fixes_the_unit(repo):
+    root, _ = failing_contract(repo)
+    run(root, "retry", "S1/contract", "--note", "create app/types.py", expect=0)
+    work_in(root, "S1", "contract", "fix", **{"app/types.py": "T = 1\n"})
+    assert run(root, "check", "S1/contract", expect=0)["ok"]
+
+
+def test_rejects_a_retry_that_widens_its_scope(repo):
+    root, _ = failing_contract(repo)
+    run(root, "retry", "S1/contract", "--note", "create app/types.py", expect=0)
+    work_in(root, "S1", "contract", "fix", **{"app/types.py": "T = 1\n", "app/extra.py": "y = 2\n"})
+    data = run(root, "check", "S1/contract", expect=1)
+    assert any("widened" in f and "app/extra.py" in f for f in data["findings"])
+
+
+def test_rejects_a_fourth_attempt_and_routes_the_unit_to_replanning(repo):
+    root, plans = failing_contract(repo)
+    for attempt in (2, 3):
+        assert run(root, "retry", "S1/contract", "--note", "try again", expect=0)["attempt"] == attempt
+        run(root, "check", "S1/contract", expect=1)
+    data = run(root, "retry", "S1/contract", "--note", "try again", expect=1)
+    assert data["replan"] and status(plans, "S1", "contract") == "blocked"
+    assert "S1/contract" in run(root, "report", expect=0)["needs_replan"]
+
+
+def test_rejects_retrying_a_unit_that_has_not_been_checked(repo):
+    root, _ = prepared(repo)
+    assert "check" in run(root, "retry", "S1/contract", "--note", "x", expect=2)["error"]
+
+
+# ── review fixes from #84 ────────────────────────────────────────────────────
+
+def edit_loaded(root, sid, fn):
+    """Change a loaded plan body (as if the issue were edited after load)."""
+    path = Path(sh("git", "rev-parse", "--git-common-dir", cwd=root).strip())
+    path = (root / path if not path.is_absolute() else path) / "agent-plan" / f"story-{sid}.md"
+    text = path.read_text()
+    block = yaml.safe_load(text.split("```yaml agent-plan\n")[1].split("```")[0])
+    fn(block)
+    path.write_text(body(block))
+
+
+def test_rejects_merging_a_track_with_uncommitted_work(repo):
+    root, plans = prepared(repo)
+    tree = work_in(root, "S1", "contract", **{"app/types.py": "T = 1\n"})
+    run(root, "check", "S1/contract", expect=0)
+    (tree / "app" / "notes.py").write_text("unsaved = True\n")
+    data = run(root, "merge", "S1/contract", expect=1)
+    assert any("uncommitted" in f for f in data["findings"])
+    assert (tree / "app" / "notes.py").is_file() and status(plans, "S1", "contract") == "running"
+
+
+def test_rejects_integrating_over_uncommitted_work_in_the_integration_worktree(repo):
+    root, _ = prepared(repo)
+    complete_s1(root)
+    stray = root.parent / "proj-tracks" / "S1-integration" / "debug.txt"
+    stray.write_text("operator's notes\n")
+    data = run(root, "integrate", "S1", expect=1)
+    assert any("uncommitted" in f for f in data["findings"]) and stray.is_file()
+
+
+def test_rejects_a_track_whose_plan_lost_its_verify(repo):
+    root, _ = prepared(repo)
+    work_in(root, "S1", "contract", **{"app/types.py": "T = 1\n"})
+    edit_loaded(root, "S1", lambda b: b["tracks"][0].pop("verify"))
+    data = run(root, "check", "S1/contract", expect=1)
+    assert any("no verify command" in f for f in data["findings"])
+
+
+def test_rejects_integrating_a_story_with_nothing_to_verify(repo):
+    root, _ = prepared(repo)
+    complete_s1(root)
+    def drop(b):
+        b.pop("verify")
+        b["integration"].pop("verify")
+    edit_loaded(root, "S1", drop)
+    data = run(root, "integrate", "S1", expect=1)
+    assert any("no verify command" in f for f in data["findings"])
+
+
+def test_rejects_a_failed_load_without_losing_the_loaded_plans(repo):
+    root, plans = repo
+    load(root, plans)
+    data = run(root, "load", "--files", str(plans / "missing.md"), expect=2)
+    assert "missing.md" in data["error"]
+    assert run(root, "report", expect=0)["ok"]          # the previous load still works
+
+
+def test_reports_a_corrupt_state_file_as_exit_2_json(repo):
+    root, plans = repo
+    load(root, plans)
+    state = Path(sh("git", "rev-parse", "--git-common-dir", cwd=root).strip())
+    state = (root / state if not state.is_absolute() else state) / "agent-plan" / "state.json"
+    state.write_text("{not json")
+    assert "state.json" in run(root, "report", expect=2)["error"]
+
+
+def test_accepts_a_timeout_that_stops_everything_verify_started(repo):
+    root, _ = prepared(repo)
+    tree = work_in(root, "S1", "contract", **{"app/types.py": "T = 1\n"})
+    edit_loaded(root, "S1", lambda b: b["tracks"][0].update(
+        verify="(sleep 2; touch late.txt) & sleep 30"))
+    data = run(root, "check", "S1/contract", "--timeout", "1", expect=1)
+    assert "timed out" in data["verify_tail"]
+    import time
+    time.sleep(3)
+    assert not (tree / "late.txt").exists()
+
+
+def test_accepts_a_dry_run_that_lists_upstream_merges(repo):
+    root, _ = prepared(repo)
+    complete_s1(root)
+    data = run(root, "prepare", "--plan", expect=0)
+    s3 = next(u for u in data["units"] if u["unit"] == "S3/main")
+    assert any("merge" in c and "feat/s1-api" in c for c in s3["would_run"])
+
+
+def test_accepts_a_baseline_that_never_cleans_a_worktree_holding_work(repo):
+    # A unit set back to todo is prepared again over its existing worktree.
+    root, plans = repo
+    load(root, plans)
+    run(root, "prepare", expect=0)
+    tree = root.parent / "proj-tracks" / "S2-main"
+    (tree / "docs").mkdir(exist_ok=True)
+    (tree / "docs" / "draft.md").write_text("agent's unsaved work\n")
+    block = yaml.safe_load((plans / "story-S2.md").read_text().split("```yaml agent-plan\n")[1].split("```")[0])
+    block["tracks"][0]["status"] = "todo"
+    (plans / "story-S2.md").write_text(body(block))
+    load(root, plans)                                    # resets the baseline cache
+    units = {u["unit"]: u for u in run(root, "prepare", expect=0)["units"]}
+    assert (tree / "docs" / "draft.md").is_file()
+    assert units["S2/main"]["baseline"] == "not run"
+
+
+def test_rejects_a_weak_check_with_an_empty_diff(repo):
+    root, _ = repo
+    load(root, _)
+    run(root, "prepare", expect=0)
+    tree = root.parent / "proj-tracks" / "S2-main"
+    sh("git", "commit", "--allow-empty", "-qm", "nothing", cwd=tree)
+    data = run(root, "check", "S2/main", expect=1)
+    assert any("cannot fail" in f for f in data["findings"])
+
+
+def test_rejects_a_baseline_timeout_that_is_not_positive(repo):
+    root, plans = repo
+    load(root, plans)
+    out = subprocess.run([sys.executable, str(DISPATCH), "prepare", "--baseline-timeout", "0"],
+                         cwd=root, capture_output=True, text=True)
+    assert out.returncode == 2 and "positive" in out.stderr
+
+
+def test_rejects_a_second_retry_without_a_new_check(repo):
+    root, _ = failing_contract(repo)
+    run(root, "retry", "S1/contract", "--note", "create app/types.py", expect=0)
+    assert "check" in run(root, "retry", "S1/contract", "--note", "again", expect=2)["error"]
+
+
+def test_rejects_retrying_a_unit_that_is_not_running(repo):
+    root, _ = failing_contract(repo)
+    run(root, "block", "S1/contract", "--note", "plan problem", expect=0)
+    assert "running" in run(root, "retry", "S1/contract", "--note", "x", expect=2)["error"]
+
+
+def test_accepts_clearing_retry_state_once_a_unit_merges(repo):
+    root, _ = failing_contract(repo)
+    run(root, "retry", "S1/contract", "--note", "create app/types.py", expect=0)
+    work_in(root, "S1", "contract", "fix", **{"app/types.py": "T = 1\n"})
+    run(root, "check", "S1/contract", expect=0)
+    run(root, "merge", "S1/contract", expect=0)
+    row = next(u for u in run(root, "report", expect=0)["units"] if u["unit"] == "S1/contract")
+    assert row["attempts"] == 1

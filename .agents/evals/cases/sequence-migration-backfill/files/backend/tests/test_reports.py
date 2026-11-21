@@ -16,3 +16,10 @@ def test_csv_quotes_values_that_contain_separators():
 
     report = Report(id=1, title="t", rows=[{"region": "EU, West", "note": 'say "hi"'}, {"region": "US"}])
     assert to_csv(report).splitlines() == ["region,note", '"EU, West","say ""hi"""', "US,"]
+
+
+def test_csv_includes_columns_that_only_later_rows_have():
+    from app.reports.service import Report, to_csv
+
+    report = Report(id=1, title="t", rows=[{"region": "EU"}, {"region": "US", "total": 3}])
+    assert to_csv(report).splitlines() == ["region,total", "EU,", "US,3"]

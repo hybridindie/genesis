@@ -1,7 +1,7 @@
 <!--
   agent-plan-schema.md — the machine-readable plan carried by Epic and story issues
   Referenced by: epic-composer, story-decomposer, task-decomposer, wave-dispatcher
-  version: 1.1.0, owner: John D
+  version: 1.2.0, owner: John D
   Single source of truth for the `agent-plan` block. `.agents/scripts/plan.py`
   enforces it; skills write it; the dispatcher schedules from it.
 -->
@@ -95,6 +95,8 @@ tracks:                     # one track = one subagent in one worktree
     # optional: replaces the story context in this track's brief, for when
     # the story context mentions work this track must not do
     context: Add the route only; the PDF worker is track B.
+    # optional, refactors only: verify already passes and must stay green
+    # verify_baseline: pass
     status: todo
 tasks:                      # written by task-decomposer; PR-sized steps
   - id: T1
@@ -127,6 +129,11 @@ change.
   to exactly one unit per wave, or sequence the units that need it; dispatch
   rejects a diff that touches a path its track does not own.
 - **Verify is a command.** `<command>`, `TBD`, `N/A` and blanks are rejected.
+- **Verify must be able to fail.** `dispatch.py prepare` runs each track's
+  verify once before work starts. If it already passes, the track is flagged
+  as a weak check: its brief asks for a failing test first, and `check`
+  rejects a diff that adds or changes no test. A refactor that should stay
+  green before and after declares `verify_baseline: pass`.
 - **Contracts are tracks.** Inside a story, a shared interface is a track with
   `kind: contract`; across stories it is an Epic `contracts` entry owned by one
   story, and dependants list that story in `depends_on`.
