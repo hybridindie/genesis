@@ -54,6 +54,14 @@ STATUSES = ("todo", "running", "done", "blocked")
 SIZES = ("S", "M", "L")
 STORY_TYPES = ("user", "spike", "technical", "bug")
 TRACK_KINDS = ("contract", "track")
+LANES = ("contained", "wide", "irreversible")
+# Paths where a bad merge can't simply be reverted: schema and data
+# migrations, and anything that deploys or changes infrastructure. A plan can
+# add its own with `lanes: {irreversible: [...]}`.
+IRREVERSIBLE_GLOBS = (
+    "**/migrations/**", "**/alembic/**", "**/*.sql", "supabase/**",
+    "deploy/**", "deployments/**", "infra/**", "k8s/**", "helm/**", "terraform/**", "**/*.tf",
+)
 
 
 class PlanError(Exception):
@@ -228,6 +236,51 @@ def is_command(value) -> bool:
     return isinstance(value, str) and not PLACEHOLDER.match(value)
 
 
+def validate_lanes(where: str, body: dict) -> list[str]:
+    lanes = body.get("lanes")
+    if lanes is None:
+        return []
+    if (not isinstance(lanes, dict) or set(lanes) - {"irreversible"}
+            or not all(isinstance(g, str) for g in as_list(lanes.get("irreversible")))):
+        return [f"{where}: lanes takes only `irreversible: [globs]`"]
+    return []
+
+
+def lane_of(track: dict, plan: dict, epic: dict | None = None) -> str:
+    """How a track's merge is gated, by how hard a bad merge is to undo:
+    irreversible (never auto-merged), wide (shared surface: checks plus review)
+    or contained (checks only). An explicit `lane:` wins."""
+    if track.get("lane") in LANES:
+        return str(track["lane"])
+    owns = [str(p) for p in as_list(track.get("owns"))]
+    globs = irreversible_globs(plan, epic)
+    def inside(pattern: str, targets: list[str]) -> bool:
+        literal = not any(wild(s) for s in segments(pattern))
+        return covered_by(pattern, targets) if literal else subsumed(pattern, targets)
+
+    if any(inside(o, globs) for o in owns):
+        return "irreversible"
+    shared = [str(p) for c in as_list((epic or {}).get("contracts")) for p in as_list(c.get("paths"))]
+    if track.get("kind") == "contract" or any(covered_by(s, [o]) or subsumed(o, [s]) for o in owns for s in shared):
+        return "wide"
+    return "contained"
+
+
+def irreversible_globs(plan: dict, epic: dict | None = None) -> list[str]:
+    extra = []
+    for source in (epic or {}, plan):
+        extra += [str(g) for g in as_list((source.get("lanes") or {}).get("irreversible"))]
+    return [*IRREVERSIBLE_GLOBS, *extra]
+
+
+def irreversible_paths(paths: list[str], plan: dict, epic: dict | None = None) -> list[str]:
+    """The changed files that fall in an irreversible glob, whatever the lane
+    the plan predicted: a track owning `backend/**` that adds a migration is
+    irreversible for that diff."""
+    globs = irreversible_globs(plan, epic)
+    return [p for p in paths if covered_by(p, globs)]
+
+
 def waiting_on_unplanned(nodes: list[str], deps: dict[str, list[str]]) -> list[str]:
     """Nodes that depend, directly or through others, on something with no plan
     yet (e.g. units()'s `<story>/<unplanned>` sentinel). The scheduler never
@@ -276,7 +329,7 @@ def story_key(story: dict) -> str:
 # ── validation ───────────────────────────────────────────────────────────────
 
 def validate_epic(epic: dict) -> list[str]:
-    errs = []
+    errs = validate_lanes("epic", epic)
     if epic.get("version") != 1:
         errs.append("epic: version must be 1")
     acs = [str(a) for a in as_list(epic.get("acs"))]
@@ -339,6 +392,7 @@ def validate_story(story: dict) -> list[str]:
             errs.append(f"story {sid}: missing {field}")
     if not is_command(story.get("verify")):
         errs.append(f"story {sid}: missing verify (an exact command, not a placeholder)")
+    errs += validate_lanes(f"story {sid}", story)
     tracks = as_list(story.get("tracks"))
     tids = [str(t.get("id")) for t in tracks]
     dupes = {i for i in tids if tids.count(i) > 1}
@@ -351,6 +405,8 @@ def validate_story(story: dict) -> list[str]:
         where = f"story {sid} track {tid}"
         if t.get("kind", "track") not in TRACK_KINDS:
             errs.append(f"{where}: kind must be contract or track")
+        if "lane" in t and t["lane"] not in LANES:
+            errs.append(f"{where}: lane must be one of {', '.join(LANES)}")
         if not t.get("owns"):
             errs.append(f"{where}: missing owns")
         if not is_command(t.get("verify")):

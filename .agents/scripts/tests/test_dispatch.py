@@ -529,3 +529,58 @@ def test_accepts_clearing_retry_state_once_a_unit_merges(repo):
     run(root, "merge", "S1/contract", expect=0)
     row = next(u for u in run(root, "report", expect=0)["units"] if u["unit"] == "S1/contract")
     assert row["attempts"] == 1
+
+
+# ── merge lanes (#74) ─────────────────────────────────────────────────────────
+
+def irreversible_s2(repo):
+    root, plans = repo
+    s2 = dict(S2, tracks=[dict(S2["tracks"][0], lane="irreversible")])
+    (plans / "story-S2.md").write_text(body(s2))
+    load(root, plans)
+    units = {u["unit"]: u for u in run(root, "prepare", expect=0)["units"]}
+    work_in(root, "S2", "main", **{"docs/guide.md": "x\n", "docs/tests/test_guide.py": "def test(): pass\n"})
+    assert run(root, "check", "S2/main", expect=0)["lane"] == "irreversible"
+    return root, plans, units
+
+
+def test_accepts_prepare_reporting_each_units_lane(repo):
+    _, _, units = irreversible_s2(repo)
+    assert units["S2/main"]["lane"] == "irreversible" and units["S1/contract"]["lane"] == "wide"
+    assert "human" in Path(units["S2/main"]["brief"]).read_text().lower()
+
+
+def test_rejects_merging_an_irreversible_unit_without_a_human(repo):
+    root, plans, _ = irreversible_s2(repo)
+    data = run(root, "merge", "S2/main", expect=1)
+    assert any("--human" in f for f in data["findings"])
+    assert status(plans, "S2", "main") == "running"
+    assert "S2/main" in run(root, "report", expect=0)["awaiting_human"]
+
+
+def test_accepts_merging_an_irreversible_unit_once_a_human_approves(repo):
+    root, plans, _ = irreversible_s2(repo)
+    assert run(root, "merge", "S2/main", "--human", expect=0)["ok"]
+    assert status(plans, "S2", "main") == "done"
+    assert "S2/main" not in run(root, "report", expect=0)["awaiting_human"]
+
+
+def test_rejects_auto_merging_a_diff_that_adds_a_migration(repo):
+    # S2/main owns docs/** (contained), but its diff adds a migration under it.
+    root, plans = repo
+    load(root, plans)
+    run(root, "prepare", expect=0)
+    work_in(root, "S2", "main", **{"docs/migrations/0001_init.sql": "create table t();\n",
+                                   "docs/tests/test_x.py": "def test(): pass\n"})
+    data = run(root, "check", "S2/main", expect=0)
+    assert data["lane"] == "irreversible" and "docs/migrations/0001_init.sql" in data["irreversible_paths"]
+    assert any("--human" in f for f in run(root, "merge", "S2/main", expect=1)["findings"])
+
+
+def test_rejects_merging_a_migration_even_without_a_prior_check(repo):
+    root, plans = repo
+    load(root, plans)
+    run(root, "prepare", expect=0)
+    work_in(root, "S2", "main", **{"docs/migrations/0001_init.sql": "create table t();\n"})
+    data = run(root, "merge", "S2/main", expect=1)              # no check first
+    assert any("--human" in f for f in data["findings"])

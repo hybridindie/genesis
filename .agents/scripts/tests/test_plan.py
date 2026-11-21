@@ -724,3 +724,51 @@ def test_accepts_a_status_change_that_keeps_comments_and_layout():
     t2 = plan.extract(again)["tracks"][0]
     assert (t2["status"], t2["note"]) == ("done", "merged abc")
     assert again.count("note:") == 1
+
+
+# ── merge lanes (#74): gate on how hard a mistake is to undo ─────────────────
+
+def test_accepts_a_plain_track_as_contained():
+    s = story("S1", ["app/**"], [track("main", ["app/reports/**"])])
+    assert plan.lane_of(s["tracks"][0], s) == "contained"
+
+
+@pytest.mark.parametrize("owns", [["backend/migrations/0042_add.py"], ["db/schema.sql"], ["alembic/versions/**"],
+                                  ["deploy/prod.yaml"], ["k8s/**"], ["infra/main.tf"]])
+def test_rejects_auto_merge_for_paths_that_are_hard_to_undo(owns):
+    s = story("S1", ["**"], [track("main", owns)])
+    assert plan.lane_of(s["tracks"][0], s) == "irreversible"
+
+
+def test_accepts_a_contract_track_as_wide():
+    s = story("S1", ["app/**"], [track("api", ["app/types.py"], kind="contract"),
+                                 track("main", ["app/a.py"], depends_on=["api"])])
+    assert plan.lane_of(s["tracks"][0], s) == "wide"
+
+
+def test_accepts_a_track_owning_an_epic_contract_path_as_wide():
+    e = three_story_epic()
+    e["contracts"] = [{"id": "C1", "what": "api", "owner": "S1", "paths": ["backend/api/types.py"]}]
+    s = story("S1", ["backend/**"], [track("main", ["backend/api/**"])])
+    assert plan.lane_of(s["tracks"][0], s, e) == "wide"
+
+
+def test_accepts_an_explicit_lane_and_plan_specific_globs():
+    s = story("S1", ["app/**"], [track("main", ["app/a.py"], lane="irreversible"),
+                                 track("seed", ["app/seed/**"])],
+              lanes={"irreversible": ["app/seed/**"]})
+    assert plan.lane_of(s["tracks"][0], s) == "irreversible"
+    assert plan.lane_of(s["tracks"][1], s) == "irreversible"
+    assert not [x for x in plan.validate_story(s) if "lane" in x]
+
+
+def test_rejects_an_unknown_lane():
+    s = story("S1", ["app/**"], [track("main", ["app/a.py"], lane="risky")])
+    assert any("lane" in x for x in plan.validate_story(s))
+
+
+@pytest.mark.parametrize("lanes", [["fast"], {"irreversible": [42]}, {"risky": ["a/**"]}])
+def test_rejects_a_malformed_epic_lanes_field(lanes):
+    e = three_story_epic()
+    e["lanes"] = lanes
+    assert any("lanes" in x for x in plan.validate_epic(e))
