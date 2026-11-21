@@ -7,6 +7,7 @@ test_rejects_* must refuse (a failure there means the dispatcher is too lax).
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -27,7 +28,7 @@ def commit(cwd, message, **files):
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(text)
     sh("git", "add", "-A", cwd=cwd)
-    sh("git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", message, cwd=cwd)
+    sh("git", "commit", "-qm", message, cwd=cwd)
 
 
 def body(block):
@@ -52,11 +53,21 @@ S3 = {"version": 1, "kind": "story", "story": "S3", "branch": "feat/s3-ui", "acs
       "owns": ["ui/**"], "verify": "true", "tracks": [{"id": "main", "owns": ["ui/**"], "verify": "true"}]}
 
 
+@pytest.fixture(autouse=True)
+def hermetic_git(monkeypatch):
+    """Ignore the developer's git config: CI runners have no identity, so a
+    test that passes only with one is a test that fails in CI."""
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+
+
 @pytest.fixture
 def repo(tmp_path):
     root = tmp_path / "proj"
     root.mkdir()
     sh("git", "init", "-q", "-b", "main", cwd=root)
+    sh("git", "config", "user.email", "t@t", cwd=root)   # shared by every worktree
+    sh("git", "config", "user.name", "t", cwd=root)
     commit(root, "init", **{"README.md": "x\n"})
     plans = tmp_path / "plans"
     plans.mkdir()
@@ -194,6 +205,19 @@ def test_accepts_merge_and_cleans_up_the_track(repo):
     assert data["ok"] and status(plans, "S1", "contract") == "done"
     assert not (root.parent / "proj-tracks" / "S1-contract").exists()
     assert "app/types.py" in sh("git", "ls-tree", "-r", "--name-only", "feat/s1-api", cwd=root)
+
+
+def test_rejects_a_failed_merge_without_blaming_the_plan(repo):
+    # A merge that fails for an environment reason (here: no committer
+    # identity) is an error to fix, not a conflict that blocks the track.
+    root, plans = prepared(repo)
+    work_in(root, "S1", "contract", **{"app/types.py": "T = 1\n"})
+    run(root, "check", "S1/contract", expect=0)
+    sh("git", "config", "--unset", "user.email", cwd=root)
+    sh("git", "config", "--unset", "user.name", cwd=root)
+    data = run(root, "merge", "S1/contract", expect=2)
+    assert "identity" in data["error"].lower() and "conflict" not in data["error"]
+    assert status(plans, "S1", "contract") == "running"
 
 
 def test_accepts_the_next_wave_after_the_contract_merges(repo):

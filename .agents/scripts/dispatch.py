@@ -378,7 +378,9 @@ def cmd_merge(st: State, args) -> dict:
     except DispatchError:
         conflicts = git("diff", "--name-only", "--diff-filter=U", cwd=integ, check=False).splitlines()
         git("merge", "--abort", cwd=integ, check=False)
-        note = f"merge conflict in {', '.join(conflicts) or 'unknown files'}; the plan's ownership is wrong"
+        if not conflicts:
+            raise  # an environment failure (identity, hooks, locks): fix it, don't blame the plan
+        note = f"merge conflict in {', '.join(conflicts)}; the plan's ownership is wrong"
         st.set_status(sid, track, "blocked", note)
         return {"ok": False, "unit": args.unit, "findings": [note]}
     sha = git("rev-parse", "--short", "HEAD", cwd=integ)
