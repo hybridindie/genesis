@@ -894,3 +894,49 @@ def test_accepts_check_listing_constraints_for_overlapping_plans(tmp_path):
     assert ok and any("S1" in line and "S4/api" in line for line in learned)
     assert any("S3" in line and "mkdocs" in line for line in learned)
     assert not any("S2" in line.split(":")[0] for line in learned)
+
+
+# ── late review fixes: #96 (consumes) and #97 (lessons) ──────────────────────
+
+def test_warns_on_a_consumes_entry_that_names_nothing():
+    e = consuming_epic({"S1": [], "S2": ["frontend/x.ts"]})
+    assert plan.edge_warnings(e, []) == ["story S3 depends on S1 but names nothing it consumes from it"]
+
+
+def test_warns_on_story_level_edges_without_an_epic():
+    s3 = story("S3", ["docs/**"], [track("main", ["docs/**"])], depends_on=["S1"])
+    assert plan.edge_warnings(None, [s3]) == ["story S3 depends on S1 but names nothing it consumes from it"]
+
+
+def test_rejects_a_story_plan_consuming_outside_the_epics_upstream_owns():
+    e = three_story_epic()
+    s3 = story("S3", ["docs/**"], [track("main", ["docs/**"])], acs=["AC3"], depends_on=["S1", "S2"],
+               consumes={"S1": ["frontend/x.ts"]})
+    assert any("consumes frontend/x.ts from S1" in x for x in plan.validate_set(e, [s3]))
+
+
+def test_accepts_a_brief_despite_a_malformed_consumes_value():
+    s = story("S1", ["src/**"], [track("api", ["src/routes.py"], kind="contract"),
+                                 track("web", ["web/**"], depends_on=["api"], consumes={"api": "src/routes.py"})],
+              integration={"verify": "make e2e"})
+    assert "`src/routes.py`" in plan.brief(s, "web")
+    s["tracks"][1]["consumes"] = {"api": None}
+    plan.brief(s, "web")
+
+
+def test_rejects_a_lesson_with_an_empty_glob(tmp_path):
+    p = tmp_path / "plan-constraints.yaml"
+    p.write_text('constraints:\n  - paths: ["  "]\n    constraint: c\n')
+    with pytest.raises(plan.PlanError, match="plan-constraints"):
+        plan.load_constraints(str(p))
+
+
+def test_rejects_an_unreadable_lessons_file_as_a_plan_error(tmp_path):
+    p = tmp_path / "plan-constraints.yaml"
+    p.write_text(LESSONS)
+    p.chmod(0)                                      # present but unreadable
+    try:
+        with pytest.raises(plan.PlanError, match="plan-constraints"):
+            plan.load_constraints(str(p))
+    finally:
+        p.chmod(0o644)

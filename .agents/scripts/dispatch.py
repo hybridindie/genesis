@@ -550,6 +550,8 @@ def cmd_learn(st: State, args) -> dict:
     track_of(st.story(sid), track)
     path = st.root / plan.CONSTRAINTS_FILE
     existing = plan.load_constraints(str(path))
+    if not args.constraint.strip() or any(not p.strip() for p in args.paths):
+        raise DispatchError("--constraint and every --paths value must be non-empty")
     entry = {"paths": list(args.paths), "constraint": args.constraint.strip(), "source": args.unit,
              "date": datetime.date.today().isoformat()}
     if any(c["paths"] == entry["paths"] and c["constraint"].strip() == entry["constraint"] for c in existing):

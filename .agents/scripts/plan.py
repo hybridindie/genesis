@@ -263,19 +263,19 @@ def validate_consumes(where: str, entry: dict, owns_of: dict[str, list]) -> list
 def edge_warnings(epic: dict | None, stories: list[dict]) -> list[str]:
     """Dependencies that name nothing crossing them: "and then" edges that may
     serialize work for nothing. Warnings, not errors, until plans carry them."""
+    def unnamed(entry: dict) -> list[str]:  # a dependency mapped to nothing names nothing
+        consumes = entry.get("consumes") if isinstance(entry.get("consumes"), dict) else {}
+        return [d for d in map(str, as_list(entry.get("depends_on"))) if not as_list(consumes.get(d))]
+
     out = []
-    for s in as_list((epic or {}).get("stories")):
-        named = set(map(str, (s.get("consumes") or {}))) if isinstance(s.get("consumes"), dict) else set()
-        for d in map(str, as_list(s.get("depends_on"))):
-            if d not in named:
-                out.append(f"story {s.get('id')} depends on {d} but names nothing it consumes from it")
+    # The epic is authoritative for story edges; without one, use the story plans'.
+    for s in as_list(epic.get("stories")) if epic else stories:
+        sid = s.get("id") if epic else story_key(s)
+        out += [f"story {sid} depends on {d} but names nothing it consumes from it" for d in unnamed(s)]
     for story in stories:
         for tr in as_list(story.get("tracks")):
-            named = set(map(str, (tr.get("consumes") or {}))) if isinstance(tr.get("consumes"), dict) else set()
-            for d in map(str, as_list(tr.get("depends_on"))):
-                if d not in named:
-                    out.append(f"story {story_key(story)} track {tr.get('id')} depends on {d} "
-                               "but names nothing it consumes from it")
+            out += [f"story {story_key(story)} track {tr.get('id')} depends on {d} "
+                    "but names nothing it consumes from it" for d in unnamed(tr)]
     return out
 
 
@@ -559,6 +559,8 @@ def validate_set(epic: dict | None, stories: list[dict]) -> list[str]:
             if entry is None:
                 errs.append(f"story {sid}: not in the epic's stories")
                 continue
+            # A story plan's own consumes must also stay inside its upstreams' owns.
+            errs += validate_consumes(f"story {sid}", s, {i: as_list(e.get("owns")) for i, e in entries.items()})
             # The epic is what keeps parallel stories apart, so a story may
             # narrow its entry but never widen it or change its ordering.
             epic_owns = as_list(entry.get("owns"))
@@ -570,7 +572,7 @@ def validate_set(epic: dict | None, stories: list[dict]) -> list[str]:
             theirs = sorted(map(str, as_list(entry.get("depends_on"))))
             if mine != theirs:
                 errs.append(f"story {sid}: depends_on {mine} differs from the epic's {theirs}")
-    return errs
+    return list(dict.fromkeys(errs))  # story and set checks can report the same edge
 
 
 # ── scheduling ───────────────────────────────────────────────────────────────
@@ -819,12 +821,15 @@ def load_constraints(path: str) -> list[dict]:
         data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
     except (yaml.YAMLError, UnicodeDecodeError) as exc:
         raise PlanError(f"{path}: plan-constraints is not valid YAML: {exc}") from exc
+    except OSError as exc:
+        raise PlanError(f"{path}: cannot read plan-constraints: {exc.strerror}") from exc
     items = data.get("constraints") if isinstance(data, dict) else None
     if not isinstance(items, list):
         raise PlanError(f"{path}: plan-constraints needs a top-level `constraints:` list")
     for i, c in enumerate(items):
         if not (isinstance(c, dict) and isinstance(c.get("paths"), list) and c["paths"]
-                and all(isinstance(x, str) for x in c["paths"]) and isinstance(c.get("constraint"), str)
+                and all(isinstance(x, str) and x.strip() for x in c["paths"])
+                and isinstance(c.get("constraint"), str)
                 and c["constraint"].strip()):
             raise PlanError(f"{path}: plan-constraints entry {i} needs `paths: [globs]` and `constraint: text`")
     return items
@@ -866,7 +871,8 @@ def brief(story: dict, track_id: str, constraints: list[dict] | None = None) -> 
     ]
     if contract is not None and contract is not t:
         lines.append(f"- **Shared contract (already merged, read-only):** {code(contract.get('owns'))}")
-    reads = [x for items in (t.get("consumes") or {}).values() for x in items] if isinstance(t.get("consumes"), dict) else []
+    reads = ([str(x) for items in t["consumes"].values() for x in as_list(items)]
+             if isinstance(t.get("consumes"), dict) else [])
     if reads:
         lines.append(f"- **You read from upstream (merged first, read-only):** {code(reads)}")
     context = t.get("context") or story.get("context")

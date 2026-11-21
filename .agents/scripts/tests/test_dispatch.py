@@ -605,3 +605,12 @@ def test_accepts_a_learned_constraint_reaching_a_later_brief(repo):
     units = {u["unit"]: u for u in run(root, "prepare", expect=0)["units"]}
     assert "Regenerate app/schema.json" in Path(units["S1/contract"]["brief"]).read_text()
     assert "Regenerate app/schema.json" not in Path(units["S2/main"]["brief"]).read_text()
+
+
+@pytest.mark.parametrize("args", [["--paths", "app/types.py", "--constraint", "   "],
+                                  ["--paths", " ", "--constraint", "real text"]])
+def test_rejects_recording_an_empty_lesson(repo, args):
+    root, plans = repo
+    load(root, plans)
+    assert "non-empty" in run(root, "learn", "--unit", "S1/contract", *args, expect=2)["error"]
+    assert not (root / ".agents" / "plan-constraints.yaml").exists()
