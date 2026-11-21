@@ -3,7 +3,7 @@
 Fetch this repo and tailor a complete AI harness (OpenCode + Claude Code) into
 any project. The repo is public, so nothing here needs
 authentication. The interactive routes follow
-[`.agents/skills/bootstrap-harness.md`](.agents/skills/bootstrap-harness.md)
+[`.agents/skills/bootstrap-harness/SKILL.md`](.agents/skills/bootstrap-harness/SKILL.md)
 (plan, confirm, render, validate); the one-command route renders straight from
 auto-detection.
 
@@ -46,7 +46,7 @@ Fetch the AI harness genesis repo and tailor a complete harness into THIS projec
    git clone --depth 1 https://github.com/hybridindie/genesis.git ~/.cache/genesis 2>/dev/null \
      || git -C ~/.cache/genesis pull --ff-only
 
-2. Read and follow ~/.cache/genesis/.agents/skills/bootstrap-harness.md,
+2. Read and follow ~/.cache/genesis/.agents/skills/bootstrap-harness/SKILL.md,
    using the current directory as the target output-dir.
 
 Probe my stack, show me the install plan, ask only about genuine unknowns,
