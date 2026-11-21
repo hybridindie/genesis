@@ -12,7 +12,7 @@
 #   --diff                   show what would change; write nothing
 #   --all                    install agent/herdr/zed configs even if the tool is absent
 #   --no-tools               skip the tooling report
-#   --skip <a,b,...>         skip components: shell,agents,git,herdr,zed,bin,brewfile
+#   --skip <a,b,...>         skip components: shell,agents,skills,git,herdr,zed,bin,brewfile
 #   -h, --help               show this help
 #
 # Existing files are never overwritten silently: a differing file is kept and
@@ -95,44 +95,49 @@ backup() {
   say "  backed up $(display "$f") -> $(display "$f.bak-$ts")"
 }
 
-install_file() { # <src> <dst> [generated]
+install_file() { # <src> <dst> [generated|raw]
+  # raw: staged skill files, copied as-is (no template substitution) and
+  # replaced like generated ones; they keep the source's executable bit.
   local src=$1 dst=$2 mode=${3:-normal} tmp shown target
   tmp=$(mktemp "${TMPDIR:-/tmp}/genesis.XXXXXX")
-  render "$src" "$tmp"
+  if [[ $mode == raw ]]; then cp -- "$src" "$tmp"; else render "$src" "$tmp"; fi
+  if [[ $mode == raw ]]; then
+    if [[ -x $src ]]; then chmod 755 "$tmp"; else chmod 644 "$tmp"; fi
+  fi
   shown=$(display "$dst")
   if [[ ! -e $dst && ! -L $dst ]]; then
     if (( DIFF_ONLY )); then
       say "would create $shown"
     else
       mkdir -p -- "$(dirname -- "$dst")"
-      cp -- "$tmp" "$dst"
+      cp -p -- "$tmp" "$dst"
       say "created $shown"
     fi
   elif cmp -s -- "$tmp" "$dst" 2>/dev/null; then
     say "unchanged $shown"
   elif [[ -L $dst ]]; then
     target=$(readlink "$dst")
-    if (( FORCE )) || [[ $mode == generated ]]; then
+    if (( FORCE )) || [[ $mode == generated || $mode == raw ]]; then
       if (( DIFF_ONLY )); then
         say "would replace symlink $shown -> $target with a regular file"
         diff -u -- "$dst" "$tmp" || true
       else
         say "warning: $shown is a symlink -> $target; replacing it with a regular file"
         backup "$dst"
-        cp -- "$tmp" "$dst"
+        cp -p -- "$tmp" "$dst"
         say "updated $shown"
       fi
     else
       say "differs (symlink kept) $shown -> $target — reconcile the link target or re-run with --force"
       if (( DIFF_ONLY )); then diff -u -- "$dst" "$tmp" || true; fi
     fi
-  elif (( FORCE )) || [[ $mode == generated ]]; then
+  elif (( FORCE )) || [[ $mode == generated || $mode == raw ]]; then
     if (( DIFF_ONLY )); then
       say "would update $shown"
       diff -u -- "$dst" "$tmp" || true
     else
       backup "$dst"
-      cp -- "$tmp" "$dst"
+      cp -p -- "$tmp" "$dst"
       say "updated $shown"
     fi
   else
@@ -244,6 +249,39 @@ install_agents() {
   fi
 }
 
+install_skills() { # epic/story/task skills + wave-dispatcher, available in every repo
+  # Shared doctrine/templates/scripts go to ~/.agents once; each installed
+  # harness gets its own full copy of the skills (both only if both are present).
+  say "== skills"
+  local stage f rel
+  stage=$(mktemp -d "${TMPDIR:-/tmp}/genesis-skills.XXXXXX")
+  local shared=claude  # shared files name skills by path: point them at an installed harness
+  have_or_all claude "$TARGET_HOME/.claude" || shared=opencode
+  python3 "$SELF_DIR/agents/stage_skills.py" "$REPO_ROOT" "$stage" "$TARGET_HOME" --shared-harness "$shared" \
+    || die "staging skills failed"
+  while IFS= read -r f; do
+    rel=${f#"$stage/agents/"}
+    install_file "$f" "$TARGET_HOME/.agents/$rel" raw
+  done < <(find "$stage/agents" -type f | sort)
+  if have_or_all claude "$TARGET_HOME/.claude"; then
+    while IFS= read -r f; do
+      rel=${f#"$stage/claude/"}
+      install_file "$f" "$TARGET_HOME/.claude/skills/$rel" raw
+    done < <(find "$stage/claude" -type f | sort)
+  else
+    say "skipped Claude skills (claude not installed; use --all to force)"
+  fi
+  if have_or_all opencode "$TARGET_HOME/.config/opencode"; then
+    while IFS= read -r f; do
+      rel=${f#"$stage/opencode/"}
+      install_file "$f" "$TARGET_HOME/.config/opencode/skills/$rel" raw
+    done < <(find "$stage/opencode" -type f | sort)
+  else
+    say "skipped OpenCode skills (opencode not installed; use --all to force)"
+  fi
+  rm -rf -- "$stage"
+}
+
 install_git() {
   say "== git"
   install_file "$SELF_DIR/git/gitconfig" "$TARGET_HOME/.config/system/gitconfig"
@@ -338,6 +376,7 @@ say
 
 skipping shell    || install_shell
 skipping agents   || install_agents
+skipping skills   || install_skills
 skipping git      || install_git
 skipping herdr    || install_herdr
 skipping zed      || install_zed
