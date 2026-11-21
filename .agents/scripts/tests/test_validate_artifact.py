@@ -50,3 +50,13 @@ def test_ignores_ac_labels_inside_the_plan_block():
             "```yaml agent-plan\nacs:\n- AC1\n- AC2\n- AC3\nstories:\n- acs:\n  - AC1\n```\n")
     assert va.count_ac(text) == 3
     assert [label for label, _ in va.extract_acceptance(text)] == ["AC1", "AC2", "AC3"]
+
+
+def test_accepts_a_plan_block_in_a_crlf_file():
+    text = "intro\r\n```yaml agent-plan\r\nversion: 1\r\n```\r\n"
+    assert va.plan_blocks(text) == []
+
+
+def test_rejects_an_unclosed_plan_block():
+    text = "- **AC1:** When x, then y.\n\n```yaml agent-plan\nacs:\n- AC1\n- AC2\n"
+    assert any("not closed" in e for e in va.plan_blocks(text))

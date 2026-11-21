@@ -631,3 +631,96 @@ def test_check_fails_on_missing_prose_sections(tmp_path):
     body = plan.scaffold(epic_md(e), TEMPLATE)["S1"].replace("**Context**", "**Background**")
     ok, lines = plan.check([write(tmp_path, "story-S1.md", body)])
     assert not ok and any("missing **Context**" in x for x in lines)
+
+
+# ── review findings from #90 (#91) ───────────────────────────────────────────
+
+import subprocess  # noqa: E402
+import sys  # noqa: E402
+
+PLAN_PY = HERE.parent / "plan.py"
+
+
+@pytest.mark.parametrize("field, snippet", [
+    ("tracks", "kind: story\nstory: S1\ntracks: [main]\n"),
+    ("stories", "kind: epic\nstories: [S1]\n"),
+    ("tasks", "kind: story\nstory: S1\ntracks:\n- id: main\ntasks: [T1]\n"),
+    ("contracts", "kind: epic\ncontracts: [C1]\nstories: []\n"),
+])
+def test_rejects_a_scalar_where_an_entry_needs_fields(field, snippet):
+    with pytest.raises(plan.PlanError, match=field):
+        plan.extract("```yaml agent-plan\nversion: 1\n" + snippet + "```\n")
+
+
+def test_rejects_an_undecodable_file_as_a_plan_error(tmp_path):
+    bad = tmp_path / "plan.md"
+    bad.write_bytes(b"\xff\xfe not utf-8")
+    with pytest.raises(plan.PlanError):
+        plan.read_text(str(bad))
+
+
+def test_accepts_a_bare_yaml_plan_that_starts_with_a_comment():
+    assert plan.extract("# plan for the export epic\nversion: 1\nkind: epic\nstories: []\n")["kind"] == "epic"
+
+
+def test_rejects_markdown_without_a_plan_block():
+    with pytest.raises(plan.PlanError, match="no ```yaml agent-plan block"):
+        plan.extract("# Epic: export\n\nSome prose.\n")
+
+
+@pytest.mark.parametrize("args", [["sync", "-"], ["status", "-", "--track", "main", "--set", "done"],
+                                  ["check", "-"]])
+def test_rejects_rewriting_stdin(tmp_path, args):
+    out = subprocess.run([sys.executable, str(PLAN_PY), *args], cwd=tmp_path, input="x", capture_output=True, text=True)
+    assert out.returncode == 2 and "stdin" in (out.stdout + out.stderr)
+    assert not (tmp_path / "-").exists()
+
+
+def test_rejects_duplicate_task_ids():
+    s = story("S1", ["a/**"], [track("main", ["a/**"])],
+              tasks=[task("T1", "main", ["a/x.py"]), task("T1", "main", ["a/y.py"])])
+    assert any("duplicate task ids" in x for x in plan.validate_story(s))
+
+
+def test_rejects_scheduling_dependants_of_an_unplanned_story_in_a_wave():
+    e = three_story_epic()
+    s3 = story("S3", ["docs/**"], [track("main", ["docs/**"])], acs=["AC3"], depends_on=["S1", "S2"])
+    nodes, deps = plan.units(e, [s3])
+    levels = plan.topo_levels(list(nodes), deps, "tracks")
+    assert "S3/main" not in [u for level in levels for u in level]
+    assert plan.waiting_on_unplanned(list(nodes), deps) == ["S3/main"]
+
+
+@pytest.mark.parametrize("limit", [0, -1])
+def test_rejects_scheduling_anything_with_no_capacity(limit):
+    s = story("S1", ["a/**"], [track("main", ["a/**"])])
+    assert plan.next_runnable(None, [s], limit) == []
+
+
+def test_rejects_scaffolding_an_unknown_story_id():
+    e = three_story_epic()
+    with pytest.raises(plan.PlanError, match="S9"):
+        plan.scaffold(epic_md(e), TEMPLATE, only=["S9"])
+
+
+def test_accepts_a_status_change_that_keeps_comments_and_layout():
+    text = ("Part of #1\n\n```yaml agent-plan\n"
+            "version: 1\nkind: story\nstory: S1\n"
+            "# why this story exists: a comment the planner wrote\n"
+            "acs: [AC1]\nowns: [a/**]\nverify: make test\n"
+            "tracks:\n"
+            "  - id: main   # the only track\n"
+            "    owns: [a/**]\n"
+            "    verify: make test-main\n"
+            "    status: todo\n"
+            "```\n")
+    new = plan.set_status(text, "main", "blocked", "needs: a decision, #3")
+    assert "# why this story exists: a comment the planner wrote" in new
+    assert "- id: main   # the only track" in new
+    assert "acs: [AC1]" in new
+    track_ = plan.extract(new)["tracks"][0]
+    assert track_["status"] == "blocked" and track_["note"] == "needs: a decision, #3"
+    again = plan.set_status(new, "main", "done", "merged abc")
+    t2 = plan.extract(again)["tracks"][0]
+    assert (t2["status"], t2["note"]) == ("done", "merged abc")
+    assert again.count("note:") == 1

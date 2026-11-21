@@ -78,6 +78,8 @@ def read_text(path: str) -> str:
         return sys.stdin.read() if path == "-" else Path(path).read_text(encoding="utf-8")
     except OSError as exc:
         raise PlanError(f"{path}: {exc.strerror}") from exc
+    except UnicodeDecodeError as exc:
+        raise PlanError(f"{path}: not UTF-8 text ({exc.reason})") from exc
 
 
 def extract(text: str, source: str = "input") -> dict:
@@ -85,15 +87,27 @@ def extract(text: str, source: str = "input") -> dict:
     blocks = FENCE.findall(text)
     if len(blocks) > 1:
         raise PlanError(f"{source}: {len(blocks)} agent-plan blocks; keep exactly one")
-    raw = blocks[0] if blocks else (text if not text.lstrip().startswith(("#", "**", "<")) else "")
-    if not raw.strip():
-        raise PlanError(f"{source}: no ```yaml agent-plan block found")
-    try:
-        data = yaml.safe_load(raw)
-    except yaml.YAMLError as exc:
-        raise PlanError(f"{source}: plan is not valid YAML: {exc}") from exc
+    if blocks:
+        try:
+            data = yaml.safe_load(blocks[0])
+        except yaml.YAMLError as exc:
+            raise PlanError(f"{source}: plan is not valid YAML: {exc}") from exc
+    else:
+        # A bare YAML file is a plan only if it parses to a mapping with a kind;
+        # markdown (even one starting with `# heading`) is not.
+        try:
+            data = yaml.safe_load(text) if text.strip() else None
+        except yaml.YAMLError:
+            data = None
+        if not (isinstance(data, dict) and "kind" in data):
+            raise PlanError(f"{source}: no ```yaml agent-plan block found")
     if not isinstance(data, dict):
         raise PlanError(f"{source}: plan must be a mapping")
+    for field in ("stories", "contracts", "tracks", "tasks"):
+        for i, entry in enumerate(as_list(data.get(field))):
+            if not isinstance(entry, dict):
+                raise PlanError(f"{source}: {field}[{i}] is {entry!r}; each entry needs fields "
+                                f"(e.g. `- id: {entry}`)")
     return data
 
 
@@ -214,8 +228,23 @@ def is_command(value) -> bool:
     return isinstance(value, str) and not PLACEHOLDER.match(value)
 
 
+def waiting_on_unplanned(nodes: list[str], deps: dict[str, list[str]]) -> list[str]:
+    """Nodes that depend, directly or through others, on something with no plan
+    yet (e.g. units()'s `<story>/<unplanned>` sentinel). The scheduler never
+    starts them, so they belong in no wave."""
+    known = set(nodes)
+    waiting = {n for n in nodes if any(d not in known for d in deps.get(n, []))}
+    grew = True
+    while grew:
+        more = {n for n in nodes if n not in waiting and waiting & set(deps.get(n, []))}
+        waiting |= more
+        grew = bool(more)
+    return sorted(waiting)
+
+
 def topo_levels(nodes: list[str], deps: dict[str, list[str]], what: str) -> list[list[str]]:
-    """Kahn levels; raises on a cycle."""
+    """Kahn levels over the nodes that can run; raises on a cycle."""
+    nodes = [n for n in nodes if n not in set(waiting_on_unplanned(nodes, deps))]
     remaining = {n: set(d for d in deps.get(n, []) if d in nodes) for n in nodes}
     levels = []
     while remaining:
@@ -346,11 +375,13 @@ def validate_story(story: dict) -> list[str]:
     tasks = as_list(story.get("tasks"))
     task_track = {str(k.get("id")): str(k.get("track")) for k in tasks}
     track_anc = {tid: ancestors(tid, deps) for tid in tids} if tids else {}
-    task_ids = []
+    task_ids = [str(k.get("id")) for k in tasks]
+    dup_tasks = sorted({k for k in task_ids if task_ids.count(k) > 1})
+    if dup_tasks:
+        errs.append(f"story {sid}: duplicate task ids {dup_tasks}")
     traced = set()
     for task in as_list(story.get("tasks")):
         kid = str(task.get("id"))
-        task_ids.append(kid)
         where = f"story {sid} task {kid}"
         if str(task.get("track")) not in tids:
             errs.append(f"{where}: track {task.get('track')} does not exist")
@@ -472,6 +503,8 @@ def units(epic: dict | None, stories: list[dict]) -> tuple[dict[str, dict], dict
 
 
 def next_runnable(epic: dict | None, stories: list[dict], limit: int) -> list[dict]:
+    if limit <= 0:
+        return []
     nodes, deps = units(epic, stories)
     status = {u: n["track"].get("status", "todo") for u, n in nodes.items()}
     running = [u for u, s in status.items() if s == "running"]
@@ -602,6 +635,38 @@ def sync(text: str, plan: dict) -> str:
     return text[: m.start()] + block + "\n\n" + text[m.start():]
 
 
+def _edit_track_fields(block: str, track: str, fields: dict[str, str]) -> str | None:
+    """Rewrite only `fields` of one block-style track entry, leaving every other
+    line (comments, quoting, ordering) as written. None if the layout isn't the
+    plain `- id: <track>` form this understands."""
+    lines = block.split("\n")
+    start = next((i for i, l in enumerate(lines)
+                  if re.match(rf"^(\s*)- id:\s*['\"]?{re.escape(track)}['\"]?\s*(#.*)?$", l)), None)
+    if start is None:
+        return None
+    dash = len(lines[start]) - len(lines[start].lstrip())
+    key_indent = dash + 2
+    end = start + 1
+    while end < len(lines):
+        line = lines[end]
+        if line.strip() and (len(line) - len(line.lstrip())) <= dash:
+            break  # the next entry, or the end of the tracks list
+        end += 1
+    item = lines[start:end]
+    for key, value in fields.items():
+        rendered = " " * key_indent + f"{key}: {json.dumps(value, ensure_ascii=False)}"
+        at = next((i for i, l in enumerate(item)
+                   if re.match(rf"^ {{{key_indent}}}{key}:", l)), None)
+        if at is None:
+            item.insert(len(item) - next((k for k, l in enumerate(reversed(item)) if l.strip()), 0), rendered)
+            continue
+        stop = at + 1  # drop continuation lines of a multi-line value
+        while stop < len(item) and item[stop].strip() and len(item[stop]) - len(item[stop].lstrip()) > key_indent:
+            stop += 1
+        item[at:stop] = [rendered]
+    return "\n".join(lines[:start] + item + lines[end:])
+
+
 def set_status(text: str, track: str, status: str, note: str | None) -> str:
     m = FENCE.search(text)
     if not m:
@@ -610,12 +675,21 @@ def set_status(text: str, track: str, status: str, note: str | None) -> str:
     hit = next((t for t in as_list(plan.get("tracks")) if str(t.get("id")) == track), None)
     if hit is None:
         raise PlanError(f"no track {track}")
-    hit["status"] = status
-    if note:
-        hit["note"] = note
-    dumped = dump(plan)
-    new = text[: m.start(1)] + dumped + text[m.end(1):]
-    return sync(new, plan)
+    fields = {"status": status, **({"note": note} if note else {})}
+    block = _edit_track_fields(m.group(1), track, fields)
+    if block is not None:  # check the edit says what we meant before trusting it
+        try:
+            edited = yaml.safe_load(block)
+            got = next(t for t in as_list(edited.get("tracks")) if str(t.get("id")) == track)
+            if any(got.get(k) != v for k, v in fields.items()):
+                block = None
+        except (yaml.YAMLError, StopIteration, AttributeError):
+            block = None
+    if block is None:  # unfamiliar layout: re-dump the block (loses comments)
+        hit.update(fields)
+        block = dump(plan)
+    new = text[: m.start(1)] + block + text[m.end(1):]
+    return sync(new, extract(new))
 
 
 # ── briefs ───────────────────────────────────────────────────────────────────
@@ -715,6 +789,9 @@ def check(paths: list[str], write: bool = True) -> tuple[bool, list[str]]:
         if nodes:
             for n, level in enumerate(topo_levels(list(nodes), deps, "tracks")):
                 lines.append(f"tracks wave {n + 1}: {', '.join(level)}")
+            waiting = waiting_on_unplanned(list(nodes), deps)
+            if waiting:
+                lines.append(f"tracks waiting on unplanned stories: {', '.join(waiting)}")
         n_tracks = sum(len(as_list(x.get("tracks"))) for x in stories)
         lines.append(f"PASS: {'epic + ' if epic else ''}{len(stories)} stories, {n_tracks} tracks")
     return not errs, lines
@@ -765,6 +842,9 @@ def scaffold(epic_text: str, template: str, only: list[str] | None = None) -> di
     ac_prose = dict(EPIC_AC_LINE.findall(epic_text))
     peers = parallel_peers(epic)
     entries = {str(x.get("id")): x for x in as_list(epic.get("stories"))}
+    unknown = sorted(set(only or []) - set(entries))
+    if unknown:
+        raise PlanError(f"--stories names no such story in the epic: {', '.join(unknown)}")
     out = {}
     for sid, entry in entries.items():
         if only and sid not in only:
@@ -826,6 +906,12 @@ def main() -> int:
     p.add_argument("--set", dest="value", choices=STATUSES, required=True); p.add_argument("--note")
     args = ap.parse_args()
 
+    rewrites = {"sync": [getattr(args, "file", None)], "status": [getattr(args, "file", None)],
+                "check": [] if getattr(args, "no_sync", True) else getattr(args, "files", [])}
+    if "-" in rewrites.get(args.cmd, []):
+        print(f"error: {args.cmd} rewrites its input, which can't be stdin; pass a file", file=sys.stderr)
+        return 2
+
     try:
         if args.cmd == "extract":
             plan = extract(read_text(args.file), args.file)
@@ -852,6 +938,9 @@ def main() -> int:
             if nodes:
                 for n, level in enumerate(topo_levels(list(nodes), deps, "tracks")):
                     print(f"tracks wave {n + 1}: {', '.join(level)}")
+                waiting = waiting_on_unplanned(list(nodes), deps)
+                if waiting:
+                    print(f"tracks waiting on unplanned stories: {', '.join(waiting)}")
             return 0
         if args.cmd == "render":
             print(render(extract(read_text(args.file), args.file)))
