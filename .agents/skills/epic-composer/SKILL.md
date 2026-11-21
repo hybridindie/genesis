@@ -34,7 +34,7 @@ description: >
 Shape one Epic from named source material into an issue body that people can
 review and agents can execute. The prose says why and what; the `agent-plan`
 block says which stories exist, what each owns, what it depends on and how it
-proves itself — that block is what `story-decomposer` and the dispatcher
+proves itself — that block is what `story-decomposer` and `wave-dispatcher`
 read, so it has to be right, not just plausible.
 
 ## Inputs
