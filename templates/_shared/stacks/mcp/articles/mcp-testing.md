@@ -1,5 +1,8 @@
 ---
 read_when: "Writing tests for an MCP server, tool schema, or transport"
+paths:
+  - "**/tests/**"
+  - "**/test_*.py"
 ---
 
 # MCP Testing: Fake the Peer, Assert the Envelope
@@ -16,7 +19,6 @@ Test the protocol edge without a live editor/service.
   field, precondition failure, dry-run.
 - Assert the side-effect boundary (what was called with what), not the internal
   implementation.
-- Determinism: fake clock/ids; no sleeps; no real sockets in unit tests.
 - Safety tests: destructive without `confirm` refused; `dry_run` performs
   nothing; timeout maps to `TIMEOUT`.
 
@@ -24,8 +26,7 @@ Test the protocol edge without a live editor/service.
 
 - One happy-path + one failure contract test per tool family, plus targeted
   tests for mutations.
-- Golden files for serialized payloads.
-- Integration tests behind a marker, run against a real peer in a separate job.
+- Integration tests run against a real peer in a separate job.
 
 ## ANTI-PATTERNS
 

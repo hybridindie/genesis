@@ -1,5 +1,7 @@
 ---
 read_when: "Returning data from an addon command or parsing data into the editor"
+paths:
+  - "{{GODOT_PATH}}/addons/**"
 ---
 
 # Godot Serialization: JSON-Safe, One Coercion Layer

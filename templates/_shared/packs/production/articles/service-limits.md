@@ -1,5 +1,11 @@
 ---
 read_when: "Adding rate limits, caching, timeouts, or performance-sensitive endpoints and queries"
+paths:
+  - "**/api/**/*.py"
+  - "**/routes/**/*.py"
+  - "**/middleware*"
+  - "**/repositor*/**"
+  - "**/*.sql"
 ---
 
 # Service Limits: Rate, Cache, Performance
@@ -28,4 +34,3 @@ read_when: "Adding rate limits, caching, timeouts, or performance-sensitive endp
 
 - Loading a whole table into memory for convenience.
 - Returning full entities when the caller needs ids or summaries.
-- CPU-heavy work inside an async request handler.

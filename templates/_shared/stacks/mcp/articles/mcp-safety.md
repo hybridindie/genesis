@@ -1,5 +1,7 @@
 ---
 read_when: "Adding a destructive or state-changing tool, or changing safety gates"
+paths:
+  - "{{BACKEND_PATH}}/**/*.py"
 ---
 
 # MCP Safety: Classes, Previews, Preconditions

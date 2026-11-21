@@ -114,3 +114,13 @@ def test_always_loaded_core_rules_stay_within_budget():
         if "\npaths:" not in frontmatter:
             words += len(text.split())
     assert words <= ALWAYS_ON_WORD_BUDGET, f"{words} words load in every session"
+
+
+def test_every_stack_and_pack_rule_is_path_scoped():
+    """Stack rules load with the files they govern, not in every session."""
+    unscoped = []
+    for base in ("stacks", "packs"):
+        for rule in sorted((ROOT / "templates/_shared" / base).glob("*/articles/**/*.md")):
+            if "\npaths:" not in rule.read_text(encoding="utf-8").split("---", 2)[1]:
+                unscoped.append(rule.relative_to(ROOT).as_posix())
+    assert not unscoped, f"rules without paths: {unscoped}"

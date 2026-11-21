@@ -18,8 +18,6 @@ Applies to games and editor tools alike; `godot-addon.md` adds the rules for
   `get_parent()` chains or absolute node paths into other scenes.
 - Autoloads hold cross-scene services only, never per-scene state.
 - Never block the main thread (see `godot-async.md`).
-- Deterministic logic that tests depend on (procedural generation,
-  simulation) takes its seed, time, and inputs as parameters.
 - Commit `.uid` and `.import` metadata alongside the assets they describe;
   never hand-edit them.
 - Lint passes (`gdlint`) before commit.

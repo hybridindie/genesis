@@ -1,5 +1,9 @@
 ---
 read_when: "Building an LLM agent system, graph, prompt flow, or evaluation"
+paths:
+  - "{{BACKEND_PATH}}/**/*.py"
+  - "**/prompts/**"
+  - "**/evals/**"
 ---
 
 # Agent Systems: Deterministic Runs, Versioned Prompts, Real Evals
@@ -20,14 +24,13 @@ around the model deterministic and observable.
 - Budgets are enforced: max steps, token/cost ceiling, wall-clock timeout.
 - Evals are executable and versioned: a dataset, a grader, and a pass threshold.
   "It looked good" is not an eval.
-- Untrusted model output is data: never `eval`, never shell-interpolate, never
-  grant it filesystem/network scope beyond the tool contract.
+- Model output is untrusted input (`security.md`); never grant it
+  filesystem/network scope beyond the tool contract.
 
 ## SHOULD
 
 - Persist run traces (inputs, tool calls, outputs, costs) for debugging/evals.
 - Separate orchestration from domain tools; tools are plain typed functions.
-- Fail closed on unknown state transitions.
 
 ## ANTI-PATTERNS
 
