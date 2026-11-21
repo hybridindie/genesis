@@ -25,22 +25,22 @@ asking engineering to produce it.
 - **AC3:** **Given** the export is running, **when** it takes longer than two
   seconds, **then** a progress state is shown until the download starts.
 
-**Stories**
+<!-- agent-plan:generated -->
+**Stories (dependency order)**
 
-| # | Story | ACs | Wave | Files |
-|---|---|---|---|---|
-| #12 | PDF template and renderer | AC1 | 1 | `src/report/pdf.py` |
-| #13 | Export endpoint and button | AC1, AC2 | 2 | `src/report/routes.py` |
-| #14 | Progress state | AC3 | 3 | `web/src/report/Export.tsx` |
+| ID | Issue | Story | Size | Priority | Wave | Depends on | Owns | ACs |
+|----|-------|-------|------|----------|------|------------|------|-----|
+| S1 | #12 | PDF template and renderer | S | P0 | 1 | — | `src/report/pdf.py`, `tests/report/test_pdf.py` | AC1, AC2 |
+| S2 | #13 | Export endpoint and button | M | P0 | 2 | S1 | `src/report/routes.py`, `tests/report/test_export.py`, `web/src/report/ExportButton.tsx`, `web/src/report/ExportButton.test.tsx` | AC1, AC2 |
+| S3 | #14 | Progress state | S | P1 | 3 | S2 | `web/src/report/ExportProgress.tsx`, `web/src/report/ExportProgress.test.tsx` | AC3 |
 
 **Parallelization map**
 
-Shared contract: `POST /reports/{id}/export` returns a job id; the client polls
-`GET /exports/{job}`.
-
-- Wave 1: #12 (template) — owns `src/report/pdf.py`.
-- Wave 2: #13 (endpoint + button) — owns `src/report/routes.py`.
-- Wave 3: #14 (progress) — owns `web/src/report/Export.tsx`.
+- **Shared contract C1:** render_report_pdf(report) -> bytes, in src/report/pdf.py — owner S1, `src/report/pdf.py`
+- **Wave 1 (parallel):** S1
+- **Wave 2 (parallel, after Wave 1):** S2
+- **Wave 3 (parallel, after Wave 2):** S3
+<!-- /agent-plan:generated -->
 
 **Constraints**
 
@@ -61,3 +61,45 @@ Shared contract: `POST /reports/{id}/export` returns a job id; the client polls
 
 - All three acceptance criteria pass, the gate is green, and the button is in
   the report page for every reader.
+
+```yaml agent-plan
+version: 1
+kind: epic
+epic: "#11"
+acs: [AC1, AC2, AC3]
+contracts:
+  - id: C1
+    what: render_report_pdf(report) -> bytes, in src/report/pdf.py
+    owner: S1
+    paths: [src/report/pdf.py]
+stories:
+  - id: S1
+    title: PDF template and renderer
+    issue: "#12"
+    type: technical
+    size: S
+    priority: P0
+    acs: [AC1, AC2]
+    owns: [src/report/pdf.py, tests/report/test_pdf.py]
+    verify: pytest tests/report/test_pdf.py -q
+  - id: S2
+    title: Export endpoint and button
+    issue: "#13"
+    type: user
+    size: M
+    priority: P0
+    acs: [AC1, AC2]
+    depends_on: [S1]
+    owns: [src/report/routes.py, tests/report/test_export.py, web/src/report/ExportButton.tsx, web/src/report/ExportButton.test.tsx]
+    verify: pytest tests/report/test_export.py -q && (cd web && npm test -- ExportButton)
+  - id: S3
+    title: Progress state
+    issue: "#14"
+    type: user
+    size: S
+    priority: P1
+    acs: [AC3]
+    depends_on: [S2]
+    owns: [web/src/report/ExportProgress.tsx, web/src/report/ExportProgress.test.tsx]
+    verify: cd web && npm test -- ExportProgress
+```
