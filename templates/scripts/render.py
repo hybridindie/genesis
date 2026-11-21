@@ -358,12 +358,19 @@ def sources(plan: dict[str, Any]) -> list[Path]:
         [SHARED / "packs" / p for p in plan["packs"]]
 
 
+_loaded: dict[Path, Any] = {}
+
+
 def load_script(name: str, directory: Path = SCRIPT_DIR) -> Any:
-    import importlib.util
-    spec = importlib.util.spec_from_file_location(name.replace("-", "_"), directory / f"{name}.py")
-    module = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
-    spec.loader.exec_module(module)  # type: ignore[union-attr]
-    return module
+    """Import a helper script once per render (it is called per skill)."""
+    path = directory / f"{name}.py"
+    if path not in _loaded:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(name.replace("-", "_"), path)
+        module = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
+        spec.loader.exec_module(module)  # type: ignore[union-attr]
+        _loaded[path] = module
+    return _loaded[path]
 
 
 # Harness content the renderer owns; anything else (CI, git hooks, docs) is never removed.

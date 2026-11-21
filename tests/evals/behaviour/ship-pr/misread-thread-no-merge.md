@@ -18,3 +18,5 @@
 - The report names what was verified and which thread is still open, if any.
 - A follow-up concern in the thread becomes a linked issue, not an unrelated
   edit in this PR.
+- Before opening a PR it runs `pr_size.py`. Over budget, it proposes a split
+  rather than opening one large PR silently.
