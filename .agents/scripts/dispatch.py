@@ -22,6 +22,11 @@ brief per prepared unit, and state.json recording where each body came from.
 Every status change is written back to its source — the GitHub/Gitea issue via
 tracker.py, or the original file for `--files`.
 
+Trust: `check` and `integrate` run each plan's verify commands with `bash -c`
+in the worktree. A plan loaded from an issue can be changed by anyone with
+write access to that issue, so load only from trackers whose writers you
+trust, and read new or changed verify commands before dispatching.
+
 Layout, for a story whose plan says `branch: feat/41-x`:
   feat/41-x                    the story's integration branch (from the base, plus
                                the branches of the stories it depends on)
@@ -37,6 +42,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -108,7 +114,10 @@ class State:
         self.root = repo_root()
         self.work = work_dir()
         self.path = self.work / "state.json"
-        self.data = json.loads(self.path.read_text()) if self.path.is_file() else {}
+        try:
+            self.data = json.loads(self.path.read_text()) if self.path.is_file() else {}
+        except json.JSONDecodeError as exc:
+            raise DispatchError(f"{self.path} is corrupt ({exc}); run dispatch.py load again") from exc
 
     def save(self) -> None:
         self.work.mkdir(parents=True, exist_ok=True)
@@ -177,12 +186,21 @@ def story_branch(story: dict) -> str:
 
 
 def run_shell(command: str, cwd: Path, timeout: int) -> tuple[bool, str]:
+    """Run a verify command. On timeout the whole process group is killed, so
+    nothing it started keeps writing into the worktree after the cleanup."""
+    proc = subprocess.Popen(["bash", "-c", command], cwd=cwd, stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT, text=True, start_new_session=True)
     try:
-        run = subprocess.run(["bash", "-c", command], cwd=cwd, capture_output=True, text=True, timeout=timeout)
+        out, _ = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        proc.communicate()
         return False, f"timed out after {timeout}s"
-    tail = "\n".join((run.stdout + run.stderr).strip().splitlines()[-30:])
-    return run.returncode == 0, tail
+    tail = "\n".join((out or "").strip().splitlines()[-30:])
+    return proc.returncode == 0, tail
 
 
 TEST_FILE = re.compile(r"(^|/)(tests?|__tests__|spec)/|(^|/)test_[^/]*$|_test\.[^/]+$|\.(test|spec)\.[^/]+$")
@@ -228,32 +246,41 @@ def restore(cwd: Path) -> None:
 # ── commands ─────────────────────────────────────────────────────────────────
 
 def cmd_load(st: State, args) -> dict:
+    # Read every source before touching the loaded state, so a failed load
+    # leaves the previous one intact.
     sources: dict[str, dict] = {}
-    st.work.mkdir(parents=True, exist_ok=True)
-    for old in st.work.glob("*.md"):
-        old.unlink()
+    bodies: dict[str, str] = {}
 
     def take(text: str, src: dict) -> str:
         p = plan.extract(text, src.get("ref") or src.get("path", "input"))
         name = "epic.md" if p.get("kind") == "epic" else f"story-{plan.story_key(p)}.md"
-        (st.work / name).write_text(text, encoding="utf-8")
+        bodies[name] = text
         sources[name] = src
         return name
 
     if args.files:
         for f in args.files:
-            take(Path(f).read_text(encoding="utf-8"), {"kind": "file", "path": str(Path(f).resolve())})
+            try:
+                text = Path(f).read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError) as exc:
+                raise DispatchError(f"cannot read {f}: {exc}") from exc
+            take(text, {"kind": "file", "path": str(Path(f).resolve())})
     else:
         tracker = _load("tracker")
         forge = tracker.forge()
         refs = list(args.story or [])
         if args.epic:
             name = take(forge.get(tracker.number(args.epic)), {"kind": "tracker", "ref": args.epic})
-            epic = plan.extract((st.work / name).read_text(encoding="utf-8"))
+            epic = plan.extract(bodies[name])
             refs += [str(s.get("issue")) for s in plan.as_list(epic.get("stories"))
                      if plan.issue_number(s.get("issue"))]
         for ref in refs:
             take(forge.get(tracker.number(ref)), {"kind": "tracker", "ref": ref})
+    st.work.mkdir(parents=True, exist_ok=True)
+    for old in st.work.glob("*.md"):
+        old.unlink()
+    for name, text in bodies.items():
+        (st.work / name).write_text(text, encoding="utf-8")
     st.data = {"sources": sources, "base": args.base or default_base(),
                "trees": str(st.root.parent / f"{st.root.name}-tracks")}
     st.save()
@@ -270,10 +297,21 @@ def ensure_story_branch(st: State, story: dict, stories: dict[str, dict], dry: l
     sid = plan.story_key(story)
     integ = st.trees / f"{sid}-integration"
     if dry is not None:
-        if not ok("show-ref", "--verify", "--quiet", f"refs/heads/{branch}"):
+        exists = ok("show-ref", "--verify", "--quiet", f"refs/heads/{branch}")
+        if not exists:
             dry.append(f"git branch {branch} {st.base}")
         if not integ.exists():
             dry.append(f"git worktree add {integ} {branch}")
+        for up in map(str, plan.as_list(story.get("depends_on"))):
+            upstream = stories.get(up)
+            if upstream is None:
+                continue
+            up_branch = story_branch(upstream)
+            if not ok("show-ref", "--verify", "--quiet", f"refs/heads/{up_branch}"):
+                continue
+            if exists and ok("merge-base", "--is-ancestor", up_branch, branch):
+                continue
+            dry.append(f"git -C {integ} merge --no-ff {up_branch}")
         return integ
     if not ok("show-ref", "--verify", "--quiet", f"refs/heads/{branch}"):
         git("branch", branch, st.base)
@@ -376,7 +414,10 @@ def cmd_check(st: State, args) -> dict:
         findings.append(f"verify passed before any work and the diff adds or changes no test, "
                         f"so the check cannot fail: {t.get('verify')}")
     verify_ok, tail = None, ""
-    if dirty:
+    if not plan.is_command(t.get("verify")):
+        tail = "not run: no verify command"
+        findings.append("the plan has no verify command for this track")
+    elif dirty:
         tail = "not run: the worktree has uncommitted changes"
     else:
         verify_ok, tail = run_shell(str(t.get("verify")), tree, args.timeout)
@@ -410,6 +451,12 @@ def cmd_merge(st: State, args) -> dict:
         waiting += [x for x in order[: order.index(track)] if status.get(x) != "done" and x not in waiting]
     if waiting:
         return {"ok": False, "unit": args.unit, "findings": [f"merge {', '.join(waiting)} first"]}
+    tree = st.trees / f"{sid}-{track}"
+    dirty = clean_tree(tree) if tree.is_dir() else []
+    if dirty:  # merging would delete this worktree, and these files with it
+        return {"ok": False, "unit": args.unit,
+                "findings": [f"uncommitted changes in the worktree: {', '.join(dirty[:10])}; "
+                             "commit them and re-run check first"]}
     by_id = {plan.story_key(s): s for s in st.plans()[1]}
     integ = ensure_story_branch(st, story, by_id, None)
     branch = story_branch(story)
@@ -426,7 +473,6 @@ def cmd_merge(st: State, args) -> dict:
         return {"ok": False, "unit": args.unit, "findings": [note]}
     sha = git("rev-parse", "--short", "HEAD", cwd=integ)
     st.set_status(sid, track, "done", f"merged {sha}")
-    tree = st.trees / f"{sid}-{track}"
     if tree.exists():
         git("worktree", "remove", "--force", str(tree))
     git("branch", "-D", tbranch, check=False)
@@ -440,8 +486,16 @@ def cmd_integrate(st: State, args) -> dict:
         return {"ok": False, "story": args.story, "findings": [f"tracks not done: {', '.join(pending)}"]}
     by_id = {plan.story_key(s): s for s in st.plans()[1]}
     integ = ensure_story_branch(st, story, by_id, None)
+    dirty = clean_tree(integ)
+    if dirty:  # verify on an unknown tree means nothing, and cleanup would erase it
+        return {"ok": False, "story": args.story,
+                "findings": [f"uncommitted changes in {integ}: {', '.join(dirty[:10])}; "
+                             "commit or remove them first"]}
     results, findings = [], []
-    commands = [c for c in [(story.get("integration") or {}).get("verify"), story.get("verify")] if c]
+    commands = [c for c in [(story.get("integration") or {}).get("verify"), story.get("verify")]
+                if plan.is_command(c)]
+    if not commands:
+        findings.append("the plan has no verify command for this story (integration.verify or verify)")
     for command in dict.fromkeys(commands):
         passed, tail = run_shell(str(command), integ, args.timeout)
         restore(integ)
@@ -496,6 +550,14 @@ def main() -> int:
         result = globals()[f"cmd_{args.cmd}"](st, args)
     except (DispatchError, plan.PlanError) as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, indent=2))
+        return 2
+    except SystemExit as exc:  # tracker.py reports its failures with sys.exit("tracker: ...")
+        if exc.code in (None, 0):
+            raise
+        print(json.dumps({"ok": False, "error": str(exc.code)}, indent=2))
+        return 2
+    except (OSError, ValueError) as exc:  # includes a corrupt state.json (JSONDecodeError)
+        print(json.dumps({"ok": False, "error": f"{type(exc).__name__}: {exc}"}, indent=2))
         return 2
     print(json.dumps(result, indent=2))
     return 0 if result.get("ok") else 1

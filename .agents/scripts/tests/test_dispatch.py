@@ -336,3 +336,90 @@ def test_accepts_block_with_a_note(repo):
     root, plans = prepared(repo)
     run(root, "block", "S2/main", "--note", "needs a docs owner", expect=0)
     assert status(plans, "S2", "main") == "blocked"
+
+
+# ── review fixes from #84 ────────────────────────────────────────────────────
+
+def edit_loaded(root, sid, fn):
+    """Change a loaded plan body (as if the issue were edited after load)."""
+    path = Path(sh("git", "rev-parse", "--git-common-dir", cwd=root).strip())
+    path = (root / path if not path.is_absolute() else path) / "agent-plan" / f"story-{sid}.md"
+    text = path.read_text()
+    block = yaml.safe_load(text.split("```yaml agent-plan\n")[1].split("```")[0])
+    fn(block)
+    path.write_text(body(block))
+
+
+def test_rejects_merging_a_track_with_uncommitted_work(repo):
+    root, plans = prepared(repo)
+    tree = work_in(root, "S1", "contract", **{"app/types.py": "T = 1\n"})
+    run(root, "check", "S1/contract", expect=0)
+    (tree / "app" / "notes.py").write_text("unsaved = True\n")
+    data = run(root, "merge", "S1/contract", expect=1)
+    assert any("uncommitted" in f for f in data["findings"])
+    assert (tree / "app" / "notes.py").is_file() and status(plans, "S1", "contract") == "running"
+
+
+def test_rejects_integrating_over_uncommitted_work_in_the_integration_worktree(repo):
+    root, _ = prepared(repo)
+    complete_s1(root)
+    stray = root.parent / "proj-tracks" / "S1-integration" / "debug.txt"
+    stray.write_text("operator's notes\n")
+    data = run(root, "integrate", "S1", expect=1)
+    assert any("uncommitted" in f for f in data["findings"]) and stray.is_file()
+
+
+def test_rejects_a_track_whose_plan_lost_its_verify(repo):
+    root, _ = prepared(repo)
+    work_in(root, "S1", "contract", **{"app/types.py": "T = 1\n"})
+    edit_loaded(root, "S1", lambda b: b["tracks"][0].pop("verify"))
+    data = run(root, "check", "S1/contract", expect=1)
+    assert any("no verify command" in f for f in data["findings"])
+
+
+def test_rejects_integrating_a_story_with_nothing_to_verify(repo):
+    root, _ = prepared(repo)
+    complete_s1(root)
+    def drop(b):
+        b.pop("verify")
+        b["integration"].pop("verify")
+    edit_loaded(root, "S1", drop)
+    data = run(root, "integrate", "S1", expect=1)
+    assert any("no verify command" in f for f in data["findings"])
+
+
+def test_rejects_a_failed_load_without_losing_the_loaded_plans(repo):
+    root, plans = repo
+    load(root, plans)
+    data = run(root, "load", "--files", str(plans / "missing.md"), expect=2)
+    assert "missing.md" in data["error"]
+    assert run(root, "report", expect=0)["ok"]          # the previous load still works
+
+
+def test_reports_a_corrupt_state_file_as_exit_2_json(repo):
+    root, plans = repo
+    load(root, plans)
+    state = Path(sh("git", "rev-parse", "--git-common-dir", cwd=root).strip())
+    state = (root / state if not state.is_absolute() else state) / "agent-plan" / "state.json"
+    state.write_text("{not json")
+    assert "state.json" in run(root, "report", expect=2)["error"]
+
+
+def test_accepts_a_timeout_that_stops_everything_verify_started(repo):
+    root, _ = prepared(repo)
+    tree = work_in(root, "S1", "contract", **{"app/types.py": "T = 1\n"})
+    edit_loaded(root, "S1", lambda b: b["tracks"][0].update(
+        verify="(sleep 2; touch late.txt) & sleep 30"))
+    data = run(root, "check", "S1/contract", "--timeout", "1", expect=1)
+    assert "timed out" in data["verify_tail"]
+    import time
+    time.sleep(3)
+    assert not (tree / "late.txt").exists()
+
+
+def test_accepts_a_dry_run_that_lists_upstream_merges(repo):
+    root, _ = prepared(repo)
+    complete_s1(root)
+    data = run(root, "prepare", "--plan", expect=0)
+    s3 = next(u for u in data["units"] if u["unit"] == "S3/main")
+    assert any("merge" in c and "feat/s1-api" in c for c in s3["would_run"])
