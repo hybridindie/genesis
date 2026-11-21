@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: compose-epic-from-planning-notes
+expected_outcome: |
+  An Epic in epic.md for PDF export and weekly scheduled emails, with an agent-readable plan whose stories own disjoint paths when they can run together and carry exact verify commands from the repo.
+context:
+  scaffold_script: place-files.sh
