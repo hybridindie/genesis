@@ -16,10 +16,12 @@ exception, not a shortcut.
    in a separate commit or PR once green.
 4. **Preflight**: run `/preflight`. Fix the cause, never the gate: no
    `--no-verify`, no `|| true`, no disabled checks.
-5. **PR**: one concern; `closes #N`; a test plan naming the commands run.
-   Note rollback for risky changes. Title + body ≤ 2000 characters combined;
-   the automated reviewer truncates past that. Detail that won't fit goes in
-   the issue or a PR comment.
+5. **PR**: one concern; `closes #N`; a test plan naming the commands run;
+   rollback for risky changes. Title + body ≤ 2000 characters; extra detail
+   goes in the issue. **Size budget:** ≤ 400 changed lines and ≤ 25 files,
+   not counting lockfiles, fixtures, snapshots or generated output (ship-pr
+   checks it). Over budget, split by layer or concern, or say why in the
+   body. The reviewer stops at a token budget; past it, part goes unreviewed.
 6. **Review**: the automated reviewer (OpenCodeReview) comments inline as
    `Important —` or `Nit —`. Fix every Important finding; reply to a Nit you
    keep. Unrelated findings become linked issues. `/review` re-runs it.

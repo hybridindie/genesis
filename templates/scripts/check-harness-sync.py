@@ -240,7 +240,13 @@ class HarnessSyncChecker:
     # ── Runner ----------------------------------------------------------
 
     def check_skill_script_paths(self) -> None:
-        """Every script a rendered skill tells the model to run must exist."""
+        """Every script a rendered skill runs by repo-relative path must exist.
+
+        Recognizes `python`/`python3`/`bash`/`sh` followed by a literal path that
+        starts with `./`, `.agents/` or `.claude/` (the form every shipped skill
+        uses). Other runners (`uv run ...`) and paths relative to the skill's own
+        folder are not resolved, so keep skill commands in the recognized form.
+        """
         if not self.output_dir:
             return
         call = re.compile(r"(?:python3?|bash|sh)\s+([.\w/-]+\.(?:py|sh))")
