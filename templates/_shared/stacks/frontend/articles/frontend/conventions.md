@@ -32,7 +32,6 @@ Test discipline (red first, no committed skips, determinism) is in
   (exclude the E2E directory from the unit runner).
 - When a prop, label, store field, or API shape changes, update the tests
   that depend on it in the same commit.
-- Use fake timers or relative dates for time-dependent assertions.
 
 ## Stack
 

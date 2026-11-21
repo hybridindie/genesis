@@ -1,5 +1,14 @@
 ---
 read_when: "Deploying a service, adding health checks, changing startup/shutdown, or shipping a migration alongside code"
+paths:
+  - "**/Dockerfile"
+  - "**/docker-compose*.yml"
+  - "**/k8s/**"
+  - "**/helm/**"
+  - "**/migrations/**"
+  - "**/alembic/**"
+  - "**/*health*"
+  - "**/main.py"
 ---
 
 # Deploy Safety

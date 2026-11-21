@@ -1,5 +1,8 @@
 ---
 read_when: "Writing or running Godot tests, or wiring them into CI"
+paths:
+  - "{{GODOT_PATH}}/tests/**"
+  - "{{GODOT_PATH}}/**/test_*.gd"
 ---
 
 # Godot Testing: Headless and Deterministic
@@ -14,8 +17,7 @@ read_when: "Writing or running Godot tests, or wiring them into CI"
   into the next test.
 - Assert on data (dictionaries, typed results, node properties), not on
   `print()` output.
-- Deterministic: fixed seeds, fixed frame counts, injected time. Don't wait on
-  real timers to synchronise.
+- Advance fixed frame counts instead of waiting on real timers.
 - The runner exits non-zero on any failure, script error, or missing result,
   and CI checks the exit code.
 
@@ -24,4 +26,3 @@ read_when: "Writing or running Godot tests, or wiring them into CI"
 - Logic tests on plain classes; scene tests only for wiring.
 - A smoke test that loads the main scene (or enables the plugin) and exits
   cleanly.
-- Golden files for generated or serialised output.

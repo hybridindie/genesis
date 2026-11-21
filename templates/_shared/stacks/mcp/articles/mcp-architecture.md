@@ -1,5 +1,7 @@
 ---
 read_when: "Structuring an MCP server: tool surface layout, toolset gating, or where safety and transport live"
+paths:
+  - "{{BACKEND_PATH}}/**/*.py"
 ---
 
 # MCP Server Architecture: One Seam, One Contract
@@ -15,8 +17,7 @@ safety, transport, and testing details are in the other `mcp-*` rules.
   only guard.
 - The transport is the only path to the controlled process
   (`mcp-transport.md`).
-- Core tools are always on; other toolsets are opt-in per category and gated
-  server-side.
+- Toolsets are gated server-side (`mcp-contract.md`).
 - The server stays harness-agnostic: no assumptions about which agent or
   client calls it.
 
@@ -27,6 +28,5 @@ safety, transport, and testing details are in the other `mcp-*` rules.
 
 ## ANTI-PATTERNS
 
-- A single `do(action, params)` dispatcher tool.
 - Editor or UI knowledge inside the MCP layer.
 - Hidden global state in a long-lived server.

@@ -22,6 +22,5 @@ paths:
 
 ## SHOULD
 
-- Deterministic logic takes its seed and inputs as parameters; no global RNG.
 - Property tests (`proptest`) for generators and parsers.
 - Keep the public API small; `pub(crate)` by default.
