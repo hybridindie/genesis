@@ -89,7 +89,7 @@ def main():
         print(f"Rule index: kept the existing table, added {len(new)} rows, removed {len(gone)}")
         return
     commands = sorted(p.stem for p in (out / ".claude" / "commands").glob("*.md"))
-    skills = sorted(p.parent.name for p in (out / ".claude" / "skills").glob("*/SKILL.md"))
+    skills = sorted(p.parent.name for p in (out / ".agents" / "skills").glob("*/SKILL.md"))
     text = text.replace(MARKER, "\n".join(table))
     text = text.replace("<!-- COMMAND_LIST -->", ", ".join(f"`/{c}`" for c in commands) or "none")
     text = text.replace("<!-- SKILL_LIST -->", ", ".join(f"`{s}`" for s in skills) or "none")

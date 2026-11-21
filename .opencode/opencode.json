@@ -6,9 +6,6 @@
       "extensions": [".gd"]
     }
   },
-  "skills": [
-    ".opencode/skills"
-  ],
   "instructions": [
     "AGENTS.md"
   ],

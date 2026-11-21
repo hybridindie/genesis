@@ -14,7 +14,7 @@ CASES = ROOT / "tests/evals/behaviour"
 
 
 def skills() -> list[str]:
-    names = {p.stem for p in (ROOT / ".agents/skills").glob("*.md")}
+    names = {p.parent.name for p in (ROOT / ".agents/skills").glob("*/SKILL.md")}
     names |= {p.parent.name for p in (ROOT / "templates/_shared").rglob("skills/*/SKILL.md")}
     return sorted(names)
 

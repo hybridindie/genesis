@@ -1,7 +1,18 @@
+---
+name: epic-interview
+description: >
+  Ask the smallest set of questions that unblocks an Epic; returns blockers, answers,
+  and updated assumptions without drafting the Epic. Trigger phrases: "run interview
+  mode", "close gaps on this epic", "clarify these requirements", "what questions do I
+  need to answer", "resolve these contradictions". Use when unknowns or conflicting
+  sources block scope, acceptance, or story boundaries.
+---
+
 # Epic Interview
 
 <!--
-  Shared content — referenced by harness-specific SKILL.md wrappers.
+  The skill itself. OpenCode reads it here; Claude Code loads it through the
+  generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
   version: 4.0.0, owner: John D
   invokes: .agents/doctrine/source-discipline.md

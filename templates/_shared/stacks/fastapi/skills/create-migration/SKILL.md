@@ -36,7 +36,7 @@ the model designs the table columns and constraints.
 
 1. **Create the skeleton.**
    ```bash
-   python3 .claude/skills/create-migration/scripts/new_migration.py \
+   python3 .agents/skills/create-migration/scripts/new_migration.py \
      --description "{{description}}" --tables "{{tables}}"
    ```
    The script owns the timestamp, filename, table skeleton, and overwrite guard.

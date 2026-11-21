@@ -1,11 +1,23 @@
+---
+name: epic-composer
+description: >
+  Draft an Epic issue from source material — one outcome, 3–8 observable acceptance
+  criteria, explicit scope, and a parallel story map with waves, a shared contract, and
+  file ownership. Trigger phrases: "compose an epic", "draft an epic", "scope new work",
+  "write an epic from these notes", "turn these transcripts into requirements", "create
+  an epic from this meeting". Use when the user brings a problem statement, transcripts,
+  documents or notes and wants a reviewable Epic issue they can decompose.
+---
+
 # Epic Composer
 
 <!--
-  Shared content — referenced by harness-specific SKILL.md wrappers.
+  The skill itself. OpenCode reads it here; Claude Code loads it through the
+  generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
   version: 5.1.0, owner: John D
-  invokes: .agents/skills/epic-interview.md,
-           .agents/skills/epic-acceptance-linter.md,
+  invokes: .agents/skills/epic-interview/SKILL.md,
+           .agents/skills/epic-acceptance-linter/SKILL.md,
            .agents/templates/epic/epic-shell.md,
            .agents/evals/epic-rubric.md
   doctrine: .agents/doctrine/source-discipline.md,
@@ -41,8 +53,8 @@ synthesizes and plans; the shape, order, and checks are fixed.
 6. **Define the shared contract.** If parallel tracks share an interface, type,
    schema, or file format, name it and its owner. Otherwise write `none`.
 7. **Gap gate.** If a gap changes scope, actors, or acceptance, run
-   `.agents/skills/epic-interview.md` and ask only its blockers. If the criteria
-   need review, run `.agents/skills/epic-acceptance-linter.md`.
+   `.agents/skills/epic-interview/SKILL.md` and ask only its blockers. If the criteria
+   need review, run `.agents/skills/epic-acceptance-linter/SKILL.md`.
 8. **Validate the shape.** Write the draft to a temporary file and run:
    ```bash
    draft="$(mktemp)"

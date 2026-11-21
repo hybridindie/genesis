@@ -30,7 +30,7 @@ production code.
 
 1. **Scan once.**
    ```bash
-   python3 .claude/skills/test-hygiene-scanner/scripts/scan.py \
+   python3 .agents/skills/test-hygiene-scanner/scripts/scan.py \
      {{TEST_ROOTS}}
    ```
    The script owns the categories and regexes; do not run alternate searches.

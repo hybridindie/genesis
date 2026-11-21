@@ -29,7 +29,7 @@ skill owns semantic fit. It never needs the genesis repo.
 ## Deterministic Steps
 
 1. **Inventory.** Run
-   `python3 .claude/skills/customize-harness/scripts/inventory.py --root .`;
+   `python3 .agents/skills/customize-harness/scripts/inventory.py --root .`;
    use its JSON counts and `lsp` block.
 2. **Read domain facts.** Use `README.md` and the manifest fields; if the domain
    is still unclear, ask one question.

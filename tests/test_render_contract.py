@@ -39,7 +39,7 @@ def test_second_render_changes_nothing(tmp_path):
 def test_rendered_python_matches_its_source(tmp_path):
     run_render(tmp_path, "--stacks", "python,fastapi")
     rel = "skills/create-migration/scripts/new_migration.py"
-    rendered = (tmp_path / ".claude" / rel).read_text()
+    rendered = (tmp_path / ".agents" / rel).read_text()
     source = (ROOT / "templates/_shared/stacks/fastapi" / rel).read_text()
     assert rendered == source
 

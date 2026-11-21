@@ -1,7 +1,20 @@
+---
+name: bootstrap-harness
+description: >
+  Install, update, or extend the AI harness (OpenCode + Claude Code) in a project: core
+  rules plus every detected stack (python, mcp, agent, fastapi, frontend, godot, godot-
+  addon, rust) and opt-in packs (production). Trigger phrases: "bootstrap harness",
+  "generate harness", "install harness", "scaffold AI rules", "set up Claude and
+  Opencode rules", "add the rust stack", "add the production pack", "update the
+  harness". Use when the user wants to install, update, or extend the harness in a
+  target project.
+---
+
 # Bootstrap / Install Harness
 
 <!--
-  Shared content — referenced by harness-specific SKILL.md wrappers.
+  The skill itself. OpenCode reads it here; Claude Code loads it through the
+  generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
   version: 6.0.1, owner: John D
   invokes: templates/scripts/render.py (via bootstrap.sh),

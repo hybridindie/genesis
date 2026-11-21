@@ -1,7 +1,19 @@
+---
+name: task-decomposer
+description: >
+  Break a story into a checklist of PR-sized tasks grouped as a shared contract,
+  parallel tracks with file ownership, and an integration step — ready to hand to
+  subagents or teams. Trigger phrases: "break down this story into tasks", "decompose
+  this story", "what tasks does this story need", "split this story into tasks",
+  "parallelize this story". Use when a story is drafted and needs a task checklist that
+  can be delegated without collisions.
+---
+
 # Task Decomposer
 
 <!--
-  Shared content — referenced by harness-specific SKILL.md wrappers.
+  The skill itself. OpenCode reads it here; Claude Code loads it through the
+  generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
   version: 3.1.0, owner: John D
   invokes: .agents/templates/epic/task-breakdown-shell.md,
