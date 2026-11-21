@@ -12,11 +12,11 @@ stale). Nothing is written twice.
 ```
 .agents/   Shared primitives                               (EDIT HERE)
    ├── skills/<name>/SKILL.md   the skills (epic-*, story/task decomposers,
-   │                            bootstrap-harness)
+   │                            wave-dispatcher, bootstrap-harness)
    ├── doctrine/                shared rules referenced by several skills
    ├── templates/               epic/story/traceability shells
    ├── evals/                   rubrics, plus test cases for the skills
-   └── scripts/                 validate_artifact.py
+   └── scripts/                 plan.py, tracker.py, validate_artifact.py
 
 .claude/skills/<name>/SKILL.md  generated pointers → .agents/skills/<name>/SKILL.md
 .claude/agents/<name>.md        agents (Claude format)
@@ -34,7 +34,11 @@ stale). Nothing is written twice.
 | Hooks | `.claude/hooks/*.sh` | runs it | plugin shells out to it |
 
 Rendered projects use the same layout: `bootstrap.sh` writes skills to
-`.agents/skills/` and a pointer to `.claude/skills/`.
+`.agents/skills/` and a pointer to `.claude/skills/`. The user-level install is
+the one place copies are allowed: `system/install.sh` puts the shared files in
+`~/.agents/` and a full copy of each skill into every installed harness's own
+skills folder (`~/.claude/skills/`, `~/.config/opencode/skills/`), only for
+harnesses that are present.
 
 **Golden rule:** Edit content in `.agents/`. Never hand-edit a generated pointer
 or mirror; regenerate it.

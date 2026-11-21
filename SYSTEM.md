@@ -7,8 +7,8 @@ This repository has two layers. The **system** layer configures the machine; the
 machine                                    project
 ───────                                    ───────
 system/install.sh                          install.sh  /  new-project.sh
-  ├─ ~/.config/zsh          (shell)          ├─ .claude/{rules,agents,commands,skills,hooks}
-  ├─ ~/.config/opencode/AGENTS.md (user)     ├─ .opencode/{skills,agents,commands}
+  ├─ ~/.config/zsh          (shell)          ├─ .agents/skills (one copy) + .claude/skills pointers
+  ├─ ~/.config/opencode/AGENTS.md (user)     ├─ .claude/{rules,agents,commands,hooks}  .opencode/{agents,commands}
   ├─ ~/.claude/{CLAUDE.md,settings.json}     ├─ .githooks/  CI workflow
   ├─ ~/.config/system/gitconfig (git)        └─ CLAUDE.md  AGENTS.md
   └─ herdr / zed (optional)

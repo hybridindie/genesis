@@ -9,7 +9,8 @@ are the machine's source of truth.
 system/
   install.sh          render into $HOME (idempotent, backs up on --force)
   shell/              zsh config -> ~/.config/zsh + $HOME loaders
-  agents/             AGENTS.md (user-level), CLAUDE.md import, opencode.jsonc, settings.json
+  agents/             AGENTS.md (user-level), CLAUDE.md import, opencode.jsonc, settings.json,
+                      stage_skills.py (the `skills` component, below)
   git/                shared gitconfig + global gitignore
   herdr/config.toml   optional, installed when herdr is present
   zed/settings.json   optional, installed when zed is present
@@ -31,7 +32,13 @@ bash system/install.sh \
 Flags: `--home` (test target), `--force` (update differing files after a
 timestamped backup), `--diff` (show changes, write nothing), `--all` (install
 agent/editor configs even when the tool is absent), `--no-tools` (skip the
-tooling report), `--skip shell,agents,git,herdr,zed,bin,brewfile`.
+tooling report), `--skip shell,agents,skills,git,herdr,zed,bin,brewfile`.
+
+The `skills` component installs the epic pipeline (epic-composer through
+wave-dispatcher) for every repo on the machine: shared doctrine, templates and
+scripts into `~/.agents/`, and a full copy of each skill into
+`~/.claude/skills/` and/or `~/.config/opencode/skills/` — only for the
+harnesses that are installed (`--all` forces both).
 
 Safety rules:
 
