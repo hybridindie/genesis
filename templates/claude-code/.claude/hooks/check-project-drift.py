@@ -12,7 +12,7 @@ Checks:
   3. The Commands and Skills sections match the directories on disk.
   4. The Claude/OpenCode mirrors have the same commands and agents, and every
      .agents/skills skill has its .claude/skills pointer.
-  5. `CLAUDE.md` stays a thin import of `AGENTS.md` and `my-workflows.md`.
+  5. `CLAUDE.md` stays a thin import of `AGENTS.md`.
   6. The Python version in `AGENTS.md` and `pyproject.toml` matches the manifest.
   7. No rendered placeholder survived.
   8. The expected hooks and git hooks exist.
@@ -224,21 +224,16 @@ class Drift:
             text = claude.read_text(encoding="utf-8")
             self.check("@AGENTS.md" in text, "DRIFT: CLAUDE.md must import @AGENTS.md")
             self.check(
-                "@my-workflows.md" in text,
-                "DRIFT: CLAUDE.md must import @my-workflows.md",
-            )
-            self.check(
                 len(text.splitlines()) <= 60,
                 "DRIFT: CLAUDE.md is no longer thin; move content to AGENTS.md",
             )
-        workflows = self.root / "my-workflows.md"
-        self.check(workflows.is_file(), "DRIFT: my-workflows.md is missing")
-
         # OpenCode merges a root opencode.json and .opencode/opencode.json; check both.
+        paths = [p for p in (self.root / "opencode.json", self.root / ".opencode" / "opencode.json")
+                 if p.is_file()]
+        if not self.check(bool(paths), "DRIFT: no opencode.json (root or .opencode/)"):
+            return
         configs = []
-        for path in (self.root / "opencode.json", self.root / ".opencode" / "opencode.json"):
-            if not path.is_file():
-                continue
+        for path in paths:
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
             except json.JSONDecodeError as exc:
@@ -248,17 +243,11 @@ class Drift:
                 configs.append(data)
             else:
                 self.fail(f"DRIFT: {path.relative_to(self.root)} must contain an object")
-        if not self.check(bool(configs), "DRIFT: no opencode.json (root or .opencode/)"):
-            return
-        instructions, skill_paths = [], []
+        if not configs:
+            return  # every file was reported above; don't also claim one is missing
+        skill_paths = []
         for config in configs:
-            instructions += config.get("instructions") or []
-            skills = config.get("skills") or []
-            skill_paths += skills if isinstance(skills, list) else skills.get("paths") or []
-        self.check(
-            any(str(i).endswith("my-workflows.md") for i in instructions),
-            "DRIFT: opencode.json must load my-workflows.md",
-        )
+            skill_paths += self.path_list(config.get("skills"))
         # Skills live in .agents/skills/, which OpenCode discovers without config.
         stale = [p for p in skill_paths if str(p).rstrip("/").endswith(".opencode/skills")]
         if stale and not (self.root / ".opencode" / "skills").is_dir():
@@ -267,12 +256,39 @@ class Drift:
             self.warn("WARN: opencode.json does not deny reading .env files")
 
     @staticmethod
+    def path_list(value: object) -> list:
+        """`instructions`/`skills` arrive as a list, one string, or `{paths: [...]}`.
+
+        OpenCode accepts all three; treating a bare string as iterable splits it
+        into characters and reports drift for a config that is actually fine.
+        """
+        if isinstance(value, str):
+            return [value]
+        if isinstance(value, list):
+            return value
+        if isinstance(value, dict):
+            paths = value.get("paths")
+            return paths if isinstance(paths, list) else []
+        return []
+
+    @staticmethod
+    def is_env_path(value: str) -> bool:
+        """`.env` and its variants, not `.env.example` or an `environments/` dir."""
+        name = value.rstrip("/").split("/")[-1]
+        return name == ".env" or (
+            name.startswith(".env.") and not name.endswith((".example", ".sample", ".template"))
+        )
+
+    @staticmethod
     def denies_env(node: object) -> bool:
         """Accepts the v2 `permissions` list and the `permission` object form."""
         if isinstance(node, dict):
-            if node.get("effect") == "deny" and ".env" in str(node.get("resource", "")):
+            action = node.get("action")
+            if (node.get("effect") == "deny"
+                    and Drift.is_env_path(str(node.get("resource", "")))
+                    and action in (None, "read")):
                 return True
-            if any(".env" in str(k) and v == "deny" for k, v in node.items()):
+            if any(Drift.is_env_path(str(k)) and v == "deny" for k, v in node.items()):
                 return True
             return any(Drift.denies_env(v) for v in node.values())
         if isinstance(node, list):
@@ -322,7 +338,6 @@ class Drift:
         targets = [
             self.root / "AGENTS.md",
             self.root / "CLAUDE.md",
-            self.root / "my-workflows.md",
         ]
         for folder in (".claude", ".opencode", ".githooks", ".github/workflows"):
             base = self.root / folder

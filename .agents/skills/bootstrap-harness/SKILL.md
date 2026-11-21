@@ -16,7 +16,7 @@ description: >
   The skill itself. OpenCode reads it here; Claude Code loads it through the
   generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 6.0.0, owner: John D
+  version: 6.0.1, owner: John D
   invokes: templates/scripts/render.py (via bootstrap.sh),
            templates/scripts/validate-render.py
 -->
@@ -71,7 +71,8 @@ plan with the user and runs the semantic passes.
 3. **Confirm.** Show the plan table below and ask: "Proceed? Reply yes, or
    name stacks/packs to add or drop." On an update, list `kept_local_edits`:
    files edited since the last render are kept, not overwritten (as are
-   `my-workflows.md`, existing `.githooks/` and existing CI). New stack rules
+   existing `.githooks/` and existing CI). An edited `my-workflows.md` from an
+   older install is kept and reported; nothing loads it any more. New stack rules
    are still added and indexed. Re-run step 2 if the user changes anything.
 
 4. **Render.**

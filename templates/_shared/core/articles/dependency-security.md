@@ -1,5 +1,14 @@
 ---
 read_when: "Adding, upgrading, or auditing a dependency"
+paths:
+  - "**/pyproject.toml"
+  - "**/uv.lock"
+  - "**/requirements*.txt"
+  - "**/package.json"
+  - "**/package-lock.json"
+  - "**/pnpm-lock.yaml"
+  - "**/Cargo.toml"
+  - "**/Cargo.lock"
 ---
 
 # Dependencies: Locked, Audited, Justified

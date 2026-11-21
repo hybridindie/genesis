@@ -11,6 +11,7 @@ On-demand section — read when invoking a skill or checking its references.
 | epic-acceptance-linter | `.agents/skills/epic-acceptance-linter/SKILL.md` | Review acceptance criteria; suggest concrete rewrites |
 | story-decomposer | `.agents/skills/story-decomposer/SKILL.md` | Turn an Epic into story issues with waves, contracts and file ownership |
 | task-decomposer | `.agents/skills/task-decomposer/SKILL.md` | Break one story into a parallel task checklist for delegation |
+| wave-dispatcher | `.agents/skills/wave-dispatcher/SKILL.md` | Run planned stories with parallel subagents in worktrees, driven by `dispatch.py` |
 | bootstrap-harness | `.agents/skills/bootstrap-harness/SKILL.md` | Install/tailor a project harness (also `install-harness` and `install.sh`) |
 | ship-pr | `templates/_shared/skills/ship-pr/SKILL.md` | Open a PR, watch CI and review, address threads, merge on `--merge` (also ships to every project) |
 
@@ -18,8 +19,8 @@ On-demand section — read when invoking a skill or checking its references.
 
 - Epic issue body: `.agents/templates/epic/epic-shell.md`
 - Story issue body: `.agents/templates/epic/story-shell.md`
-- Task breakdown block (pasted under the story's `**Tasks**`):
-  `.agents/templates/epic/task-breakdown-shell.md`
+- Tasks and tracks live in the story's `agent-plan` block; `plan.py check`
+  renders the tables (`.agents/doctrine/agent-plan-schema.md`).
 - Traceability table: `.agents/templates/epic/traceability-template.md`
 - Epic quality pass (epic-composer, on request or before decomposing):
   `.agents/evals/epic-rubric.md`

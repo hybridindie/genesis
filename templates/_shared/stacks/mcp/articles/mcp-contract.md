@@ -1,5 +1,7 @@
 ---
 read_when: "Adding or changing an MCP tool, resource, prompt, or its schema"
+paths:
+  - "{{BACKEND_PATH}}/**/*.py"
 ---
 
 # MCP Contract: Tools, Resources, Prompts
@@ -14,7 +16,7 @@ public contract an agent will call without a human.
 - Name: `surface_verb_object` (`k8s_pod_list`), stable, no verbs like `do`.
 - Docstring is the client-facing description: what it does, when to use it,
   what it returns, what fails. Written for an agent.
-- Validate before side effects. Unknown arguments are an error, not ignored.
+- Unknown arguments are an error, not ignored.
 - Return the minimum useful payload; no raw SDK objects.
 - Mutations return the concrete effect (path written, node created), not just
   `ok: true`.
@@ -39,7 +41,7 @@ public contract an agent will call without a human.
 
 ## ANTI-PATTERNS
 
-- A single dispatcher tool.
+- A single `do(action, params)` dispatcher tool.
 - Untyped, undocumented return shapes.
 - Side effects in a resource or prompt.
 - Renaming a tool without a deprecation alias.

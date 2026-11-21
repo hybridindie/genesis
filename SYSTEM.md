@@ -10,8 +10,8 @@ system/install.sh                          install.sh  /  new-project.sh
   ├─ ~/.config/zsh          (shell)          ├─ .agents/skills (one copy) + .claude/skills pointers
   ├─ ~/.config/opencode/AGENTS.md (user)     ├─ .claude/{rules,agents,commands,hooks}  .opencode/{agents,commands}
   ├─ ~/.claude/{CLAUDE.md,settings.json}     ├─ .githooks/  CI workflow
-  ├─ ~/.config/system/gitconfig (git)        ├─ CLAUDE.md  AGENTS.md
-  └─ herdr / zed (optional)                  └─ my-workflows.md
+  ├─ ~/.config/system/gitconfig (git)        └─ CLAUDE.md  AGENTS.md
+  └─ herdr / zed (optional)
 ```
 
 ## 1. New machine
@@ -60,9 +60,7 @@ bootstrap.sh        → render (deterministic: placeholders, overlays, condition
 /harness-eval       → agent reads the code, trims rules that do not apply,
                       suggests rules the stack needs
       ↓
-/customize-harness  → weaves my-workflows.md (now filled with your shell,
-                      tooling, direnv and permission conventions) into the
-                      project's CLAUDE.md / AGENTS.md
+/customize-harness  → weaves the project's domain into AGENTS.md
 ```
 
 ## 4. What lives where

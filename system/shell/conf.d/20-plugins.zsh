@@ -123,10 +123,13 @@ else
 fi
 unset _ZCOMPDUMP _need_full _f _stale
 
-# ---- deferred plugins (turbo mode: loaded at the first prompt) ---------------
-# These only wrap zle widgets; nothing before the first prompt needs them, and
-# deferring them keeps the shell feeling instant.
-zinit wait lucid light-mode for \
+# ---- zle plugins (loaded synchronously, on purpose) --------------------------
+# These wrap zle widgets, so they must be in place before the FIRST prompt.
+# `zinit wait` (turbo mode) queues them and loads them from a precmd hook via
+# `sched` + `zle -F`, which only fires once the line editor is already running:
+# the first prompt appears without autosuggest-accept / highlighting and only
+# the next prompt gets them. Measured cost of loading here instead: ~10 ms.
+zinit lucid light-mode for \
   zsh-users/zsh-autosuggestions \
   zsh-users/zsh-syntax-highlighting
 

@@ -269,6 +269,15 @@ class Writer:
         self.written: list[str] = []
         self.kept: list[str] = []
         self.deleted: list[str] = []
+        self.preserved: list[str] = []
+
+    def preserve(self, rel: str) -> None:
+        """Note a file that exists and is intentionally not rewritten.
+
+        Its recorded hash has to survive, or the next render stops treating it
+        as rendered output (and the sums file changes on every run).
+        """
+        self.preserved.append(rel)
 
     def file(self, src: Path, rel: str, mode: int | None = None) -> None:
         data = src.read_bytes()
@@ -316,7 +325,7 @@ class Writer:
 
 
 def _loads_my_workflows(path: Path) -> bool:
-    """Whether an existing root opencode.json already loads my-workflows.md."""
+    """Whether a root opencode.json still loads the retired my-workflows.md."""
     try:
         instructions = json.loads(path.read_text()).get("instructions") or []
     except (OSError, json.JSONDecodeError, AttributeError):
@@ -324,6 +333,21 @@ def _loads_my_workflows(path: Path) -> bool:
     return isinstance(instructions, list) and any(
         str(item).endswith("my-workflows.md") for item in instructions
     )
+
+
+def retire_my_workflows(out: Path, recorded: dict[str, str], dry: bool) -> None:
+    """my-workflows.md was folded into .claude/rules/. Remove a copy that still
+    matches what genesis rendered; keep an edited one and say where it goes."""
+    path = out / "my-workflows.md"
+    if not path.is_file():
+        return
+    if recorded.get("my-workflows.md") == sha(path.read_bytes()):
+        if not dry:
+            path.unlink()
+        print("  Removed my-workflows.md (its conventions now live in .claude/rules/)", file=sys.stderr)
+    else:
+        print("  Kept my-workflows.md (edited). Nothing loads it any more: move what you"
+              " still want into AGENTS.md under Project Constraints, then delete it", file=sys.stderr)
 
 
 # ── Render ────────────────────────────────────────────────────────────────
@@ -345,7 +369,8 @@ def load_script(name: str, directory: Path = SCRIPT_DIR) -> Any:
 # Harness content the renderer owns; anything else (CI, git hooks, docs) is never removed.
 # `.opencode/skills/` stays listed so copies from older renders are removed.
 OWNED_PREFIXES = (".claude/rules/", ".claude/agents/", ".claude/commands/", ".claude/skills/",
-                  ".agents/skills/", ".opencode/agents/", ".opencode/commands/", ".opencode/skills/")
+                  ".agents/skills/", ".opencode/agents/", ".opencode/commands/", ".opencode/skills/",
+                  ".opencodereview/")
 
 
 def remove_stale(out: Path, recorded: dict[str, str], current: set[str], w: Writer) -> list[str]:
@@ -413,23 +438,23 @@ def render(plan: dict[str, Any], args: argparse.Namespace) -> tuple[list[str], l
     if (out / "opencode.json").is_file() and not (out / ".opencode" / "opencode.json").exists():
         # The project keeps its OpenCode config at the root; don't add a second
         # one, but still render the rest of the directory (e.g. ruff.toml).
-        if not _loads_my_workflows(out / "opencode.json"):
-            print("  Kept root opencode.json (add my-workflows.md to its instructions)", file=sys.stderr)
+        if _loads_my_workflows(out / "opencode.json"):
+            print("  Root opencode.json still loads my-workflows.md; drop it from instructions",
+                  file=sys.stderr)
         w.tree(TEMPLATES / "opencode" / ".opencode", ".opencode", skip={"opencode.json"})
     else:
         w.tree(TEMPLATES / "opencode" / ".opencode", ".opencode")
     w.file(TEMPLATES / "claude-code" / "CLAUDE.md", "CLAUDE.md")
+    w.tree(SHARED / ".opencodereview", ".opencodereview")
     w.file(SHARED / "AGENTS.md", "AGENTS.md")
     w.file(GENESIS / "docs" / "harness-eval.md", "docs/harness-eval.md")
 
-    if (out / "my-workflows.md").exists() and not args.force_workflows:
-        print("  Kept existing my-workflows.md (use --force-workflows to replace)", file=sys.stderr)
-    else:
-        w.file(SHARED / "my-workflows.md", "my-workflows.md")
+    retire_my_workflows(out, plan["recorded"], w.dry)
 
     for src in sorted((SHARED / "githooks").iterdir()):
         if (out / ".githooks" / src.name).exists() and not args.force_hooks:
             print(f"  Kept existing .githooks/{src.name} (use --force-hooks to replace)", file=sys.stderr)
+            w.preserve(f".githooks/{src.name}")
             continue
         w.file(src, f".githooks/{src.name}", 0o755)
 
@@ -467,7 +492,8 @@ def render(plan: dict[str, Any], args: argparse.Namespace) -> tuple[list[str], l
     # still matches is safe to replace on the next render; anything else is a
     # local edit.
     sums = {
-        **{rel: plan["recorded"][rel] for rel in w.kept + w.deleted if rel in plan["recorded"]},
+        **{rel: plan["recorded"][rel]
+           for rel in w.kept + w.deleted + w.preserved if rel in plan["recorded"]},
         **{rel: sha((out / rel).read_bytes()) for rel in w.written if (out / rel).is_file()},
     }
     write_sums(out, sums)
@@ -496,6 +522,7 @@ def render_ci(plan: dict[str, Any], args: argparse.Namespace, w: Writer) -> None
     existing = target.is_dir() and any(target.glob("*.y*ml"))
     if existing and not args.force_ci:
         print(f"  Kept existing {folder}/ (use --force-ci to write ci.yml)", file=sys.stderr)
+        w.preserve(f"{folder}/ci.yml")
         return
     parts = [(SHARED / "ci" / "base.yml").read_text(encoding="utf-8")]
     for stack, job in (("python", "python"), ("frontend", "frontend"), ("godot", "godot"), ("rust", "rust")):
@@ -531,7 +558,6 @@ def main() -> int:
     ap.add_argument("--no-ci", action="store_true", help="don't render a CI workflow")
     ap.add_argument("--force-ci", action="store_true", help="overwrite an existing CI workflow")
     ap.add_argument("--force-hooks", action="store_true", help="overwrite existing .githooks/ files")
-    ap.add_argument("--force-workflows", action="store_true", help="overwrite an existing my-workflows.md")
     ap.add_argument("--force-overwrite", action="store_true",
                     help="replace locally edited harness files instead of keeping them")
     ap.add_argument("--plan", action="store_true", help="print the resolved plan; write nothing")

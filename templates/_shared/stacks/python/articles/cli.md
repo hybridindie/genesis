@@ -1,5 +1,10 @@
 ---
 read_when: "Adding or changing a CLI command, flags, output, or exit behaviour"
+paths:
+  - "**/cli.py"
+  - "**/cli/**/*.py"
+  - "**/__main__.py"
+  - "**/commands/**/*.py"
 ---
 
 # CLI: Predictable Exit Codes, Machine-Readable Output
@@ -11,10 +16,8 @@ read_when: "Adding or changing a CLI command, flags, output, or exit behaviour"
 - Data to stdout; logs, progress, and errors to stderr.
 - Commands whose output another program reads offer `--json`: one
   parseable document, no ANSI, no banners, no prompts.
-- Non-interactive by default: never prompt in a pipe or CI. Destructive
-  commands require an explicit flag (`--yes` / `--force`).
-- Commands that change state offer `--dry-run`, which prints the planned
-  effect and changes nothing.
+- Non-interactive by default: never prompt in a pipe or CI. The confirmation
+  and preview `security.md` requires are `--yes` and `--dry-run`.
 - Commands are idempotent where the operation allows it; re-running is safe.
 - Config precedence is documented: flag > env > project file > user file > default.
 - Handle SIGINT by cleaning up and exiting non-zero; no half-written state.
@@ -24,12 +27,10 @@ read_when: "Adding or changing a CLI command, flags, output, or exit behaviour"
 - `--help` shows examples, not just flag names.
 - `--version` prints one line.
 - Human output is stable enough to read, never parsed by your own code.
-- Errors name the failing input and the next action.
 
 ## ANTI-PATTERNS
 
 - Interactive confirmation inside a pipeline.
 - Writing data and logs to the same stream.
-- Exit `0` after a partial failure.
 - Silently ignoring an unknown flag.
 - Colour codes when stdout is not a TTY.

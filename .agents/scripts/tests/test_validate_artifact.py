@@ -1,4 +1,10 @@
-"""Calibration tests for validate_artifact.py's acceptance-criteria parsing."""
+"""Calibration tests for validate_artifact.py's acceptance-criteria parsing.
+
+The templates emit `**AC1:** ...` lines in an epic and `- [ ] **Given** ...`
+checkboxes in a story. The parser also accepts a labelled checkbox and a plain
+Given: agents in the pipeline evals wrote both, and rejecting them failed
+correct criteria. This was a deliberate choice; it replaced the stricter pin.
+"""
 
 from __future__ import annotations
 

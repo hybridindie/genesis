@@ -1,5 +1,11 @@
 ---
 read_when: "Storing, logging, exporting, or deleting personal data about users"
+paths:
+  - "**/models/**"
+  - "**/migrations/**"
+  - "**/alembic/**"
+  - "**/schemas/**"
+  - "**/*.sql"
 ---
 
 # Privacy and Personal Data
