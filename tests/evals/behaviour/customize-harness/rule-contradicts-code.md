@@ -15,5 +15,4 @@
   stack — and asks which is intended when the two are equally plausible.
 - It does **not** add rules for technology the code does not use, and does not
   delete a rule the user may still want without saying so.
-- `my-workflows.md` placeholder sections are ignored rather than filled with
-  invented conventions.
+- It does not invent workflow conventions the project hasn't stated.

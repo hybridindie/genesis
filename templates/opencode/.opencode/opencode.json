@@ -1,6 +1,5 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "instructions": ["my-workflows.md"],
   "skills": [".opencode/skills"],
   "lsp": {
     "godot": {

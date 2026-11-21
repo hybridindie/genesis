@@ -11,7 +11,7 @@ Checks:
   2. `AGENTS.md` indexes every rule exactly once, and every rule has read_when.
   3. The Commands and Skills sections match the directories on disk.
   4. The Claude/OpenCode mirrors have the same commands, skills, and agents.
-  5. `CLAUDE.md` stays a thin import of `AGENTS.md` and `my-workflows.md`.
+  5. `CLAUDE.md` stays a thin import of `AGENTS.md`.
   6. The Python version in `AGENTS.md` and `pyproject.toml` matches the manifest.
   7. No rendered placeholder survived.
   8. The expected hooks and git hooks exist.
@@ -215,16 +215,9 @@ class Drift:
             text = claude.read_text(encoding="utf-8")
             self.check("@AGENTS.md" in text, "DRIFT: CLAUDE.md must import @AGENTS.md")
             self.check(
-                "@my-workflows.md" in text,
-                "DRIFT: CLAUDE.md must import @my-workflows.md",
-            )
-            self.check(
                 len(text.splitlines()) <= 60,
                 "DRIFT: CLAUDE.md is no longer thin; move content to AGENTS.md",
             )
-        workflows = self.root / "my-workflows.md"
-        self.check(workflows.is_file(), "DRIFT: my-workflows.md is missing")
-
         # OpenCode merges a root opencode.json and .opencode/opencode.json; check both.
         paths = [p for p in (self.root / "opencode.json", self.root / ".opencode" / "opencode.json")
                  if p.is_file()]
@@ -243,14 +236,9 @@ class Drift:
                 self.fail(f"DRIFT: {path.relative_to(self.root)} must contain an object")
         if not configs:
             return  # every file was reported above; don't also claim one is missing
-        instructions, skill_paths = [], []
+        skill_paths = []
         for config in configs:
-            instructions += self.path_list(config.get("instructions"))
             skill_paths += self.path_list(config.get("skills"))
-        self.check(
-            any(str(i).endswith("my-workflows.md") for i in instructions),
-            "DRIFT: opencode.json must load my-workflows.md",
-        )
         self.check(
             any(str(p).rstrip("/").endswith(".opencode/skills") for p in skill_paths),
             "DRIFT: opencode.json must expose .opencode/skills",
@@ -341,7 +329,6 @@ class Drift:
         targets = [
             self.root / "AGENTS.md",
             self.root / "CLAUDE.md",
-            self.root / "my-workflows.md",
         ]
         for folder in (".claude", ".opencode", ".githooks", ".github/workflows"):
             base = self.root / folder

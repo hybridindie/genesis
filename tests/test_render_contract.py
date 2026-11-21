@@ -69,3 +69,48 @@ def test_root_opencode_config_keeps_the_rest_of_the_directory(tmp_path):
     assert not (tmp_path / ".opencode" / "opencode.json").exists()
     assert (tmp_path / ".opencode" / "ruff.toml").is_file()
     assert (tmp_path / ".opencodereview" / "rule.json").is_file()
+
+
+def _install_old_workflows(out: Path, body: bytes, recorded: bytes) -> None:
+    """Simulate a pre-#66 install: my-workflows.md rendered and recorded."""
+    (out / "my-workflows.md").write_bytes(body)
+    with (out / ".claude" / "harness.sums").open("a", encoding="utf-8") as sums:
+        sums.write(f"{hashlib.sha256(recorded).hexdigest()}  my-workflows.md\n")
+
+
+def test_nothing_loads_my_workflows(tmp_path):
+    run_render(tmp_path, "--stacks", "python")
+    assert not (tmp_path / "my-workflows.md").exists()
+    assert "my-workflows" not in (tmp_path / "CLAUDE.md").read_text()
+    assert "my-workflows" not in (tmp_path / ".opencode" / "opencode.json").read_text()
+
+
+def test_rerender_removes_an_unmodified_my_workflows(tmp_path):
+    run_render(tmp_path, "--stacks", "python")
+    _install_old_workflows(tmp_path, b"# My Workflows\n", b"# My Workflows\n")
+    run_render(tmp_path, "--stacks", "python")
+    assert not (tmp_path / "my-workflows.md").exists()
+
+
+def test_rerender_keeps_an_edited_my_workflows(tmp_path):
+    run_render(tmp_path, "--stacks", "python")
+    _install_old_workflows(tmp_path, b"# My Workflows\nmine\n", b"# My Workflows\n")
+    result = subprocess.run(
+        [sys.executable, str(RENDER), "--output-dir", str(tmp_path), "--stacks", "python"],
+        check=True, capture_output=True, text=True,
+    )
+    assert (tmp_path / "my-workflows.md").read_text() == "# My Workflows\nmine\n"
+    assert "Kept my-workflows.md (edited)" in result.stderr
+
+
+ALWAYS_ON_WORD_BUDGET = 1600  # core rules without `paths:` load in every session
+
+
+def test_always_loaded_core_rules_stay_within_budget():
+    words = 0
+    for rule in sorted((ROOT / "templates/_shared/core/articles").glob("*.md")):
+        text = rule.read_text(encoding="utf-8")
+        frontmatter = text.split("---", 2)[1]
+        if "\npaths:" not in frontmatter:
+            words += len(text.split())
+    assert words <= ALWAYS_ON_WORD_BUDGET, f"{words} words load in every session"

@@ -39,7 +39,7 @@ python3 templates/scripts/render.py --output-dir /path/to/project --auto-detect 
 | `--python-version`, `--py-pkg-manager uv\|pip\|poetry` | Python toolchain for CI and commands (default: detected, else 3.12 / uv) |
 | `--db-provider` | Database named in the fastapi rules (default: Postgres) |
 | `--custom-instructions`, `--custom-tech-stack` | Text added to the rendered `AGENTS.md` |
-| `--force-ci`, `--force-hooks`, `--force-workflows` | Replace an existing CI workflow, git hooks, or `my-workflows.md` |
+| `--force-ci`, `--force-hooks` | Replace an existing CI workflow or git hooks |
 | `--force-overwrite` | Replace harness files edited since the last render (kept by default) |
 | `--plan` | Print the resolved plan as JSON and write nothing |
 | `--profile` | Legacy single profile (`web` → `fastapi,frontend`) |
