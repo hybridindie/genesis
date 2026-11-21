@@ -765,3 +765,10 @@ def test_accepts_an_explicit_lane_and_plan_specific_globs():
 def test_rejects_an_unknown_lane():
     s = story("S1", ["app/**"], [track("main", ["app/a.py"], lane="risky")])
     assert any("lane" in x for x in plan.validate_story(s))
+
+
+@pytest.mark.parametrize("lanes", [["fast"], {"irreversible": [42]}, {"risky": ["a/**"]}])
+def test_rejects_a_malformed_epic_lanes_field(lanes):
+    e = three_story_epic()
+    e["lanes"] = lanes
+    assert any("lanes" in x for x in plan.validate_epic(e))

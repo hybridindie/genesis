@@ -575,3 +575,12 @@ def test_rejects_auto_merging_a_diff_that_adds_a_migration(repo):
     data = run(root, "check", "S2/main", expect=0)
     assert data["lane"] == "irreversible" and "docs/migrations/0001_init.sql" in data["irreversible_paths"]
     assert any("--human" in f for f in run(root, "merge", "S2/main", expect=1)["findings"])
+
+
+def test_rejects_merging_a_migration_even_without_a_prior_check(repo):
+    root, plans = repo
+    load(root, plans)
+    run(root, "prepare", expect=0)
+    work_in(root, "S2", "main", **{"docs/migrations/0001_init.sql": "create table t();\n"})
+    data = run(root, "merge", "S2/main", expect=1)              # no check first
+    assert any("--human" in f for f in data["findings"])

@@ -236,6 +236,16 @@ def is_command(value) -> bool:
     return isinstance(value, str) and not PLACEHOLDER.match(value)
 
 
+def validate_lanes(where: str, body: dict) -> list[str]:
+    lanes = body.get("lanes")
+    if lanes is None:
+        return []
+    if (not isinstance(lanes, dict) or set(lanes) - {"irreversible"}
+            or not all(isinstance(g, str) for g in as_list(lanes.get("irreversible")))):
+        return [f"{where}: lanes takes only `irreversible: [globs]`"]
+    return []
+
+
 def lane_of(track: dict, plan: dict, epic: dict | None = None) -> str:
     """How a track's merge is gated, by how hard a bad merge is to undo:
     irreversible (never auto-merged), wide (shared surface: checks plus review)
@@ -319,7 +329,7 @@ def story_key(story: dict) -> str:
 # ── validation ───────────────────────────────────────────────────────────────
 
 def validate_epic(epic: dict) -> list[str]:
-    errs = []
+    errs = validate_lanes("epic", epic)
     if epic.get("version") != 1:
         errs.append("epic: version must be 1")
     acs = [str(a) for a in as_list(epic.get("acs"))]
@@ -382,10 +392,7 @@ def validate_story(story: dict) -> list[str]:
             errs.append(f"story {sid}: missing {field}")
     if not is_command(story.get("verify")):
         errs.append(f"story {sid}: missing verify (an exact command, not a placeholder)")
-    lanes = story.get("lanes")
-    if lanes is not None and (not isinstance(lanes, dict) or set(lanes) - {"irreversible"}
-                              or not all(isinstance(g, str) for g in as_list(lanes.get("irreversible")))):
-        errs.append(f"story {sid}: lanes takes only `irreversible: [globs]`")
+    errs += validate_lanes(f"story {sid}", story)
     tracks = as_list(story.get("tracks"))
     tids = [str(t.get("id")) for t in tracks]
     dupes = {i for i in tids if tids.count(i) > 1}

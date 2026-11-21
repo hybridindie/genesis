@@ -494,7 +494,7 @@ don't name. If they can't be fixed inside your paths, stop and say so.
 
 def forget(st: State, unit: str) -> None:
     """Drop a unit's retry history once it reaches a fresh start or is merged."""
-    for key in ("attempts", "retries", "checks"):
+    for key in ("attempts", "retries", "checks", "lanes"):
         st.data.get(key, {}).pop(unit, None)
     if unit in st.data.get("replan", []):
         st.data["replan"].remove(unit)
@@ -559,7 +559,13 @@ def cmd_merge(st: State, args) -> dict:
         waiting += [x for x in order[: order.index(track)] if status.get(x) != "done" and x not in waiting]
     if waiting:
         return {"ok": False, "unit": args.unit, "findings": [f"merge {', '.join(waiting)} first"]}
-    lane = st.data.get("lanes", {}).get(args.unit) or plan.lane_of(t, story, st.plans()[0])
+    # Decide from what is actually being merged, not from a stored check: a
+    # merge without a prior check (or after a re-prepare) still sees the diff.
+    branch = story_branch(story)
+    epic = st.plans()[0]
+    merging = [c for c in git("diff", "--name-only", f"{branch}...{branch}--{track}").splitlines() if c]
+    lane = ("irreversible" if plan.irreversible_paths(merging, story, epic)
+            else plan.lane_of(t, story, epic))
     if lane == "irreversible" and not args.human:
         return {"ok": False, "unit": args.unit, "lane": lane,
                 "findings": [f"{args.unit} is in the irreversible lane: a person must approve this merge; "
