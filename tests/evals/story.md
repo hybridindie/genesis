@@ -54,6 +54,8 @@ ac_text:
   AC1: Given a report with data, when the reader chooses Export, then a PDF downloads and the response carries a job id.
   AC2: Given a report with no data, when the reader chooses Export, then the PDF carries the empty-state line instead of failing.
 depends_on: [S1]
+consumes:
+  S1: [src/report/pdf.py::render_report_pdf]
 owns: [src/report/routes.py, tests/report/test_export.py, web/src/report/ExportButton.tsx, web/src/report/ExportButton.test.tsx]
 verify: pytest tests/report/test_export.py -q && (cd web && npm test -- ExportButton)
 tracks:
@@ -64,6 +66,8 @@ tracks:
   - id: web
     kind: track
     depends_on: [api]
+    consumes:
+      api: [src/report/routes.py]
     owns: [web/src/report/ExportButton.tsx, web/src/report/ExportButton.test.tsx]
     verify: cd web && npm test -- ExportButton
 tasks:

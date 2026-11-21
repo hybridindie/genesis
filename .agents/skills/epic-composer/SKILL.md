@@ -17,7 +17,7 @@ description: >
   The skill itself. OpenCode reads it here; Claude Code loads it through the
   generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 6.1.0, owner: John D
+  version: 6.2.0, owner: John D
   invokes: .agents/skills/epic-interview/SKILL.md,
            .agents/skills/epic-acceptance-linter/SKILL.md,
            .agents/templates/epic/epic-shell.md,
@@ -68,8 +68,10 @@ read, so it has to be right, not just plausible.
    - Make `owns` as narrow as the work allows: stories that can run together
      must own disjoint paths. Two stories that would both edit a file either
      share a contract story they both depend on, or are sequenced.
-   - Add `depends_on` only for a real output dependency, and name it in the
-     prose. Waves are computed from it — do not write wave numbers.
+   - Add `depends_on` only for a real output dependency, and name what
+     crosses it in `consumes` (the upstream paths or `path::Symbol` it reads).
+     If you can't name anything, there is no edge: drop it so the stories run
+     in parallel. Waves are computed from it — do not write wave numbers.
    - `verify` is the exact command this repo uses (step 3), scoped to the story.
 7. **Name shared contracts.** When parallel stories share an interface, type,
    schema, or file format, add a `contracts` entry owned by one story and make
