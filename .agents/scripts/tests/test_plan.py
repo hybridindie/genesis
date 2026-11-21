@@ -834,3 +834,63 @@ def test_accepts_scaffold_carrying_consumes_into_the_story():
     e = consuming_epic({"S1": ["backend/api/types.py"], "S2": ["frontend/src/api.ts"]})
     bodies = plan.scaffold(epic_md(e), TEMPLATE, only=["S3"])
     assert plan.extract(bodies["S3"])["consumes"] == {"S1": ["backend/api/types.py"], "S2": ["frontend/src/api.ts"]}
+
+
+# ── learning edge (#76): confirmed causes become planning constraints ────────
+
+LESSONS = """\
+constraints:
+  - paths: [backend/app/schedules/models.py]
+    constraint: Changing the Schedule model needs frontend/src/schedules/api.ts regenerated in the same story.
+    source: S4/api
+    date: "2026-11-21"
+  - paths: [docs/**]
+    constraint: Docs builds need the mkdocs nav updated.
+    source: S2/main
+    date: "2026-11-20"
+"""
+
+
+def lessons(tmp_path):
+    p = tmp_path / "plan-constraints.yaml"
+    p.write_text(LESSONS)
+    return plan.load_constraints(str(p))
+
+
+def test_accepts_only_the_constraints_that_touch_what_a_unit_owns(tmp_path):
+    found = plan.constraints_for(["backend/app/schedules/**"], lessons(tmp_path))
+    assert [c["source"] for c in found] == ["S4/api"]
+    assert plan.constraints_for(["frontend/**"], lessons(tmp_path)) == []
+
+
+def test_accepts_a_brief_that_carries_the_relevant_lesson(tmp_path):
+    s = story("S1", ["backend/**"], [track("main", ["backend/app/schedules/**"])])
+    text = plan.brief(s, "main", lessons(tmp_path))
+    assert "Schedule model needs frontend/src/schedules/api.ts regenerated" in text and "S4/api" in text
+    assert "mkdocs" not in text
+
+
+def test_accepts_a_missing_constraints_file_as_none(tmp_path):
+    assert plan.load_constraints(str(tmp_path / "absent.yaml")) == []
+
+
+@pytest.mark.parametrize("bad", ["constraints: [x]\n", "constraints:\n  - paths: a/**\n    constraint: c\n",
+                                 "constraints:\n  - paths: [a/**]\n", "- 1\n"])
+def test_rejects_a_malformed_constraints_file(tmp_path, bad):
+    p = tmp_path / "plan-constraints.yaml"
+    p.write_text(bad)
+    with pytest.raises(plan.PlanError, match="plan-constraints"):
+        plan.load_constraints(str(p))
+
+
+def test_accepts_check_listing_constraints_for_overlapping_plans(tmp_path):
+    e = three_story_epic()
+    paths = [write(tmp_path, "epic.md", full_epic_md(e))]
+    for sid, b in plan.scaffold(epic_md(e), TEMPLATE).items():
+        paths.append(write(tmp_path, f"story-{sid}.md", b))
+    (tmp_path / "c.yaml").write_text(LESSONS.replace("backend/app/schedules/models.py", "backend/api/x.py"))
+    ok, lines = plan.check(paths, constraints=plan.load_constraints(str(tmp_path / "c.yaml")))
+    learned = [line for line in lines if line.startswith("LEARNED")]
+    assert ok and any("S1" in line and "S4/api" in line for line in learned)
+    assert any("S3" in line and "mkdocs" in line for line in learned)
+    assert not any("S2" in line.split(":")[0] for line in learned)

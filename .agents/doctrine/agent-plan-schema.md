@@ -1,7 +1,7 @@
 <!--
   agent-plan-schema.md — the machine-readable plan carried by Epic and story issues
   Referenced by: epic-composer, story-decomposer, task-decomposer, wave-dispatcher
-  version: 1.4.0, owner: John D
+  version: 1.5.0, owner: John D
   Single source of truth for the `agent-plan` block. `.agents/scripts/plan.py`
   enforces it; skills write it; the dispatcher schedules from it.
 -->
@@ -165,6 +165,25 @@ change.
   `todo` or leave it out.
 - **Ids are stable.** Never renumber stories, tracks or tasks after dispatch
   starts; add new ones instead.
+
+## Lessons from earlier runs
+
+A confirmed cause of a failure becomes a constraint that later plans follow,
+in `.agents/plan-constraints.yaml` at the repo root (commit it):
+
+```yaml
+constraints:
+  - paths: [backend/app/schedules/models.py]
+    constraint: Changing the Schedule model needs frontend/src/schedules/api.ts regenerated in the same story.
+    source: S4/api        # the unit whose failure taught it
+    date: "2026-11-21"
+```
+
+`dispatch.py learn` appends one, only after a person confirms the cause.
+`plan.py check` prints `LEARNED <story>: ...` for every constraint whose paths
+overlap a story's `owns`, and each brief carries the ones that overlap its
+track. The fix for the run you're in is `retry`; a lesson changes every run
+after it.
 
 ## Commands
 

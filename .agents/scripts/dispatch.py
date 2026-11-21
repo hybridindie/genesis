@@ -11,6 +11,7 @@
   dispatch.py retry UNIT --note TEXT
   dispatch.py merge UNIT [--human]
   dispatch.py block UNIT --note TEXT
+  dispatch.py learn --unit UNIT --paths GLOB... --constraint TEXT
   dispatch.py integrate STORY [--push]
   dispatch.py report
 
@@ -38,6 +39,7 @@ Layout, for a story whose plan says `branch: feat/41-x`:
 from __future__ import annotations
 
 import argparse
+import datetime
 import importlib.util
 import json
 import os
@@ -241,8 +243,9 @@ def weak_check(st: "State", unit: str, t: dict) -> bool:
     return bool(st.data.get("baselines", {}).get(unit)) and t.get("verify_baseline") != "pass"
 
 
-def clean_tree(cwd: Path) -> list[str]:
-    return [line[3:] for line in git("status", "--porcelain", cwd=cwd).splitlines() if line.strip()]
+def clean_tree(cwd: Path, ignore: tuple[str, ...] = ()) -> list[str]:
+    return [line[3:] for line in git("status", "--porcelain", cwd=cwd).splitlines()
+            if line.strip() and line[3:] not in ignore]
 
 
 def restore(cwd: Path) -> None:
@@ -346,13 +349,15 @@ def ensure_story_branch(st: State, story: dict, stories: dict[str, dict], dry: l
 
 
 def cmd_prepare(st: State, args) -> dict:
-    if not args.allow_dirty and clean_tree(st.root):
+    # A lesson just recorded by `learn` is the one change that may wait to be committed.
+    if not args.allow_dirty and clean_tree(st.root, ignore=(plan.CONSTRAINTS_FILE, ".agents/")):
         raise DispatchError("the main checkout has uncommitted changes (use --allow-dirty to proceed)")
     epic, stories = st.plans()
     errs = plan.validate_set(epic, stories)
     if errs:
         return {"ok": False, "errors": errs}
     by_id = {plan.story_key(s): s for s in stories}
+    lessons = plan.load_constraints(str(st.root / plan.CONSTRAINTS_FILE))
     runnable = plan.next_runnable(epic, stories, args.max)
     briefs = st.work / "briefs"
     briefs.mkdir(parents=True, exist_ok=True)
@@ -383,7 +388,7 @@ def cmd_prepare(st: State, args) -> dict:
             forget(st, unit)  # a re-planned unit starts over
             st.set_status(sid, track, "running")
         weak = base_state == "pass" and t.get("verify_baseline") != "pass"
-        text = plan.brief(story, track) + (
+        text = plan.brief(story, track, lessons) + (
             f"\n\n## Where to work\nWork only in `{tree}` (cd there first). "
             f"Your branch is `{tbranch}`; commit there.\n")
         if weak:
@@ -539,6 +544,22 @@ def cmd_retry(st: State, args) -> dict:
             "brief": str(brief), "worktree": str(st.trees / f"{sid}-{track}")}
 
 
+def cmd_learn(st: State, args) -> dict:
+    """Record a confirmed cause as a planning constraint for later runs."""
+    sid, track = split_unit(args.unit)
+    track_of(st.story(sid), track)
+    path = st.root / plan.CONSTRAINTS_FILE
+    existing = plan.load_constraints(str(path))
+    entry = {"paths": list(args.paths), "constraint": args.constraint.strip(), "source": args.unit,
+             "date": datetime.date.today().isoformat()}
+    if any(c["paths"] == entry["paths"] and c["constraint"].strip() == entry["constraint"] for c in existing):
+        return {"ok": True, "recorded": False, "file": str(path), "note": "already recorded"}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(plan.dump({"constraints": [*existing, entry]}), encoding="utf-8")
+    return {"ok": True, "recorded": True, "file": str(path), "constraint": entry,
+            "next": f"commit {plan.CONSTRAINTS_FILE} so later runs and other machines see it"}
+
+
 def cmd_block(st: State, args) -> dict:
     sid, track = split_unit(args.unit)
     track_of(st.story(sid), track)
@@ -681,6 +702,9 @@ def main() -> int:
     p = sub.add_parser("merge"); p.add_argument("unit")
     p.add_argument("--human", action="store_true", help="a person approved this irreversible-lane merge")
     p = sub.add_parser("block"); p.add_argument("unit"); p.add_argument("--note", required=True)
+    p = sub.add_parser("learn", help="record a confirmed cause as a constraint for later plans")
+    p.add_argument("--unit", required=True); p.add_argument("--paths", nargs="+", required=True)
+    p.add_argument("--constraint", required=True)
     p = sub.add_parser("integrate"); p.add_argument("story"); p.add_argument("--push", action="store_true")
     p.add_argument("--timeout", type=int, default=1800)
     sub.add_parser("report")
