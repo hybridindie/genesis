@@ -236,6 +236,49 @@ def is_command(value) -> bool:
     return isinstance(value, str) and not PLACEHOLDER.match(value)
 
 
+def validate_consumes(where: str, entry: dict, owns_of: dict[str, list]) -> list[str]:
+    """`consumes: {<upstream>: [path or path::Symbol, ...]}`: each key is a
+    dependency, and each path lies inside what that upstream owns."""
+    consumes = entry.get("consumes")
+    if consumes is None:
+        return []
+    if not isinstance(consumes, dict) or not all(
+            isinstance(v, list) and all(isinstance(x, str) for x in v) for v in consumes.values()):
+        return [f"{where}: consumes must map each dependency to a list of paths"]
+    errs = []
+    deps = {str(d) for d in as_list(entry.get("depends_on"))}
+    for up, items in consumes.items():
+        up = str(up)
+        if up not in deps:
+            errs.append(f"{where}: consumes from {up}, which it does not depend on")
+            continue
+        owns = as_list(owns_of.get(up))
+        for item in items:
+            path = item.split("::", 1)[0]
+            if owns and not (covered_by(path, owns) or subsumed(path, owns)):
+                errs.append(f"{where}: consumes {path} from {up}, which {up} does not own")
+    return errs
+
+
+def edge_warnings(epic: dict | None, stories: list[dict]) -> list[str]:
+    """Dependencies that name nothing crossing them: "and then" edges that may
+    serialize work for nothing. Warnings, not errors, until plans carry them."""
+    out = []
+    for s in as_list((epic or {}).get("stories")):
+        named = set(map(str, (s.get("consumes") or {}))) if isinstance(s.get("consumes"), dict) else set()
+        for d in map(str, as_list(s.get("depends_on"))):
+            if d not in named:
+                out.append(f"story {s.get('id')} depends on {d} but names nothing it consumes from it")
+    for story in stories:
+        for tr in as_list(story.get("tracks")):
+            named = set(map(str, (tr.get("consumes") or {}))) if isinstance(tr.get("consumes"), dict) else set()
+            for d in map(str, as_list(tr.get("depends_on"))):
+                if d not in named:
+                    out.append(f"story {story_key(story)} track {tr.get('id')} depends on {d} "
+                               "but names nothing it consumes from it")
+    return out
+
+
 def validate_lanes(where: str, body: dict) -> list[str]:
     lanes = body.get("lanes")
     if lanes is None:
@@ -367,6 +410,7 @@ def validate_epic(epic: dict) -> list[str]:
         for d in deps[sid]:
             if d not in ids:
                 errs.append(f"story {sid}: depends_on unknown story {d}")
+        errs += validate_consumes(f"story {sid}", s, {str(x.get("id")): as_list(x.get("owns")) for x in stories})
     missing = [a for a in acs if a not in covered]
     if missing:
         errs.append(f"epic: acs with no story: {missing}")
@@ -393,6 +437,7 @@ def validate_story(story: dict) -> list[str]:
     if not is_command(story.get("verify")):
         errs.append(f"story {sid}: missing verify (an exact command, not a placeholder)")
     errs += validate_lanes(f"story {sid}", story)
+    errs += validate_consumes(f"story {sid}", story, {})
     tracks = as_list(story.get("tracks"))
     tids = [str(t.get("id")) for t in tracks]
     dupes = {i for i in tids if tids.count(i) > 1}
@@ -407,6 +452,7 @@ def validate_story(story: dict) -> list[str]:
             errs.append(f"{where}: kind must be contract or track")
         if "lane" in t and t["lane"] not in LANES:
             errs.append(f"{where}: lane must be one of {', '.join(LANES)}")
+        errs += validate_consumes(where, t, {str(x.get("id")): as_list(x.get("owns")) for x in tracks})
         if not t.get("owns"):
             errs.append(f"{where}: missing owns")
         if not is_command(t.get("verify")):
@@ -772,6 +818,9 @@ def brief(story: dict, track_id: str) -> str:
     ]
     if contract is not None and contract is not t:
         lines.append(f"- **Shared contract (already merged, read-only):** {code(contract.get('owns'))}")
+    reads = [x for items in (t.get("consumes") or {}).values() for x in items] if isinstance(t.get("consumes"), dict) else []
+    if reads:
+        lines.append(f"- **You read from upstream (merged first, read-only):** {code(reads)}")
     context = t.get("context") or story.get("context")
     if context:
         lines += ["", "## Context", str(context).strip()]
@@ -848,6 +897,7 @@ def check(paths: list[str], write: bool = True) -> tuple[bool, list[str]]:
             waiting = waiting_on_unplanned(list(nodes), deps)
             if waiting:
                 lines.append(f"tracks waiting on unplanned stories: {', '.join(waiting)}")
+        lines += [f"WARN edge: {w}" for w in edge_warnings(epic, stories)]
         n_tracks = sum(len(as_list(x.get("tracks"))) for x in stories)
         lines.append(f"PASS: {'epic + ' if epic else ''}{len(stories)} stories, {n_tracks} tracks")
     return not errs, lines
@@ -917,6 +967,7 @@ def scaffold(epic_text: str, template: str, only: list[str] | None = None) -> di
             "acs": as_list(entry.get("acs")),
             "ac_text": {a: ac_prose.get(a, "") for a in as_list(entry.get("acs"))},
             "depends_on": as_list(entry.get("depends_on")),
+            **({"consumes": entry["consumes"]} if entry.get("consumes") else {}),
             "owns": owns,
             "must_not_touch": forbidden,
             "verify": entry.get("verify"),

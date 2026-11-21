@@ -16,7 +16,7 @@ description: >
   The skill itself. OpenCode reads it here; Claude Code loads it through the
   generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 6.1.0, owner: John D
+  version: 6.2.0, owner: John D
   invokes: .agents/skills/task-decomposer/SKILL.md,
            .agents/templates/epic/story-shell.md,
            .agents/scripts/plan.py,
@@ -49,9 +49,9 @@ whole brief a subagent gets, so anything it needs to know goes in it.
    `epic-composer`.
 2. **Scaffold.** `python3 .agents/scripts/plan.py scaffold epic.md --out .`
    writes `story-<id>.md` for every Epic story with the plan block filled from
-   the Epic — id, ACs and their wording, `depends_on`, `owns`, `verify`, a
-   `branch`, and `must_not_touch` (everything the stories that can run at the
-   same time own) — and one default track. Keep those fields; you refine, you
+   the Epic — id, ACs and their wording, `depends_on` and `consumes`, `owns`,
+   `verify`, a `branch`, and `must_not_touch` (everything the stories that can
+   run at the same time own) — and one default track. Keep those fields; you refine, you
    do not re-slice. If a story must change shape, change the Epic plan first,
    re-check it and re-scaffold that story (`--stories S2 --force`).
 3. **Write each story's prose** in its scaffolded file:
@@ -63,7 +63,7 @@ whole brief a subagent gets, so anything it needs to know goes in it.
 4. **Split into tracks** only where it pays. The default single `main` track is
    right for an S-sized, single-concern story — say so. Otherwise:
    - a shared surface inside the story becomes a `kind: contract` track that
-     the others depend on;
+     the others depend on, each naming what it reads in `consumes`;
    - tracks that can run together own disjoint paths (tests go with the code
      they test), each with an exact `verify` and, when the story context
      mentions work it must not do, its own `context`;

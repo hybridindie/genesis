@@ -772,3 +772,65 @@ def test_rejects_a_malformed_epic_lanes_field(lanes):
     e = three_story_epic()
     e["lanes"] = lanes
     assert any("lanes" in x for x in plan.validate_epic(e))
+
+
+# ── consumes (#75): every edge names what crosses it ─────────────────────────
+
+def consuming_epic(consumes):
+    e = three_story_epic()                      # S3 depends on S1 (backend/**) and S2 (frontend/**)
+    e["stories"][2]["consumes"] = consumes
+    return e
+
+
+def test_accepts_an_edge_that_names_what_it_consumes():
+    e = consuming_epic({"S1": ["backend/api/types.py::Report"], "S2": ["frontend/src/api.ts"]})
+    assert not [x for x in plan.validate_epic(e) if "consumes" in x]
+    assert plan.edge_warnings(e, []) == []
+
+
+def test_rejects_consuming_a_path_the_upstream_does_not_own():
+    e = consuming_epic({"S1": ["frontend/src/api.ts"], "S2": ["frontend/src/api.ts"]})
+    assert any("consumes frontend/src/api.ts from S1" in x for x in plan.validate_epic(e))
+
+
+def test_rejects_consuming_from_a_story_it_does_not_depend_on():
+    e = consuming_epic({"S1": ["backend/x.py"], "S2": ["frontend/x.ts"], "S9": ["a.py"]})
+    assert any("S9" in x and "depend" in x for x in plan.validate_epic(e))
+
+
+def test_rejects_a_malformed_consumes():
+    e = consuming_epic(["backend/x.py"])
+    assert any("consumes" in x for x in plan.validate_epic(e))
+
+
+def test_warns_on_an_edge_that_names_nothing():
+    e = consuming_epic({"S1": ["backend/x.py"]})            # S2 edge has no consumes
+    assert plan.edge_warnings(e, []) == ["story S3 depends on S2 but names nothing it consumes from it"]
+
+
+def test_accepts_and_checks_track_level_consumes():
+    good = story("S1", ["src/**"], [track("api", ["src/routes.py"], kind="contract"),
+                                    track("web", ["web/**"], depends_on=["api"],
+                                          consumes={"api": ["src/routes.py::export"]})], integration={"verify": "make e2e"})
+    assert not [x for x in plan.validate_story(good) if "consumes" in x]
+    assert plan.edge_warnings(None, [good]) == []
+    bad = story("S1", ["src/**"], [track("api", ["src/routes.py"], kind="contract"),
+                                   track("web", ["web/**"], depends_on=["api"], consumes={"api": ["web/x.ts"]})],
+                integration={"verify": "make e2e"})
+    assert any("consumes web/x.ts from api" in x for x in plan.validate_story(bad))
+    missing = story("S1", ["src/**"], [track("api", ["src/routes.py"], kind="contract"),
+                                       track("web", ["web/**"], depends_on=["api"])], integration={"verify": "make e2e"})
+    assert plan.edge_warnings(None, [missing]) == ["story S1 track web depends on api but names nothing it consumes from it"]
+
+
+def test_accepts_a_brief_that_lists_what_the_track_reads():
+    s = story("S1", ["src/**"], [track("api", ["src/routes.py"], kind="contract"),
+                                 track("web", ["web/**"], depends_on=["api"], consumes={"api": ["src/routes.py::export"]})],
+              integration={"verify": "make e2e"})
+    assert "src/routes.py::export" in plan.brief(s, "web")
+
+
+def test_accepts_scaffold_carrying_consumes_into_the_story():
+    e = consuming_epic({"S1": ["backend/api/types.py"], "S2": ["frontend/src/api.ts"]})
+    bodies = plan.scaffold(epic_md(e), TEMPLATE, only=["S3"])
+    assert plan.extract(bodies["S3"])["consumes"] == {"S1": ["backend/api/types.py"], "S2": ["frontend/src/api.ts"]}

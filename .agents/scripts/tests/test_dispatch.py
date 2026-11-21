@@ -255,6 +255,9 @@ def test_rejects_a_failed_merge_without_blaming_the_plan(repo):
     run(root, "check", "S1/contract", expect=0)
     sh("git", "config", "--unset", "user.email", cwd=root)
     sh("git", "config", "--unset", "user.name", cwd=root)
+    # Without this, git builds an identity from the login name and hostname on
+    # machines whose hostname has a domain, and the merge succeeds.
+    sh("git", "config", "user.useConfigOnly", "true", cwd=root)
     data = run(root, "merge", "S1/contract", expect=2)
     assert "identity" in data["error"].lower() and "conflict" not in data["error"]
     assert status(plans, "S1", "contract") == "running"

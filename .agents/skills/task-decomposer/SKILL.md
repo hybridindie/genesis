@@ -15,7 +15,7 @@ description: >
   The skill itself. OpenCode reads it here; Claude Code loads it through the
   generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 4.1.0, owner: John D
+  version: 4.2.0, owner: John D
   invokes: .agents/scripts/plan.py,
            .agents/scripts/tracker.py,
            .agents/evals/story-rubric.md
@@ -41,8 +41,8 @@ that track's subagent brief.
 
 1. **Gate the input.** Run `python3 .agents/scripts/plan.py check story.md`. If it fails, the story
    has no ACs, or it is larger than L, return it to `story-decomposer`.
-2. **Keep the tracks.** Track ids, `owns`, `depends_on` and `verify` stay as
-   planned. If a track must split or merge, change `tracks` first and
+2. **Keep the tracks.** Track ids, `owns`, `depends_on`, `consumes` and
+   `verify` stay as planned. If a track must split or merge, change `tracks` first and
    re-validate; a dispatched track (`status` not `todo`) never changes.
 3. **Write tasks per track,** in execution order. Each task is one PR-sized
    step (≈100 lines, ≤3 files) with:

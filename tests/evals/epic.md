@@ -90,6 +90,8 @@ stories:
     priority: P0
     acs: [AC1, AC2]
     depends_on: [S1]
+    consumes:
+      S1: [src/report/pdf.py::render_report_pdf]
     owns: [src/report/routes.py, tests/report/test_export.py, web/src/report/ExportButton.tsx, web/src/report/ExportButton.test.tsx]
     verify: pytest tests/report/test_export.py -q && (cd web && npm test -- ExportButton)
   - id: S3
@@ -100,6 +102,8 @@ stories:
     priority: P1
     acs: [AC3]
     depends_on: [S2]
+    consumes:
+      S2: [src/report/routes.py]
     owns: [web/src/report/ExportProgress.tsx, web/src/report/ExportProgress.test.tsx]
     verify: cd web && npm test -- ExportProgress
 ```

@@ -1,7 +1,7 @@
 <!--
   agent-plan-schema.md — the machine-readable plan carried by Epic and story issues
   Referenced by: epic-composer, story-decomposer, task-decomposer, wave-dispatcher
-  version: 1.3.0, owner: John D
+  version: 1.4.0, owner: John D
   Single source of truth for the `agent-plan` block. `.agents/scripts/plan.py`
   enforces it; skills write it; the dispatcher schedules from it.
 -->
@@ -57,6 +57,8 @@ stories:
     priority: P0            # P0 | P1 | P2
     acs: [AC1]              # or `constraint: <reason>` for enabling work
     depends_on: []          # story ids whose output this story needs
+    # consumes:             # what crosses each edge: upstream paths (or path::Symbol)
+    #   S0: [backend/auth/session.py::current_user]
     owns: [backend/export/**]
     verify: uv run pytest tests/export -q
     status: todo            # todo | running | done | blocked
@@ -91,6 +93,8 @@ tracks:                     # one track = one subagent in one worktree
     kind: track
     owns: [backend/export/routes.py, tests/export/test_routes.py]
     depends_on: [contract]
+    consumes:
+      contract: [backend/export/schema.py::ExportJob]
     verify: uv run pytest tests/export/test_routes.py -q
     # optional: replaces the story context in this track's brief, for when
     # the story context mentions work this track must not do
@@ -148,6 +152,12 @@ change.
   `check` also escalates a unit to `irreversible` when its diff touches one of
   those paths, whatever the plan predicted. `lane:` on a track sets it
   explicitly. Irreversible is a closed lane, not a high threshold.
+- **Every edge names what crosses it.** A dependency means "I read your
+  output", not "and then". Give each `depends_on` entry a `consumes` list of
+  the upstream paths (optionally `path::Symbol`) it reads; each must lie inside
+  that upstream's `owns`. If you can't name one, there is no edge: drop it and
+  let the units run in parallel. `plan.py check` warns on an edge without
+  `consumes` (`WARN edge: ...`), and the brief shows the track what it reads.
 - **Contracts are tracks.** Inside a story, a shared interface is a track with
   `kind: contract`; across stories it is an Epic `contracts` entry owned by one
   story, and dependants list that story in `depends_on`.

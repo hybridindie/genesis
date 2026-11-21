@@ -40,6 +40,7 @@ def test_golden_plans_pass_the_planner_check():
     # story consistency, and generated tables in sync: all owned by plan.py.
     result = run("plan.py", "check", "--no-sync", *GOLDEN)
     assert result.returncode == 0, result.stdout + result.stderr
+    assert "WARN edge" not in result.stdout, "every golden dependency names what it consumes"
 
 
 def test_golden_plans_have_parallel_work_to_schedule():
