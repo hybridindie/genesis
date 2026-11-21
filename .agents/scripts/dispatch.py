@@ -363,7 +363,11 @@ def cmd_prepare(st: State, args) -> dict:
         else:
             if not tree.exists():
                 git("worktree", "add", "-b", tbranch, str(tree), branch)
-            base_state = "pass" if baseline(st, unit, str(t.get("verify")), tree, args.baseline_timeout) else "fail"
+            if plan.is_command(t.get("verify")):
+                passed = baseline(st, unit, str(t.get("verify")), tree, args.baseline_timeout)
+                base_state = "pass" if passed else "fail"
+            else:  # check reports the missing verify; nothing to baseline
+                base_state = "not run"
             st.set_status(sid, track, "running")
         weak = base_state == "pass" and t.get("verify_baseline") != "pass"
         text = plan.brief(story, track) + (
