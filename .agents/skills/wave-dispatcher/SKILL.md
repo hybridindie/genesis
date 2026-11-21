@@ -17,7 +17,7 @@ description: >
   The skill itself. OpenCode reads it here; Claude Code loads it through the
   generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 2.1.0, owner: John D
+  version: 2.2.0, owner: John D
   invokes: .agents/scripts/dispatch.py,
            .agents/scripts/plan.py
   doctrine: .agents/doctrine/agent-plan-schema.md,
@@ -70,8 +70,14 @@ Run every command from the repository root; `d=".agents/scripts/dispatch.py"`.
    stub or faked result that only satisfies a weak test is a finding).
    - `ok` and your review passes → `python3 $d merge <unit>`. It enforces
      `merge_order`, and on a conflict aborts and marks the unit blocked.
-   - Otherwise → `python3 $d block <unit> --note "<every finding, one clause
-     each>"`. Leave the worktree.
+   - Fixable inside the track's paths → `python3 $d retry <unit> --note
+     "<what to fix>"`, then start a fresh subagent on the `brief` it prints.
+     The worktree and the work that passed are kept; the brief adds the
+     findings, the verify output and "fix only these". `check` flags a retry
+     that touches files the findings don't name. After 3 attempts `retry`
+     blocks the unit for replanning (`report` → `needs_replan`).
+   - A plan or ownership problem → `python3 $d block <unit> --note "<every
+     finding, one clause each>"`. Leave the worktree.
 5. **Loop** to step 2: merged tracks unblock their dependants and the next
    stories. Stop after 10 rounds.
 6. **Integrate finished stories.** For each story in
@@ -86,9 +92,8 @@ Run every command from the repository root; `d=".agents/scripts/dispatch.py"`.
 Use judgment only for:
 
 - reviewing a finished track's diff against its brief and ACs;
-- writing the blocker note;
-- retrying a blocked track once with a clarified brief, when the blocker was
-  missing context rather than a plan or ownership problem.
+- choosing retry (fixable inside the track's paths) or block (a plan or
+  ownership problem), and writing that note.
 
 Do not edit a subagent's code, change ownership, or run the git steps
 `dispatch.py` owns by hand — report the failure; the plan gets fixed by

@@ -338,6 +338,55 @@ def test_accepts_block_with_a_note(repo):
     assert status(plans, "S2", "main") == "blocked"
 
 
+# ── retry (#73): send the unit back with its evidence, capped at 3 attempts ──
+
+def failing_contract(repo):
+    root, plans = prepared(repo)
+    assert not run(root, "check", "S1/contract", expect=1)["ok"]   # nothing done: verify fails
+    return root, plans
+
+
+def test_accepts_a_retry_that_returns_the_evidence_and_keeps_the_worktree(repo):
+    root, plans = failing_contract(repo)
+    data = run(root, "retry", "S1/contract", "--note", "create app/types.py", expect=0)
+    assert data["attempt"] == 2 and data["max_attempts"] == 3
+    brief = Path(data["brief"]).read_text()
+    assert "Attempt 2 of 3" in brief and "verify failed" in brief and "create app/types.py" in brief
+    assert "only" in brief.lower()                                   # scope restated
+    assert (root.parent / "proj-tracks" / "S1-contract").is_dir()   # the worktree is kept
+    assert status(plans, "S1", "contract") == "running"
+
+
+def test_accepts_a_retry_that_fixes_the_unit(repo):
+    root, _ = failing_contract(repo)
+    run(root, "retry", "S1/contract", "--note", "create app/types.py", expect=0)
+    work_in(root, "S1", "contract", "fix", **{"app/types.py": "T = 1\n"})
+    assert run(root, "check", "S1/contract", expect=0)["ok"]
+
+
+def test_rejects_a_retry_that_widens_its_scope(repo):
+    root, _ = failing_contract(repo)
+    run(root, "retry", "S1/contract", "--note", "create app/types.py", expect=0)
+    work_in(root, "S1", "contract", "fix", **{"app/types.py": "T = 1\n", "app/extra.py": "y = 2\n"})
+    data = run(root, "check", "S1/contract", expect=1)
+    assert any("widened" in f and "app/extra.py" in f for f in data["findings"])
+
+
+def test_rejects_a_fourth_attempt_and_routes_the_unit_to_replanning(repo):
+    root, plans = failing_contract(repo)
+    for attempt in (2, 3):
+        assert run(root, "retry", "S1/contract", "--note", "try again", expect=0)["attempt"] == attempt
+        run(root, "check", "S1/contract", expect=1)
+    data = run(root, "retry", "S1/contract", "--note", "try again", expect=1)
+    assert data["replan"] and status(plans, "S1", "contract") == "blocked"
+    assert "S1/contract" in run(root, "report", expect=0)["needs_replan"]
+
+
+def test_rejects_retrying_a_unit_that_has_not_been_checked(repo):
+    root, _ = prepared(repo)
+    assert "check" in run(root, "retry", "S1/contract", "--note", "x", expect=2)["error"]
+
+
 # ── review fixes from #84 ────────────────────────────────────────────────────
 
 def edit_loaded(root, sid, fn):
@@ -458,3 +507,25 @@ def test_rejects_a_baseline_timeout_that_is_not_positive(repo):
     out = subprocess.run([sys.executable, str(DISPATCH), "prepare", "--baseline-timeout", "0"],
                          cwd=root, capture_output=True, text=True)
     assert out.returncode == 2 and "positive" in out.stderr
+
+
+def test_rejects_a_second_retry_without_a_new_check(repo):
+    root, _ = failing_contract(repo)
+    run(root, "retry", "S1/contract", "--note", "create app/types.py", expect=0)
+    assert "check" in run(root, "retry", "S1/contract", "--note", "again", expect=2)["error"]
+
+
+def test_rejects_retrying_a_unit_that_is_not_running(repo):
+    root, _ = failing_contract(repo)
+    run(root, "block", "S1/contract", "--note", "plan problem", expect=0)
+    assert "running" in run(root, "retry", "S1/contract", "--note", "x", expect=2)["error"]
+
+
+def test_accepts_clearing_retry_state_once_a_unit_merges(repo):
+    root, _ = failing_contract(repo)
+    run(root, "retry", "S1/contract", "--note", "create app/types.py", expect=0)
+    work_in(root, "S1", "contract", "fix", **{"app/types.py": "T = 1\n"})
+    run(root, "check", "S1/contract", expect=0)
+    run(root, "merge", "S1/contract", expect=0)
+    row = next(u for u in run(root, "report", expect=0)["units"] if u["unit"] == "S1/contract")
+    assert row["attempts"] == 1
