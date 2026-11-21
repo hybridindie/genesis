@@ -29,7 +29,8 @@ EXCLUDE = (
     # lockfiles
     "*.lock", "*package-lock.json", "*pnpm-lock.yaml", "*npm-shrinkwrap.json", "*go.sum",
     # fixtures, snapshots, golden output, eval case copies
-    "*/fixtures/*", "fixtures/*", "*__snapshots__/*", "*.snap", "*/golden/*", "golden/*",
+    "*/fixtures/*", "fixtures/*", "*/fixture/*", "fixture/*", "*/_fixture/*", "_fixture/*",
+    "*__snapshots__/*", "*.snap", "*/golden/*", "golden/*",
     "*/evals/cases/*/files/*",
     # vendored and built output
     "vendor/*", "*/vendor/*", "*node_modules/*", "*/dist/*", "dist/*", "*.min.js", "*.min.css",
@@ -37,23 +38,43 @@ EXCLUDE = (
 
 
 def excluded(path: str, extra: list[str] | None = None) -> bool:
-    patterns = EXCLUDE + tuple(p.replace("**", "*") for p in extra or ())
+    # fnmatch's `*` already crosses `/`, so `docs/**` works as written. A leading
+    # `**/` must also match at the root, where there is no `/` to consume.
+    patterns = EXCLUDE + tuple(extra or ())
+    patterns += tuple(p[3:] for p in patterns if p.startswith("**/"))
     return any(fnmatch(path, p) for p in patterns)
+
+
+def parse(numstat: str) -> list[tuple[str, str, str]]:
+    """(added, deleted, path) from `git diff --numstat -z`. A rename is
+    'a\td\t' followed by the old and new paths as their own fields; the new
+    path is the one a reviewer reads."""
+    fields = numstat.split("\0")
+    out, i = [], 0
+    while i < len(fields):
+        parts = fields[i].split("\t")
+        i += 1
+        if len(parts) != 3:
+            continue
+        added, deleted, path = parts
+        if not path:  # rename: old, new follow
+            path = fields[i + 1] if i + 1 < len(fields) else ""
+            i += 2
+        out.append((added, deleted, path))
+    return out
 
 
 def measure(numstat: str, max_lines: int = MAX_LINES, max_files: int = MAX_FILES,
             extra: list[str] | None = None) -> dict:
     counted: list[dict] = []
     skipped: list[str] = []
-    for line in numstat.splitlines():
-        parts = line.split("\t")
-        if len(parts) != 3:
-            continue
-        added, deleted, path = parts
+    for added, deleted, path in parse(numstat):
         if added == "-" or excluded(path, extra):  # binary, or not read line by line
             skipped.append(path)
             continue
-        counted.append({"path": path, "lines": int(added) + int(deleted)})
+        lines = int(added) + int(deleted)
+        if lines:  # a pure rename has nothing to read
+            counted.append({"path": path, "lines": lines})
     lines = sum(c["lines"] for c in counted)
     return {
         "lines": lines,
@@ -73,11 +94,16 @@ def main() -> int:
     ap.add_argument("--max-files", type=int, default=MAX_FILES)
     ap.add_argument("--exclude", action="append", default=[], help="extra glob not counted")
     args = ap.parse_args()
-    run = subprocess.run(["git", "diff", "--numstat", f"{args.base}...HEAD"], capture_output=True, text=True)
-    if run.returncode != 0:
-        print(json.dumps({"error": run.stderr.strip()}))
+    try:  # every failure is exit 2: exit 1 means "over budget" to ship-pr
+        run = subprocess.run(
+            ["git", "-c", "core.quotePath=false", "diff", "--numstat", "-z", "-M", f"{args.base}...HEAD"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace")
+        if run.returncode != 0:
+            raise RuntimeError(run.stderr.strip() or f"git exited {run.returncode}")
+        result = measure(run.stdout, args.max_lines, args.max_files, args.exclude)
+    except Exception as exc:  # noqa: BLE001 - reported as data, not a traceback
+        print(json.dumps({"error": f"{type(exc).__name__}: {exc}"}))
         return 2
-    result = measure(run.stdout, args.max_lines, args.max_files, args.exclude)
     print(json.dumps(result, indent=2))
     return 0 if result["within_budget"] else 1
 
