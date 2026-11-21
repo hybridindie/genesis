@@ -364,11 +364,13 @@ def cmd_prepare(st: State, args) -> dict:
         else:
             if not tree.exists():
                 git("worktree", "add", "-b", tbranch, str(tree), branch)
-            if plan.is_command(t.get("verify")):
+            if not plan.is_command(t.get("verify")):
+                base_state = "not run"  # check reports the missing verify
+            elif unit not in st.data.get("baselines", {}) and clean_tree(tree):
+                base_state = "not run"  # a reused worktree holding work: never clean it
+            else:
                 passed = baseline(st, unit, str(t.get("verify")), tree, args.baseline_timeout)
                 base_state = "pass" if passed else "fail"
-            else:  # check reports the missing verify; nothing to baseline
-                base_state = "not run"
             st.set_status(sid, track, "running")
         weak = base_state == "pass" and t.get("verify_baseline") != "pass"
         text = plan.brief(story, track) + (
@@ -422,7 +424,7 @@ def cmd_check(st: State, args) -> dict:
         if widened:
             findings.append(f"retry widened its scope beyond the findings: {', '.join(widened)}")
     weak = weak_check(st, args.unit, t)
-    if weak and changed and not any(TEST_FILE.search(c) for c in changed):
+    if weak and not any(TEST_FILE.search(c) for c in changed):
         findings.append(f"verify passed before any work and the diff adds or changes no test, "
                         f"so the check cannot fail: {t.get('verify')}")
     verify_ok, tail = None, ""
@@ -601,6 +603,13 @@ def cmd_report(st: State, args) -> dict:  # noqa: ARG001
             "waiting": report_waiting(epic, stories)}
 
 
+def positive_seconds(value: str) -> int:
+    n = int(value)
+    if n <= 0:
+        raise argparse.ArgumentTypeError("must be a positive number of seconds")
+    return n
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Mechanical steps of wave-dispatcher (git, plans, status).")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -611,7 +620,7 @@ def main() -> int:
     p = sub.add_parser("prepare"); p.add_argument("--max", type=int, default=3)
     p.add_argument("--plan", action="store_true", help="dry run: write briefs, print the git commands, change nothing")
     p.add_argument("--allow-dirty", action="store_true")
-    p.add_argument("--baseline-timeout", type=int, default=300,
+    p.add_argument("--baseline-timeout", type=positive_seconds, default=300,
                    help="seconds for the one-time verify run that detects a check that cannot fail")
     p = sub.add_parser("retry", help="return a failed unit with its evidence (max 3 attempts)")
     p.add_argument("unit"); p.add_argument("--note", required=True)
