@@ -1,7 +1,7 @@
 <!--
   agent-plan-schema.md — the machine-readable plan carried by Epic and story issues
   Referenced by: epic-composer, story-decomposer, task-decomposer, wave-dispatcher
-  version: 1.2.0, owner: John D
+  version: 1.3.0, owner: John D
   Single source of truth for the `agent-plan` block. `.agents/scripts/plan.py`
   enforces it; skills write it; the dispatcher schedules from it.
 -->
@@ -97,6 +97,8 @@ tracks:                     # one track = one subagent in one worktree
     context: Add the route only; the PDF worker is track B.
     # optional, refactors only: verify already passes and must stay green
     # verify_baseline: pass
+    # optional: contained | wide | irreversible (see "Merge lanes")
+    # lane: irreversible
     status: todo
 tasks:                      # written by task-decomposer; PR-sized steps
   - id: T1
@@ -134,6 +136,18 @@ change.
   as a weak check: its brief asks for a failing test first, and `check`
   rejects a diff that adds or changes no test. A refactor that should stay
   green before and after declares `verify_baseline: pass`.
+- **Merge lanes follow blast radius, not confidence.** Each track gets a lane
+  from what it owns, and the lane decides how its merge is gated:
+
+  | Lane | What it owns | Gate |
+  |---|---|---|
+  | `irreversible` | anything inside `**/migrations/**`, `**/alembic/**`, `**/*.sql`, `supabase/**`, `deploy/**`, `deployments/**`, `infra/**`, `k8s/**`, `helm/**`, `terraform/**`, `**/*.tf`, or a plan's own `lanes: {irreversible: [...]}` | never auto-merged: `merge` refuses without `--human` |
+  | `wide` | a contract track, or a path an Epic contract names | checks plus a diff review |
+  | `contained` | everything else | checks |
+
+  `check` also escalates a unit to `irreversible` when its diff touches one of
+  those paths, whatever the plan predicted. `lane:` on a track sets it
+  explicitly. Irreversible is a closed lane, not a high threshold.
 - **Contracts are tracks.** Inside a story, a shared interface is a track with
   `kind: contract`; across stories it is an Epic `contracts` entry owned by one
   story, and dependants list that story in `depends_on`.

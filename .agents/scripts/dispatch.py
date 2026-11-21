@@ -9,7 +9,7 @@
   dispatch.py prepare [--max N] [--plan] [--allow-dirty] [--baseline-timeout S]
   dispatch.py check UNIT [--timeout SEC]
   dispatch.py retry UNIT --note TEXT
-  dispatch.py merge UNIT
+  dispatch.py merge UNIT [--human]
   dispatch.py block UNIT --note TEXT
   dispatch.py integrate STORY [--push]
   dispatch.py report
@@ -206,6 +206,15 @@ def run_shell(command: str, cwd: Path, timeout: int) -> tuple[bool, str]:
 
 TEST_FILE = re.compile(r"(^|/)(tests?|__tests__|spec)/|(^|/)test_[^/]*$|_test\.[^/]+$|\.(test|spec)\.[^/]+$")
 
+HUMAN_BRIEF = """
+
+## Merge needs a human
+This track is in the irreversible lane: it owns paths where a bad merge can't
+simply be reverted (migrations, deploys, infrastructure). Your work merges only
+after a person approves it, so say plainly in your report what it changes and
+how to undo it.
+"""
+
 WEAK_BRIEF = """
 
 ## Your check already passes
@@ -379,11 +388,14 @@ def cmd_prepare(st: State, args) -> dict:
             f"Your branch is `{tbranch}`; commit there.\n")
         if weak:
             text += WEAK_BRIEF.format(verify=t.get("verify"))
+        lane = plan.lane_of(t, story, epic)
+        if lane == "irreversible":
+            text += HUMAN_BRIEF
         bpath = briefs / f"{sid}-{track}.md"
         bpath.write_text(text, encoding="utf-8")
         item = {"unit": unit, "kind": u["kind"], "worktree": str(tree), "branch": tbranch,
                 "story_branch": branch, "owns": u["owns"], "verify": u["verify"], "brief": str(bpath),
-                "baseline": base_state, "weak_check": weak}
+                "baseline": base_state, "weak_check": weak, "lane": lane}
         if dry is not None:
             item["would_run"] = dry
         out.append(item)
@@ -424,6 +436,12 @@ def cmd_check(st: State, args) -> dict:
         widened = [c for c in since if c not in retry["changed"] and c not in named]
         if widened:
             findings.append(f"retry widened its scope beyond the findings: {', '.join(widened)}")
+    epic = st.plans()[0]
+    lane = plan.lane_of(t, story, epic)
+    hard = plan.irreversible_paths(changed, story, epic)
+    if hard:
+        lane = "irreversible"  # the diff decides, whatever the plan predicted
+    st.data.setdefault("lanes", {})[args.unit] = lane
     weak = weak_check(st, args.unit, t)
     if weak and not any(TEST_FILE.search(c) for c in changed):
         findings.append(f"verify passed before any work and the diff adds or changes no test, "
@@ -447,6 +465,7 @@ def cmd_check(st: State, args) -> dict:
     return {"ok": not findings, "unit": args.unit, "findings": findings, "commits": commits,
             "changed": changed, "outside_owns": outside, "verify": t.get("verify"),
             "verify_passed": verify_ok, "verify_tail": tail, "weak_check": weak,
+            "lane": lane, "irreversible_paths": hard,
             "review": f"git -C '{tree}' diff {branch}...HEAD -- {owns}"}
 
 
@@ -540,6 +559,11 @@ def cmd_merge(st: State, args) -> dict:
         waiting += [x for x in order[: order.index(track)] if status.get(x) != "done" and x not in waiting]
     if waiting:
         return {"ok": False, "unit": args.unit, "findings": [f"merge {', '.join(waiting)} first"]}
+    lane = st.data.get("lanes", {}).get(args.unit) or plan.lane_of(t, story, st.plans()[0])
+    if lane == "irreversible" and not args.human:
+        return {"ok": False, "unit": args.unit, "lane": lane,
+                "findings": [f"{args.unit} is in the irreversible lane: a person must approve this merge; "
+                             "after they do, run `dispatch.py merge <unit> --human`"]}
     tree = st.trees / f"{sid}-{track}"
     dirty = clean_tree(tree) if tree.is_dir() else []
     if dirty:  # merging would delete this worktree, and these files with it
@@ -567,7 +591,9 @@ def cmd_merge(st: State, args) -> dict:
     if tree.exists():
         git("worktree", "remove", "--force", str(tree))
     git("branch", "-D", tbranch, check=False)
-    return {"ok": True, "unit": args.unit, "merged": sha, "story_branch": branch}
+    st.data.get("lanes", {}).pop(args.unit, None)
+    st.save()
+    return {"ok": True, "unit": args.unit, "merged": sha, "story_branch": branch, "lane": lane}
 
 
 def cmd_integrate(st: State, args) -> dict:
@@ -616,6 +642,10 @@ def cmd_report(st: State, args) -> dict:  # noqa: ARG001
         r["attempts"] = st.data.get("attempts", {}).get(r["unit"], 1)
     return {"ok": True, "counts": counts, "units": rows, "stories_ready_to_integrate": done_stories,
             "needs_replan": st.data.get("replan", []),
+            "awaiting_human": sorted(
+                u for u, lane in st.data.get("lanes", {}).items()
+                if lane == "irreversible" and st.data.get("checks", {}).get(u, {}).get("ok")
+                and next((r["status"] for r in rows if r["unit"] == u), None) == "running"),
             "next_runnable": [u["unit"] for u in plan.next_runnable(epic, stories, 99)],
             "waiting": report_waiting(epic, stories)}
 
@@ -643,6 +673,7 @@ def main() -> int:
     p.add_argument("unit"); p.add_argument("--note", required=True)
     p = sub.add_parser("check"); p.add_argument("unit"); p.add_argument("--timeout", type=int, default=900)
     p = sub.add_parser("merge"); p.add_argument("unit")
+    p.add_argument("--human", action="store_true", help="a person approved this irreversible-lane merge")
     p = sub.add_parser("block"); p.add_argument("unit"); p.add_argument("--note", required=True)
     p = sub.add_parser("integrate"); p.add_argument("story"); p.add_argument("--push", action="store_true")
     p.add_argument("--timeout", type=int, default=1800)

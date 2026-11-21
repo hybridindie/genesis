@@ -17,7 +17,7 @@ description: >
   The skill itself. OpenCode reads it here; Claude Code loads it through the
   generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 2.2.0, owner: John D
+  version: 2.3.0, owner: John D
   invokes: .agents/scripts/dispatch.py,
            .agents/scripts/plan.py
   doctrine: .agents/doctrine/agent-plan-schema.md,
@@ -64,12 +64,19 @@ Run every command from the repository root; `d=".agents/scripts/dispatch.py"`.
    is the unit's brief file, verbatim.
 4. **Check each report as it arrives.**
    `python3 $d check <unit>` runs the scope check, the verify command (and
-   cleans up what it wrote) and lists commits and findings. Then read the diff
-   with the `review` command it prints, against the brief: every task done, the
-   ACs actually met, and a contract track implementing the real contract (a
-   stub or faked result that only satisfies a weak test is a finding).
-   - `ok` and your review passes → `python3 $d merge <unit>`. It enforces
-     `merge_order`, and on a conflict aborts and marks the unit blocked.
+   cleans up what it wrote) and lists commits, findings and the `lane`. For a
+   `wide` or `irreversible` unit, read the diff with the `review` command it
+   prints, against the brief: every task done, the ACs actually met, and a
+   contract track implementing the real contract (a stub or faked result that
+   only satisfies a weak test is a finding).
+   - `ok` → merge by the unit's `lane` (it can be stricter than prepare
+     said, if the diff touched a migration or deploy path):
+     - `contained`: `python3 $d merge <unit>`; the checks are the gate.
+     - `wide`: merge once your diff review passes.
+     - `irreversible`: never merge it yourself. Report it for a person's
+       approval (`report` → `awaiting_human`); after they approve,
+       `python3 $d merge <unit> --human`.
+     `merge` enforces `merge_order`, and on a conflict aborts and blocks.
    - Fixable inside the track's paths → `python3 $d retry <unit> --note
      "<what to fix>"`, then start a fresh subagent on the `brief` it prints.
      The worktree and the work that passed are kept; the brief adds the
@@ -91,7 +98,7 @@ Run every command from the repository root; `d=".agents/scripts/dispatch.py"`.
 
 Use judgment only for:
 
-- reviewing a finished track's diff against its brief and ACs;
+- reviewing a wide or irreversible track's diff against its brief and ACs;
 - choosing retry (fixable inside the track's paths) or block (a plan or
   ownership problem), and writing that note.
 
@@ -113,6 +120,7 @@ Epic: <ref>    Round: <n>    Running: <n>    Done: <n>/<total>    Blocked: <n>
 Next runnable: <units or none — waiting on …>
 Stories integrated: <branches or none>
 Blocked worktrees: <paths>
+Awaiting a human (irreversible lane): <units or none>
 ```
 
 With `--plan`: the units that would start, their `would_run` commands and briefs.
