@@ -73,9 +73,10 @@ def sync(root: Path, check: bool) -> dict:
             dst.unlink()
             if not any(dst.parent.iterdir()):
                 dst.parent.rmdir()
-    rel = lambda ps: [d.relative_to(root).as_posix() for d in ps]  # noqa: E731
+    def to_rel(paths: list[Path]) -> list[str]:
+        return [p.relative_to(root).as_posix() for p in paths]
     return {"ok": not (check and (updated or orphaned)), "errors": [],
-            "updated": rel(updated), "orphaned": rel(orphaned)}
+            "updated": to_rel(updated), "orphaned": to_rel(orphaned)}
 
 
 def main() -> int:
@@ -99,8 +100,7 @@ def main() -> int:
     if not n:
         print("skill pointers: up to date")
     else:
-        verb = "would change" if args.check else "changed"
-        print(f"skill pointers: {n} {verb} ({len(result['orphaned'])} orphaned)")
+        print(f"skill pointers: {n} changed ({len(result['orphaned'])} orphaned)")
     return 0
 
 
