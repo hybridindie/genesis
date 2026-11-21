@@ -93,6 +93,17 @@ jobs:
             || { echo "pointer hook missed a relative wrapper path"; exit 1; }
           hook "$PWD/.claude/settings.json" | grep -q 'edit the corresponding file in .agents/' \
             || { echo "pointer hook missed a wrapper file"; exit 1; }
+          hook ".claude/skills/epic-composer/SKILL.md" | grep -q 'sync-skill-wrappers' \
+            || { echo "pointer hook missed a generated skill pointer"; exit 1; }
+          hook "$PWD/.claude/skills/epic-composer/SKILL.md" | grep -q 'sync-skill-wrappers' \
+            || { echo "pointer hook missed an absolute skill pointer"; exit 1; }
+          # Without jq the hook must fail loudly but not block (exit 1, never 0 or 2).
+          set +e
+          printf '{"tool_input":{"file_path":".claude/settings.json"}}' \
+            | PATH="$(mktemp -d)" /bin/bash .claude/hooks/warn-pointer-edit.sh 2>/dev/null
+          code=$?
+          set -e
+          [ "$code" -eq 1 ] || { echo "pointer hook without jq exited $code, want 1"; exit 1; }
 
       - name: Validate rendered system layer
         run: |
