@@ -24,9 +24,9 @@ def skill_from_path(path: str) -> str | None:
     """The skill a changed path belongs to, or None when it is not a skill body."""
     if path.startswith((".claude/", ".opencode/")):
         return None  # generated wrappers, not the source body
-    if "/skills/" in path and (path.endswith("/SKILL.md") or "/scripts/" in path):
-        tail = path.split("/skills/", 1)[1]
-        return tail.split("/", 1)[0] or None
+    if "/skills/" in path:  # the body, its scripts, or any file beside it
+        name, sep, _ = path.split("/skills/", 1)[1].partition("/")
+        return name if sep and name else None
     return None
 
 
