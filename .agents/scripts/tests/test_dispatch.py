@@ -507,3 +507,25 @@ def test_rejects_a_baseline_timeout_that_is_not_positive(repo):
     out = subprocess.run([sys.executable, str(DISPATCH), "prepare", "--baseline-timeout", "0"],
                          cwd=root, capture_output=True, text=True)
     assert out.returncode == 2 and "positive" in out.stderr
+
+
+def test_rejects_a_second_retry_without_a_new_check(repo):
+    root, _ = failing_contract(repo)
+    run(root, "retry", "S1/contract", "--note", "create app/types.py", expect=0)
+    assert "check" in run(root, "retry", "S1/contract", "--note", "again", expect=2)["error"]
+
+
+def test_rejects_retrying_a_unit_that_is_not_running(repo):
+    root, _ = failing_contract(repo)
+    run(root, "block", "S1/contract", "--note", "plan problem", expect=0)
+    assert "running" in run(root, "retry", "S1/contract", "--note", "x", expect=2)["error"]
+
+
+def test_accepts_clearing_retry_state_once_a_unit_merges(repo):
+    root, _ = failing_contract(repo)
+    run(root, "retry", "S1/contract", "--note", "create app/types.py", expect=0)
+    work_in(root, "S1", "contract", "fix", **{"app/types.py": "T = 1\n"})
+    run(root, "check", "S1/contract", expect=0)
+    run(root, "merge", "S1/contract", expect=0)
+    row = next(u for u in run(root, "report", expect=0)["units"] if u["unit"] == "S1/contract")
+    assert row["attempts"] == 1

@@ -371,6 +371,7 @@ def cmd_prepare(st: State, args) -> dict:
             else:
                 passed = baseline(st, unit, str(t.get("verify")), tree, args.baseline_timeout)
                 base_state = "pass" if passed else "fail"
+            forget(st, unit)  # a re-planned unit starts over
             st.set_status(sid, track, "running")
         weak = base_state == "pass" and t.get("verify_baseline") != "pass"
         text = plan.brief(story, track) + (
@@ -472,12 +473,24 @@ don't name. If they can't be fixed inside your paths, stop and say so.
 """
 
 
+def forget(st: State, unit: str) -> None:
+    """Drop a unit's retry history once it reaches a fresh start or is merged."""
+    for key in ("attempts", "retries", "checks"):
+        st.data.get(key, {}).pop(unit, None)
+    if unit in st.data.get("replan", []):
+        st.data["replan"].remove(unit)
+
+
 def cmd_retry(st: State, args) -> dict:
     sid, track = split_unit(args.unit)
-    track_of(st.story(sid), track)
+    t = track_of(st.story(sid), track)
+    if t.get("status", "todo") != "running":
+        raise DispatchError(f"{args.unit} is {t.get('status', 'todo')}, not running; only a running unit can be retried")
+    if not (st.trees / f"{sid}-{track}").is_dir():
+        raise DispatchError(f"{args.unit} has no worktree to return to")
     last = st.data.get("checks", {}).get(args.unit)
-    if not last:
-        raise DispatchError(f"{args.unit} has no failed check to return; run dispatch.py check first")
+    if not last or last.get("returned"):
+        raise DispatchError(f"{args.unit} has no new failed check to return; run dispatch.py check first")
     if last["ok"]:
         raise DispatchError(f"{args.unit} passed its last check; merge it instead")
     attempts = st.data.setdefault("attempts", {})
@@ -486,12 +499,14 @@ def cmd_retry(st: State, args) -> dict:
         note = (f"replan: failed {MAX_ATTEMPTS} attempts, so the plan that produced it needs fixing "
                 f"(story-decomposer); last findings: {'; '.join(last['findings'])}")
         st.set_status(sid, track, "blocked", note)
+        last["returned"] = True
         replan = st.data.setdefault("replan", [])
         if args.unit not in replan:
             replan.append(args.unit)
         st.save()
         return {"ok": False, "unit": args.unit, "replan": True, "note": note}
     attempts[args.unit] = attempt
+    last["returned"] = True  # the next retry needs a new check of the new attempt
     st.data.setdefault("retries", {})[args.unit] = {
         "head": last["head"], "changed": last["changed"], "findings": last["findings"], "note": args.note}
     original = (st.work / "briefs" / f"{sid}-{track}.md").read_text(encoding="utf-8")
@@ -547,6 +562,8 @@ def cmd_merge(st: State, args) -> dict:
         return {"ok": False, "unit": args.unit, "findings": [note]}
     sha = git("rev-parse", "--short", "HEAD", cwd=integ)
     st.set_status(sid, track, "done", f"merged {sha}")
+    forget(st, args.unit)
+    st.save()
     if tree.exists():
         git("worktree", "remove", "--force", str(tree))
     git("branch", "-D", tbranch, check=False)
