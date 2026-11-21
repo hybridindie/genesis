@@ -15,6 +15,7 @@ Exits 1 with a grouped report on violations.
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -103,7 +104,7 @@ def check_wrapper(path: Path, rel: Path) -> list[str]:
 
 
 def main() -> int:
-    explicit = [Path(arg) for arg in sys.argv[1:]]
+    explicit = [Path(arg).resolve() for arg in sys.argv[1:]]
     if explicit:
         bodies = explicit
         wrappers: list[Path] = []
@@ -119,12 +120,14 @@ def main() -> int:
         rel = path.relative_to(ROOT)
         errors.extend(check_wrapper(path, rel))
 
-    if not explicit:
-        import subprocess
-        sync = subprocess.run([sys.executable, str(ROOT / "scripts" / "sync-skill-wrappers.py"), "--check"],
-                              capture_output=True, text=True)
-        if sync.returncode:
-            errors.extend(line.removeprefix("STALE: ") for line in sync.stderr.splitlines() if line)
+    # Pointer drift is repo-wide and cheap, so it is checked on targeted runs too.
+    sync = subprocess.run([sys.executable, str(ROOT / "scripts" / "sync-skill-wrappers.py"), "--check"],
+                          capture_output=True, text=True)
+    if sync.returncode:
+        found = [line.split(": ", 1)[1] for line in sync.stderr.splitlines()
+                 if line.startswith(("STALE: ", "ORPHANED: ", "ERROR: "))]
+        errors.extend(found or [f"sync-skill-wrappers.py --check crashed: "
+                                f"{(sync.stderr.strip().splitlines() or ['no output'])[-1]}"])
     for error in errors:
         print(f"SKILL-LINT: {error}", file=sys.stderr)
     if errors:
