@@ -57,3 +57,17 @@ def test_behavioural_case_is_well_formed(case):
     assert "## Expected properties" in text, f"{case} has no Expected properties section"
     properties = text.split("## Expected properties", 1)[1]
     assert len(re.findall(r"^- ", properties, re.MULTILINE)) >= 2, f"{case} needs checkable properties"
+
+
+FIXTURE = ROOT / ".agents/evals/cases/_fixture/reports-app"
+
+
+@pytest.mark.parametrize("case", sorted(p.parent.parent for p in (ROOT / ".agents/evals/cases").glob("*/files/backend")),
+                         ids=lambda p: p.name)
+def test_eval_case_fixture_copies_match_the_source(case):
+    """Each case carries its own copy of the app; edit _fixture and re-copy."""
+    for part in ("backend", "frontend"):
+        src = {p.relative_to(FIXTURE / part): p.read_bytes() for p in (FIXTURE / part).rglob("*") if p.is_file()}
+        dst = {p.relative_to(case / "files" / part): p.read_bytes()
+               for p in (case / "files" / part).rglob("*") if p.is_file()}
+        assert dst == src, f"{case.name}/files/{part} differs from _fixture/reports-app/{part}"
