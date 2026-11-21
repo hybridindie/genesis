@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: sequence-migration-backfill
+expected_outcome: |
+  An epic whose plan sequences add-column migration, backfill and NOT NULL migration, while API, UI and filter work run in parallel behind an agreed response shape.
+context:
+  scaffold_script: place-files.sh
