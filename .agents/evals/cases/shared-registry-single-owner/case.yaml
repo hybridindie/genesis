@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: shared-registry-single-owner
+expected_outcome: |
+  An epic where the audit and favorites work runs in parallel, but main.py, pyproject.toml and uv.lock each have one owner per wave (a small shared story, or sequencing), and the plan validates.
+context:
+  scaffold_script: place-files.sh
