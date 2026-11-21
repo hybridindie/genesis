@@ -38,7 +38,6 @@ trivial change, use judgment.
   gets a failing test for its acceptance criterion, and a refactor stays green
   before and after (`testing.md`).
 - For multi-step work, state the plan as `step → verify: <command>`.
-- Report what you ran and name what you didn't (`workflow.md`).
 
 ## Answers
 

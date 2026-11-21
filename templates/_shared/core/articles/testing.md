@@ -37,7 +37,6 @@ assertions matter more than the number.
 - Follow the repo's test layout. A new repo uses
   `tests/{unit,contract,integration,e2e}`, with integration behind a marker.
 - Fakes for external systems; golden files for serialised output.
-- Tests are independent and safe to run in parallel.
 
 ## ANTI-PATTERNS
 
