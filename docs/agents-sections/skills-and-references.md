@@ -1,4 +1,4 @@
-# Epic Scoping Skills — Skills, Templates, Doctrine, Wrappers
+# Epic Scoping Skills — Skills, Templates, Doctrine, Harness Layout
 
 On-demand section — read when invoking a skill or checking its references.
 
@@ -6,20 +6,20 @@ On-demand section — read when invoking a skill or checking its references.
 
 | Skill | Shared content | Purpose |
 |---|---|---|
-| epic-composer | `.agents/skills/epic-composer.md` | Draft an Epic issue from source material, with a parallel story map |
-| epic-interview | `.agents/skills/epic-interview.md` | Ask the smallest set of questions that unblocks the Epic |
-| epic-acceptance-linter | `.agents/skills/epic-acceptance-linter.md` | Review acceptance criteria; suggest concrete rewrites |
-| story-decomposer | `.agents/skills/story-decomposer.md` | Turn an Epic into story issues with waves, contracts and file ownership |
-| task-decomposer | `.agents/skills/task-decomposer.md` | Break one story into a parallel task checklist for delegation |
-| bootstrap-harness | `.agents/skills/bootstrap-harness.md` | Install/tailor a project harness (also `install-harness` and `install.sh`) |
+| epic-composer | `.agents/skills/epic-composer/SKILL.md` | Draft an Epic issue from source material, with a parallel story map |
+| epic-interview | `.agents/skills/epic-interview/SKILL.md` | Ask the smallest set of questions that unblocks the Epic |
+| epic-acceptance-linter | `.agents/skills/epic-acceptance-linter/SKILL.md` | Review acceptance criteria; suggest concrete rewrites |
+| story-decomposer | `.agents/skills/story-decomposer/SKILL.md` | Turn an Epic into story issues with waves, contracts and file ownership |
+| task-decomposer | `.agents/skills/task-decomposer/SKILL.md` | Break one story into a parallel task checklist for delegation |
+| bootstrap-harness | `.agents/skills/bootstrap-harness/SKILL.md` | Install/tailor a project harness (also `install-harness` and `install.sh`) |
 | ship-pr | `templates/_shared/skills/ship-pr/SKILL.md` | Open a PR, watch CI and review, address threads, merge on `--merge` (also ships to every project) |
 
 ## Templates and evals
 
 - Epic issue body: `.agents/templates/epic/epic-shell.md`
 - Story issue body: `.agents/templates/epic/story-shell.md`
-- Task breakdown block (pasted under the story's `**Tasks**`):
-  `.agents/templates/epic/task-breakdown-shell.md`
+- Tasks and tracks live in the story's `agent-plan` block; `plan.py check`
+  renders the tables (`.agents/doctrine/agent-plan-schema.md`).
 - Traceability table: `.agents/templates/epic/traceability-template.md`
 - Epic quality pass (epic-composer, on request or before decomposing):
   `.agents/evals/epic-rubric.md`
@@ -44,12 +44,15 @@ zones) is `templates/_shared/doctrine/skill-execution.md` — see
 When a rule is shared by two or more skills, it belongs in `doctrine/`. Edit
 there once; all references inherit.
 
-## Harness-specific wrappers
+## Harness layout
 
-| Harness | Skill location | Commands | Hooks | Frontmatter fields |
+| Harness | Skill location | Commands | Hooks | Frontmatter it reads |
 |---|---|---|---|---|
-| OpenCode | `.opencode/skills/<name>/SKILL.md` | `commands` entries in `.opencode/opencode.json` (the epic skills, `bootstrap-harness` and `harness-eval`) | `.opencode/plugins/*.ts` | `name`, `description` |
-| Claude Code | `.claude/skills/<name>/SKILL.md` | skills double as slash commands of the same name (accept `$ARGUMENTS`) | `.claude/hooks/*.sh` | `name`, `description`, `when_to_use` |
+| OpenCode | `.agents/skills/<name>/SKILL.md` (native) | `commands` entries in `.opencode/opencode.json` (OpenCode skills have no slash path of their own) | `.opencode/plugins/*.ts`, which run the `.claude/hooks/*.sh` scripts | `name`, `description`, `disable-model-invocation` |
+| Claude Code | `.claude/skills/<name>/SKILL.md` — a generated pointer to the `.agents/` skill | skills double as slash commands of the same name (accept `$ARGUMENTS`) | `.claude/hooks/*.sh` | all Claude skill fields |
+
+Put trigger phrases in `description`, not only `when_to_use`: OpenCode ignores
+`when_to_use`.
 
 Stack-only assets: `/migration-check`, `create-migration` and
 `gen-contract-test` ship with the `fastapi` stack; `e2e-assertion-audit` with

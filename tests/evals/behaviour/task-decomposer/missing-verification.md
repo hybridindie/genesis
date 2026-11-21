@@ -26,3 +26,5 @@
   export formats).
 - If the story cannot be made executable as written, the skill says what is
   missing instead of guessing.
+- Any plan it writes passes `plan.py check`; it reports the check's output
+  rather than asserting the plan is valid.

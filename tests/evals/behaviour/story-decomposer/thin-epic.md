@@ -16,3 +16,5 @@
   index/UI boundary rather than leaving both to touch it.
 - Anything unresolvable (which search backend, what "fast" means) appears as an
   open question, not as an assumption baked into the artifact.
+- Any plan it writes passes `plan.py check`; it reports the check's output
+  rather than asserting the plan is valid.
