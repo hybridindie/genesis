@@ -70,3 +70,30 @@ def test_reports_an_unreadable_body_file_as_a_tracker_error(monkeypatch, tmp_pat
     monkeypatch.setattr(tracker.sys, "argv", ["tracker.py", "put", "#1", str(tmp_path / "missing.md")])
     with pytest.raises(SystemExit, match="tracker: cannot read"):
         tracker.main()
+
+
+def test_tracker_github_does_not_need_a_parseable_remote(monkeypatch):
+    monkeypatch.setenv("TRACKER", "github")
+    def boom():
+        raise AssertionError("remote() should not be called")
+    monkeypatch.setattr(tracker, "remote", boom)
+    assert isinstance(tracker.forge(), tracker.GitHub)
+
+
+def test_reports_a_non_json_response_as_a_tracker_error(monkeypatch):
+    monkeypatch.setenv("GITEA_TOKEN", "t")
+    class Page:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def read(self): return b"<html>proxy error</html>"
+    monkeypatch.setattr(tracker.urllib.request, "urlopen", lambda *a, **k: Page())
+    with pytest.raises(SystemExit, match="tracker: Gitea GET"):
+        tracker.Gitea("https://git.example.com", "o", "r").get("1")
+
+
+def test_reports_a_hung_cli_as_a_tracker_error(monkeypatch):
+    def hang(*_a, **_k):
+        raise tracker.subprocess.TimeoutExpired("gh", 60)
+    monkeypatch.setattr(tracker.subprocess, "run", hang)
+    with pytest.raises(SystemExit, match="timed out"):
+        tracker.sh("gh", "issue", "view", "1")

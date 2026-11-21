@@ -27,9 +27,11 @@ from pathlib import Path
 
 def sh(*cmd: str, stdin: str | None = None) -> str:
     try:
-        out = subprocess.run(cmd, input=stdin, capture_output=True, text=True, check=True)
+        out = subprocess.run(cmd, input=stdin, capture_output=True, text=True, check=True, timeout=60)
     except FileNotFoundError:
         sys.exit(f"tracker: {cmd[0]} is not installed")
+    except subprocess.TimeoutExpired:
+        sys.exit(f"tracker: {' '.join(cmd[:3])} timed out after 60s")
     except subprocess.CalledProcessError as exc:
         sys.exit(f"tracker: {' '.join(cmd[:3])} failed: {exc.stderr.strip()}")
     return out.stdout
@@ -113,8 +115,10 @@ class Gitea:
             with urllib.request.urlopen(req, timeout=30) as resp:
                 return json.loads(resp.read() or b"{}")
         except urllib.error.HTTPError as exc:
-            sys.exit(f"tracker: Gitea {method} {path} -> {exc.code} {exc.reason}")
-        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            detail = exc.read().decode("utf-8", "replace").strip()[:200]
+            sys.exit(f"tracker: Gitea {method} {path} -> {exc.code} {exc.reason}"
+                     + (f": {detail}" if detail else ""))
+        except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
             sys.exit(f"tracker: Gitea {method} {path} -> {exc}")
 
     def get(self, n: str) -> str:
@@ -134,8 +138,10 @@ def forge():
     kind = (os.environ.get("TRACKER") or "").strip().lower() or None
     if kind not in (None, "github", "gitea"):
         sys.exit(f"tracker: TRACKER must be github or gitea, not {os.environ['TRACKER']!r}")
+    if kind == "github":  # gh finds the repo itself; no need to parse origin
+        return GitHub()
     host, base, owner, repo = remote()
-    if kind == "github" or (kind is None and host == "github.com"):
+    if kind is None and host == "github.com":
         return GitHub()
     return Gitea(base, owner, repo)
 
