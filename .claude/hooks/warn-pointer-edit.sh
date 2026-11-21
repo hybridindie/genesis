@@ -3,6 +3,8 @@
 # and when editing .agents/doctrine/ (load-bearing, referenced by many skills).
 # Editable content should live in .agents/ (epic skills) or templates/_shared/
 # (genesis). Pointer files in .opencode/ and .claude/ should stay thin.
+# This is the only copy of the rules: .opencode/plugins/warn-pointer-edit.ts
+# runs this script, so change behaviour here.
 #
 # Input arrives on stdin as JSON with tool_input.file_path.
 # Exit 0 with no output = no decision; normal flow continues.
@@ -23,6 +25,10 @@ case "$CASE" in
   */templates/claude-code/*|*/templates/opencode/*)
     WARN=1
     CONTEXT="Reminder: templates/claude-code/ and templates/opencode/ hold harness-specific template files. If the content is shared by both harnesses, edit templates/_shared/ instead. If it is genuinely harness-specific, proceed."
+    ;;
+  */.claude/skills/*)
+    WARN=1
+    CONTEXT="Reminder: .claude/skills/*/SKILL.md pointers are generated from .agents/skills/<name>/SKILL.md by scripts/sync-skill-wrappers.py. Edit the skill in .agents/skills/ and re-run the script instead."
     ;;
   */.opencode/*|*/.claude/*)
     WARN=1

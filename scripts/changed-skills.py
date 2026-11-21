@@ -24,8 +24,6 @@ def skill_from_path(path: str) -> str | None:
     """The skill a changed path belongs to, or None when it is not a skill body."""
     if path.startswith((".claude/", ".opencode/")):
         return None  # generated wrappers, not the source body
-    if path.startswith(".agents/skills/") and path.endswith(".md"):
-        return Path(path).name.removesuffix(".md")
     if "/skills/" in path and (path.endswith("/SKILL.md") or "/scripts/" in path):
         tail = path.split("/skills/", 1)[1]
         return tail.split("/", 1)[0] or None

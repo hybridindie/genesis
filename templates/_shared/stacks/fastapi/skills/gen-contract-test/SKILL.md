@@ -50,7 +50,7 @@ and boilerplate.
 {{/STACK_FRONTEND}}
 5. **Scaffold deterministically.**
    ```bash
-   python3 .claude/skills/gen-contract-test/scripts/scaffold_contract.py \
+   python3 .agents/skills/gen-contract-test/scripts/scaffold_contract.py \
      --stack "$STACK" --target "<target>" --path "<route-or-module>" \
      --method "<get|post|…>" --status "<expected>" --out "<output path>"
    ```

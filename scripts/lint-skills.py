@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Lint skill files for the deterministic execution contract.
 
-Checks body skills (genesis `.agents/` and shipped `templates/_shared/`) for the
-required sections and token limits, and checks the thin harness wrappers for
-valid frontmatter and a pointer to the shared body.
+Checks skill bodies (genesis `.agents/skills/<name>/SKILL.md` and shipped
+`templates/_shared/`) for frontmatter, the required sections and token limits;
+checks the `.claude/skills` pointers for frontmatter and a pointer to a shared
+body; and fails when a generated pointer is stale (scripts/sync-skill-wrappers.py).
 
 Usage:
   python3 scripts/lint-skills.py [paths...]
@@ -19,14 +20,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 BODY_GLOBS = [
-    ".agents/skills/*.md",
+    ".agents/skills/*/SKILL.md",
     "templates/_shared/skills/*/SKILL.md",
     "templates/_shared/stacks/*/skills/*/SKILL.md",
     "templates/_shared/packs/*/skills/*/SKILL.md",
 ]
 WRAPPER_GLOBS = [
     ".claude/skills/*/SKILL.md",
-    ".opencode/skills/*/SKILL.md",
 ]
 REQUIRED = [
     "## Inputs",
@@ -57,10 +57,12 @@ def check_body(path: Path, rel: Path) -> list[str]:
     lines = text.count("\n") + (1 if text and not text.endswith("\n") else 0)
     if lines > MAX_BODY_LINES:
         errors.append(f"{rel}: {lines} lines > {MAX_BODY_LINES}")
-    if FRONTMATTER.match(text) and "templates/" in rel.as_posix():
-        front = FRONTMATTER.match(text).group(1)
+    front = FRONTMATTER.match(text)
+    if not front:
+        errors.append(f"{rel}: missing frontmatter (name, description)")
+    else:
         for key in ("name:", "description:"):
-            if key not in front:
+            if key not in front.group(1):
                 errors.append(f"{rel}: frontmatter missing {key}")
     sections = section_map(text)
     for heading in REQUIRED:
@@ -117,6 +119,12 @@ def main() -> int:
         rel = path.relative_to(ROOT)
         errors.extend(check_wrapper(path, rel))
 
+    if not explicit:
+        import subprocess
+        sync = subprocess.run([sys.executable, str(ROOT / "scripts" / "sync-skill-wrappers.py"), "--check"],
+                              capture_output=True, text=True)
+        if sync.returncode:
+            errors.extend(line.removeprefix("STALE: ") for line in sync.stderr.splitlines() if line)
     for error in errors:
         print(f"SKILL-LINT: {error}", file=sys.stderr)
     if errors:

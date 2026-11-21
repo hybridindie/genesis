@@ -49,7 +49,7 @@ caller asked for `--merge`.
 4. **Watch.** Run the watcher in the background:
    ```bash
    gitdir=$(git rev-parse --git-dir)
-   scripts=.claude/skills/ship-pr/scripts
+   scripts=.agents/skills/ship-pr/scripts
    [[ -d $scripts ]] || scripts=templates/_shared/skills/ship-pr/scripts  # genesis itself
    python3 "$scripts/watch_pr.py" "$PR" --timeout 1200 > "$gitdir/ship-pr-watch.log" 2>&1 &
    ```

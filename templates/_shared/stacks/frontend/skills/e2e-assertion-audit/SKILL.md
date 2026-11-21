@@ -29,7 +29,7 @@ confidence gap. Do not edit tests unless asked.
 
 1. **Scan once.**
    ```bash
-   python3 .claude/skills/e2e-assertion-audit/scripts/scan.py {{FRONTEND_PATH}}/tests/e2e
+   python3 .agents/skills/e2e-assertion-audit/scripts/scan.py {{FRONTEND_PATH}}/tests/e2e
    ```
    The script owns the no-op, permissive, and fragile-selector patterns.
 2. **Missing negative cases.** For each journey file, list the tested actions and
