@@ -17,7 +17,7 @@ description: >
   The skill itself. OpenCode reads it here; Claude Code loads it through the
   generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 2.0.0, owner: John D
+  version: 2.2.0, owner: John D
   invokes: .agents/scripts/dispatch.py,
            .agents/scripts/plan.py
   doctrine: .agents/doctrine/agent-plan-schema.md,
@@ -54,8 +54,10 @@ Run every command from the repository root; `d=".agents/scripts/dispatch.py"`.
 2. **Prepare the next wave.** `python3 $d prepare --max <n>`. It refuses a
    dirty checkout, creates each runnable unit's branch and worktree (a story
    that depends on others starts from their finished work), marks it running
-   on the issue and writes its brief. With `--plan`, run
-   `python3 $d prepare --plan` instead, report the units, their `would_run`
+   on the issue and writes its brief. It also runs each unit's verify once on
+   the untouched worktree: a unit whose verify already passes comes back with
+   `weak_check: true`, and its brief asks for a failing test first. With
+   `--plan`, run `python3 $d prepare --plan` instead, report the units, their `would_run`
    commands and briefs, and stop. An empty `units` list: go to step 6.
 3. **Dispatch in parallel.** In one turn, start one general-purpose subagent
    per unit (Claude Code: the Agent tool; OpenCode: the task tool) whose prompt
@@ -68,8 +70,14 @@ Run every command from the repository root; `d=".agents/scripts/dispatch.py"`.
    stub or faked result that only satisfies a weak test is a finding).
    - `ok` and your review passes → `python3 $d merge <unit>`. It enforces
      `merge_order`, and on a conflict aborts and marks the unit blocked.
-   - Otherwise → `python3 $d block <unit> --note "<every finding, one clause
-     each>"`. Leave the worktree.
+   - Fixable inside the track's paths → `python3 $d retry <unit> --note
+     "<what to fix>"`, then start a fresh subagent on the `brief` it prints.
+     The worktree and the work that passed are kept; the brief adds the
+     findings, the verify output and "fix only these". `check` flags a retry
+     that touches files the findings don't name. After 3 attempts `retry`
+     blocks the unit for replanning (`report` → `needs_replan`).
+   - A plan or ownership problem → `python3 $d block <unit> --note "<every
+     finding, one clause each>"`. Leave the worktree.
 5. **Loop** to step 2: merged tracks unblock their dependants and the next
    stories. Stop after 10 rounds.
 6. **Integrate finished stories.** For each story in
@@ -84,9 +92,8 @@ Run every command from the repository root; `d=".agents/scripts/dispatch.py"`.
 Use judgment only for:
 
 - reviewing a finished track's diff against its brief and ACs;
-- writing the blocker note;
-- retrying a blocked track once with a clarified brief, when the blocker was
-  missing context rather than a plan or ownership problem.
+- choosing retry (fixable inside the track's paths) or block (a plan or
+  ownership problem), and writing that note.
 
 Do not edit a subagent's code, change ownership, or run the git steps
 `dispatch.py` owns by hand — report the failure; the plan gets fixed by
@@ -101,6 +108,7 @@ Epic: <ref>    Round: <n>    Running: <n>    Done: <n>/<total>    Blocked: <n>
 |------|--------|--------|------|
 | S1/contract | done | pass | merged abc123 |
 | S1/A | blocked | fail | 2 tests fail in test_routes.py; edits uv.lock |
+| S2/main | blocked | weak | verify passed before work; diff adds no test |
 
 Next runnable: <units or none — waiting on …>
 Stories integrated: <branches or none>

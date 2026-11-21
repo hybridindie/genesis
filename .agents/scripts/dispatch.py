@@ -6,8 +6,9 @@
 """The mechanical half of wave-dispatcher: git, plans and status, no judgment.
 
   dispatch.py load (--epic REF | --story REF... | --files FILE...) [--base REF]
-  dispatch.py prepare [--max N] [--plan] [--allow-dirty]
+  dispatch.py prepare [--max N] [--plan] [--allow-dirty] [--baseline-timeout S]
   dispatch.py check UNIT [--timeout SEC]
+  dispatch.py retry UNIT --note TEXT
   dispatch.py merge UNIT
   dispatch.py block UNIT --note TEXT
   dispatch.py integrate STORY [--push]
@@ -22,6 +23,11 @@ brief per prepared unit, and state.json recording where each body came from.
 Every status change is written back to its source — the GitHub/Gitea issue via
 tracker.py, or the original file for `--files`.
 
+Trust: `check` and `integrate` run each plan's verify commands with `bash -c`
+in the worktree. A plan loaded from an issue can be changed by anyone with
+write access to that issue, so load only from trackers whose writers you
+trust, and read new or changed verify commands before dispatching.
+
 Layout, for a story whose plan says `branch: feat/41-x`:
   feat/41-x                    the story's integration branch (from the base, plus
                                the branches of the stories it depends on)
@@ -35,7 +41,9 @@ import argparse
 import importlib.util
 import json
 import os
+import re
 import shutil
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -107,7 +115,10 @@ class State:
         self.root = repo_root()
         self.work = work_dir()
         self.path = self.work / "state.json"
-        self.data = json.loads(self.path.read_text()) if self.path.is_file() else {}
+        try:
+            self.data = json.loads(self.path.read_text()) if self.path.is_file() else {}
+        except json.JSONDecodeError as exc:
+            raise DispatchError(f"{self.path} is corrupt ({exc}); run dispatch.py load again") from exc
 
     def save(self) -> None:
         self.work.mkdir(parents=True, exist_ok=True)
@@ -176,12 +187,49 @@ def story_branch(story: dict) -> str:
 
 
 def run_shell(command: str, cwd: Path, timeout: int) -> tuple[bool, str]:
+    """Run a verify command. On timeout the whole process group is killed, so
+    nothing it started keeps writing into the worktree after the cleanup."""
+    proc = subprocess.Popen(["bash", "-c", command], cwd=cwd, stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT, text=True, start_new_session=True)
     try:
-        run = subprocess.run(["bash", "-c", command], cwd=cwd, capture_output=True, text=True, timeout=timeout)
+        out, _ = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        proc.communicate()
         return False, f"timed out after {timeout}s"
-    tail = "\n".join((run.stdout + run.stderr).strip().splitlines()[-30:])
-    return run.returncode == 0, tail
+    tail = "\n".join((out or "").strip().splitlines()[-30:])
+    return proc.returncode == 0, tail
+
+
+TEST_FILE = re.compile(r"(^|/)(tests?|__tests__|spec)/|(^|/)test_[^/]*$|_test\.[^/]+$|\.(test|spec)\.[^/]+$")
+
+WEAK_BRIEF = """
+
+## Your check already passes
+`{verify}` passes before you have changed anything, so on its own it cannot
+show that your work is right. Write a failing test for the acceptance
+criteria first (red), then make it pass (green). `check` rejects this track
+if the diff adds or changes no test file.
+"""
+
+
+def baseline(st: "State", unit: str, verify: str, tree: Path, timeout: int) -> bool:
+    """Whether `verify` already passes on the untouched worktree, run once per unit."""
+    seen = st.data.setdefault("baselines", {})
+    if unit not in seen:
+        passed, _ = run_shell(verify, tree, timeout)
+        restore(tree)
+        seen[unit] = passed
+        st.save()
+    return bool(seen[unit])
+
+
+def weak_check(st: "State", unit: str, t: dict) -> bool:
+    """A verify that passed before any work, on a track that isn't a declared refactor."""
+    return bool(st.data.get("baselines", {}).get(unit)) and t.get("verify_baseline") != "pass"
 
 
 def clean_tree(cwd: Path) -> list[str]:
@@ -199,32 +247,41 @@ def restore(cwd: Path) -> None:
 # ── commands ─────────────────────────────────────────────────────────────────
 
 def cmd_load(st: State, args) -> dict:
+    # Read every source before touching the loaded state, so a failed load
+    # leaves the previous one intact.
     sources: dict[str, dict] = {}
-    st.work.mkdir(parents=True, exist_ok=True)
-    for old in st.work.glob("*.md"):
-        old.unlink()
+    bodies: dict[str, str] = {}
 
     def take(text: str, src: dict) -> str:
         p = plan.extract(text, src.get("ref") or src.get("path", "input"))
         name = "epic.md" if p.get("kind") == "epic" else f"story-{plan.story_key(p)}.md"
-        (st.work / name).write_text(text, encoding="utf-8")
+        bodies[name] = text
         sources[name] = src
         return name
 
     if args.files:
         for f in args.files:
-            take(Path(f).read_text(encoding="utf-8"), {"kind": "file", "path": str(Path(f).resolve())})
+            try:
+                text = Path(f).read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError) as exc:
+                raise DispatchError(f"cannot read {f}: {exc}") from exc
+            take(text, {"kind": "file", "path": str(Path(f).resolve())})
     else:
         tracker = _load("tracker")
         forge = tracker.forge()
         refs = list(args.story or [])
         if args.epic:
             name = take(forge.get(tracker.number(args.epic)), {"kind": "tracker", "ref": args.epic})
-            epic = plan.extract((st.work / name).read_text(encoding="utf-8"))
+            epic = plan.extract(bodies[name])
             refs += [str(s.get("issue")) for s in plan.as_list(epic.get("stories"))
                      if plan.issue_number(s.get("issue"))]
         for ref in refs:
             take(forge.get(tracker.number(ref)), {"kind": "tracker", "ref": ref})
+    st.work.mkdir(parents=True, exist_ok=True)
+    for old in st.work.glob("*.md"):
+        old.unlink()
+    for name, text in bodies.items():
+        (st.work / name).write_text(text, encoding="utf-8")
     st.data = {"sources": sources, "base": args.base or default_base(),
                "trees": str(st.root.parent / f"{st.root.name}-tracks")}
     st.save()
@@ -241,10 +298,21 @@ def ensure_story_branch(st: State, story: dict, stories: dict[str, dict], dry: l
     sid = plan.story_key(story)
     integ = st.trees / f"{sid}-integration"
     if dry is not None:
-        if not ok("show-ref", "--verify", "--quiet", f"refs/heads/{branch}"):
+        exists = ok("show-ref", "--verify", "--quiet", f"refs/heads/{branch}")
+        if not exists:
             dry.append(f"git branch {branch} {st.base}")
         if not integ.exists():
             dry.append(f"git worktree add {integ} {branch}")
+        for up in map(str, plan.as_list(story.get("depends_on"))):
+            upstream = stories.get(up)
+            if upstream is None:
+                continue
+            up_branch = story_branch(upstream)
+            if not ok("show-ref", "--verify", "--quiet", f"refs/heads/{up_branch}"):
+                continue
+            if exists and ok("merge-base", "--is-ancestor", up_branch, branch):
+                continue
+            dry.append(f"git -C {integ} merge --no-ff {up_branch}")
         return integ
     if not ok("show-ref", "--verify", "--quiet", f"refs/heads/{branch}"):
         git("branch", branch, st.base)
@@ -288,19 +356,34 @@ def cmd_prepare(st: State, args) -> dict:
         tree = st.trees / f"{sid}-{track}"
         dry: list | None = [] if args.plan else None
         ensure_story_branch(st, story, by_id, dry)
+        unit = f"{sid}/{track}"
+        t = track_of(story, track)
         if dry is not None:
             dry.append(f"git worktree add -b {tbranch} {tree} {branch}")
+            base_state = "not run"
         else:
             if not tree.exists():
                 git("worktree", "add", "-b", tbranch, str(tree), branch)
+            if not plan.is_command(t.get("verify")):
+                base_state = "not run"  # check reports the missing verify
+            elif unit not in st.data.get("baselines", {}) and clean_tree(tree):
+                base_state = "not run"  # a reused worktree holding work: never clean it
+            else:
+                passed = baseline(st, unit, str(t.get("verify")), tree, args.baseline_timeout)
+                base_state = "pass" if passed else "fail"
+            forget(st, unit)  # a re-planned unit starts over
             st.set_status(sid, track, "running")
+        weak = base_state == "pass" and t.get("verify_baseline") != "pass"
         text = plan.brief(story, track) + (
             f"\n\n## Where to work\nWork only in `{tree}` (cd there first). "
             f"Your branch is `{tbranch}`; commit there.\n")
+        if weak:
+            text += WEAK_BRIEF.format(verify=t.get("verify"))
         bpath = briefs / f"{sid}-{track}.md"
         bpath.write_text(text, encoding="utf-8")
-        item = {"unit": f"{sid}/{track}", "kind": u["kind"], "worktree": str(tree), "branch": tbranch,
-                "story_branch": branch, "owns": u["owns"], "verify": u["verify"], "brief": str(bpath)}
+        item = {"unit": unit, "kind": u["kind"], "worktree": str(tree), "branch": tbranch,
+                "story_branch": branch, "owns": u["owns"], "verify": u["verify"], "brief": str(bpath),
+                "baseline": base_state, "weak_check": weak}
         if dry is not None:
             item["would_run"] = dry
         out.append(item)
@@ -334,8 +417,22 @@ def cmd_check(st: State, args) -> dict:
     outside = [c for c in changed if not plan.covered_by(c, plan.as_list(t.get("owns")))]
     if outside:
         findings.append(f"changed outside owns: {', '.join(outside)}")
+    retry = st.data.get("retries", {}).get(args.unit)
+    if retry:  # a returned unit fixes its findings and nothing else
+        since = [c for c in git("diff", "--name-only", f"{retry['head']}...HEAD", cwd=tree).splitlines() if c]
+        named = " ".join(retry["findings"] + [retry["note"]])
+        widened = [c for c in since if c not in retry["changed"] and c not in named]
+        if widened:
+            findings.append(f"retry widened its scope beyond the findings: {', '.join(widened)}")
+    weak = weak_check(st, args.unit, t)
+    if weak and not any(TEST_FILE.search(c) for c in changed):
+        findings.append(f"verify passed before any work and the diff adds or changes no test, "
+                        f"so the check cannot fail: {t.get('verify')}")
     verify_ok, tail = None, ""
-    if dirty:
+    if not plan.is_command(t.get("verify")):
+        tail = "not run: no verify command"
+        findings.append("the plan has no verify command for this track")
+    elif dirty:
         tail = "not run: the worktree has uncommitted changes"
     else:
         verify_ok, tail = run_shell(str(t.get("verify")), tree, args.timeout)
@@ -343,10 +440,84 @@ def cmd_check(st: State, args) -> dict:
         if not verify_ok:
             findings.append(f"verify failed: {t.get('verify')}")
     owns = " ".join(f"'{p}'" for p in plan.as_list(t.get("owns")))
+    st.data.setdefault("checks", {})[args.unit] = {
+        "ok": not findings, "head": git("rev-parse", "HEAD", cwd=tree), "changed": changed,
+        "findings": findings, "verify_tail": tail}
+    st.save()
     return {"ok": not findings, "unit": args.unit, "findings": findings, "commits": commits,
             "changed": changed, "outside_owns": outside, "verify": t.get("verify"),
-            "verify_passed": verify_ok, "verify_tail": tail,
+            "verify_passed": verify_ok, "verify_tail": tail, "weak_check": weak,
             "review": f"git -C '{tree}' diff {branch}...HEAD -- {owns}"}
+
+
+MAX_ATTEMPTS = 3
+
+RETURN_BRIEF = """
+
+## Attempt {attempt} of {max}: returned after a failed check
+Your previous attempt failed these checks:
+
+{findings}
+
+Lead's note: {note}
+
+Last verify output:
+
+```
+{tail}
+```
+
+Fix only these findings, inside the paths you own. Keep the work that
+already passes; do not rewrite it, and do not fix anything the findings
+don't name. If they can't be fixed inside your paths, stop and say so.
+"""
+
+
+def forget(st: State, unit: str) -> None:
+    """Drop a unit's retry history once it reaches a fresh start or is merged."""
+    for key in ("attempts", "retries", "checks"):
+        st.data.get(key, {}).pop(unit, None)
+    if unit in st.data.get("replan", []):
+        st.data["replan"].remove(unit)
+
+
+def cmd_retry(st: State, args) -> dict:
+    sid, track = split_unit(args.unit)
+    t = track_of(st.story(sid), track)
+    if t.get("status", "todo") != "running":
+        raise DispatchError(f"{args.unit} is {t.get('status', 'todo')}, not running; only a running unit can be retried")
+    if not (st.trees / f"{sid}-{track}").is_dir():
+        raise DispatchError(f"{args.unit} has no worktree to return to")
+    last = st.data.get("checks", {}).get(args.unit)
+    if not last or last.get("returned"):
+        raise DispatchError(f"{args.unit} has no new failed check to return; run dispatch.py check first")
+    if last["ok"]:
+        raise DispatchError(f"{args.unit} passed its last check; merge it instead")
+    attempts = st.data.setdefault("attempts", {})
+    attempt = attempts.get(args.unit, 1) + 1
+    if attempt > MAX_ATTEMPTS:
+        note = (f"replan: failed {MAX_ATTEMPTS} attempts, so the plan that produced it needs fixing "
+                f"(story-decomposer); last findings: {'; '.join(last['findings'])}")
+        st.set_status(sid, track, "blocked", note)
+        last["returned"] = True
+        replan = st.data.setdefault("replan", [])
+        if args.unit not in replan:
+            replan.append(args.unit)
+        st.save()
+        return {"ok": False, "unit": args.unit, "replan": True, "note": note}
+    attempts[args.unit] = attempt
+    last["returned"] = True  # the next retry needs a new check of the new attempt
+    st.data.setdefault("retries", {})[args.unit] = {
+        "head": last["head"], "changed": last["changed"], "findings": last["findings"], "note": args.note}
+    original = (st.work / "briefs" / f"{sid}-{track}.md").read_text(encoding="utf-8")
+    brief = st.work / "briefs" / f"{sid}-{track}-attempt{attempt}.md"
+    brief.write_text(original + RETURN_BRIEF.format(
+        attempt=attempt, max=MAX_ATTEMPTS, note=args.note, tail=last["verify_tail"] or "(not run)",
+        findings="\n".join(f"- {f}" for f in last["findings"])), encoding="utf-8")
+    st.set_status(sid, track, "running", f"attempt {attempt}/{MAX_ATTEMPTS}: {args.note}")
+    st.save()
+    return {"ok": True, "unit": args.unit, "attempt": attempt, "max_attempts": MAX_ATTEMPTS,
+            "brief": str(brief), "worktree": str(st.trees / f"{sid}-{track}")}
 
 
 def cmd_block(st: State, args) -> dict:
@@ -369,6 +540,12 @@ def cmd_merge(st: State, args) -> dict:
         waiting += [x for x in order[: order.index(track)] if status.get(x) != "done" and x not in waiting]
     if waiting:
         return {"ok": False, "unit": args.unit, "findings": [f"merge {', '.join(waiting)} first"]}
+    tree = st.trees / f"{sid}-{track}"
+    dirty = clean_tree(tree) if tree.is_dir() else []
+    if dirty:  # merging would delete this worktree, and these files with it
+        return {"ok": False, "unit": args.unit,
+                "findings": [f"uncommitted changes in the worktree: {', '.join(dirty[:10])}; "
+                             "commit them and re-run check first"]}
     by_id = {plan.story_key(s): s for s in st.plans()[1]}
     integ = ensure_story_branch(st, story, by_id, None)
     branch = story_branch(story)
@@ -385,7 +562,8 @@ def cmd_merge(st: State, args) -> dict:
         return {"ok": False, "unit": args.unit, "findings": [note]}
     sha = git("rev-parse", "--short", "HEAD", cwd=integ)
     st.set_status(sid, track, "done", f"merged {sha}")
-    tree = st.trees / f"{sid}-{track}"
+    forget(st, args.unit)
+    st.save()
     if tree.exists():
         git("worktree", "remove", "--force", str(tree))
     git("branch", "-D", tbranch, check=False)
@@ -399,8 +577,16 @@ def cmd_integrate(st: State, args) -> dict:
         return {"ok": False, "story": args.story, "findings": [f"tracks not done: {', '.join(pending)}"]}
     by_id = {plan.story_key(s): s for s in st.plans()[1]}
     integ = ensure_story_branch(st, story, by_id, None)
+    dirty = clean_tree(integ)
+    if dirty:  # verify on an unknown tree means nothing, and cleanup would erase it
+        return {"ok": False, "story": args.story,
+                "findings": [f"uncommitted changes in {integ}: {', '.join(dirty[:10])}; "
+                             "commit or remove them first"]}
     results, findings = [], []
-    commands = [c for c in [(story.get("integration") or {}).get("verify"), story.get("verify")] if c]
+    commands = [c for c in [(story.get("integration") or {}).get("verify"), story.get("verify")]
+                if plan.is_command(c)]
+    if not commands:
+        findings.append("the plan has no verify command for this story (integration.verify or verify)")
     for command in dict.fromkeys(commands):
         passed, tail = run_shell(str(command), integ, args.timeout)
         restore(integ)
@@ -426,9 +612,19 @@ def cmd_report(st: State, args) -> dict:  # noqa: ARG001
         if tracks and all(t.get("status") == "done" for t in tracks):
             done_stories.append(plan.story_key(s))
     counts = {k: sum(1 for r in rows if r["status"] == k) for k in plan.STATUSES}
+    for r in rows:
+        r["attempts"] = st.data.get("attempts", {}).get(r["unit"], 1)
     return {"ok": True, "counts": counts, "units": rows, "stories_ready_to_integrate": done_stories,
+            "needs_replan": st.data.get("replan", []),
             "next_runnable": [u["unit"] for u in plan.next_runnable(epic, stories, 99)],
             "waiting": report_waiting(epic, stories)}
+
+
+def positive_seconds(value: str) -> int:
+    n = int(value)
+    if n <= 0:
+        raise argparse.ArgumentTypeError("must be a positive number of seconds")
+    return n
 
 
 def main() -> int:
@@ -441,6 +637,10 @@ def main() -> int:
     p = sub.add_parser("prepare"); p.add_argument("--max", type=int, default=3)
     p.add_argument("--plan", action="store_true", help="dry run: write briefs, print the git commands, change nothing")
     p.add_argument("--allow-dirty", action="store_true")
+    p.add_argument("--baseline-timeout", type=positive_seconds, default=300,
+                   help="seconds for the one-time verify run that detects a check that cannot fail")
+    p = sub.add_parser("retry", help="return a failed unit with its evidence (max 3 attempts)")
+    p.add_argument("unit"); p.add_argument("--note", required=True)
     p = sub.add_parser("check"); p.add_argument("unit"); p.add_argument("--timeout", type=int, default=900)
     p = sub.add_parser("merge"); p.add_argument("unit")
     p = sub.add_parser("block"); p.add_argument("unit"); p.add_argument("--note", required=True)
@@ -453,6 +653,14 @@ def main() -> int:
         result = globals()[f"cmd_{args.cmd}"](st, args)
     except (DispatchError, plan.PlanError) as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, indent=2))
+        return 2
+    except SystemExit as exc:  # tracker.py reports its failures with sys.exit("tracker: ...")
+        if exc.code in (None, 0):
+            raise
+        print(json.dumps({"ok": False, "error": str(exc.code)}, indent=2))
+        return 2
+    except (OSError, ValueError) as exc:  # includes a corrupt state.json (JSONDecodeError)
+        print(json.dumps({"ok": False, "error": f"{type(exc).__name__}: {exc}"}, indent=2))
         return 2
     print(json.dumps(result, indent=2))
     return 0 if result.get("ok") else 1

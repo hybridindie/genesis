@@ -18,7 +18,7 @@ export function ReportView({ id }: { id: number }) {
   return (
     <section>
       <h1>{report.title}</h1>
-      <a href={csvUrl(id)}>Download CSV</a>
+      <a href={csvUrl(id)} download>Download CSV</a>
       <table>{/* rows */}</table>
     </section>
   );

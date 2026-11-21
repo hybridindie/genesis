@@ -12,8 +12,8 @@ user-invocable: true
 
 <!--
   contract: .claude/rules/doctrine/skill-execution.md
-  version: 2.1.0, owner: John D
-  invokes: ship-pr/scripts/watch_pr.py
+  version: 2.2.0, owner: John D
+  invokes: ship-pr/scripts/watch_pr.py, ship-pr/scripts/pr_size.py
 -->
 
 Open or update a PR, watch CI/review, address threads, and merge only when the
@@ -32,11 +32,21 @@ caller asked for `--merge`.
 1. **Preflight.** Require `git status` clean and the branch pushed. Confirm the
    PR body links an issue (`Closes #N` or a link). Run `/preflight`; fix failures,
    never bypass a hook.
-2. **Find the PR.**
+2. **Size budget.** Before opening a PR:
+   ```bash
+   scripts=.claude/skills/ship-pr/scripts
+   [[ -d $scripts ]] || scripts=templates/_shared/skills/ship-pr/scripts  # genesis itself
+   python3 "$scripts/pr_size.py" --base origin/main
+   ```
+   Exit 1 means over budget (`.claude/rules/workflow.md`, step 5): stop and
+   propose a split by layer or concern from its `largest` list. Open as one PR
+   only if the caller accepts, and then say in the body why it can't be split.
+   Generated files a repo commits can be excluded with `--exclude '<glob>'`.
+3. **Find the PR.**
    ```bash
    gh pr view --json number,url,state 2>/dev/null
    ```
-3. **Open if missing.** Compose the body from the real change: what/why, verified
+4. **Open if missing.** Compose the body from the real change: what/why, verified
    commands, risks/rollback, issue link. Title + body must fit in 2000
    characters (`.claude/rules/workflow.md`, step 5) — check before creating or
    editing, and trim until it passes:
@@ -46,7 +56,7 @@ caller asked for `--merge`.
    ```
    Title format: `<type>(<scope>): <summary>`. Update the body only when scope
    or verification changed, and re-check the length when you do.
-4. **Watch.** Run the watcher in the background:
+5. **Watch.** Run the watcher in the background:
    ```bash
    gitdir=$(git rev-parse --git-dir)
    scripts=.agents/skills/ship-pr/scripts
@@ -62,15 +72,15 @@ caller asked for `--merge`.
    (`none` disables waiting). On Gitea, where the token's own user authors the
    review, always set it. If no review lands, ask for one:
    `gh pr comment "$PR" --body /review`.
-5. **Fetch unresolved threads.**
+6. **Fetch unresolved threads.**
    ```bash
    python3 "$scripts/pr_threads.py" --pr "$PR"
    ```
    The script owns the GraphQL query, repo lookup, and resolved/outdated filter.
-6. **Triage each.** Real defect → fix + test + rerun preflight + push. Misread →
+7. **Triage each.** Real defect → fix + test + rerun preflight + push. Misread →
    reply with evidence. Separate concern → linked follow-up issue + reply.
    Ambiguous → leave open and list for the human.
-7. **Reply and resolve.**
+8. **Reply and resolve.**
    ```bash
    gh api graphql -f query='
    mutation($thread: ID!, $body: String!) {
@@ -86,8 +96,8 @@ caller asked for `--merge`.
      resolveReviewThread(input: {threadId: $thread}) { thread { isResolved } }
    }' -F thread="$THREAD"
    ```
-8. **Loop cap.** Repeat watch/fix at most three cycles; then report what remains.
-9. **Merge only with `--merge`.** Require preflight green, watcher `0`,
+9. **Loop cap.** Repeat watch/fix at most three cycles; then report what remains.
+10. **Merge only with `--merge`.** Require preflight green, watcher `0`,
    `mergeStateStatus=CLEAN`, no `CHANGES_REQUESTED`, no unresolved blocking
    thread, and no `do-not-merge` label. Then:
    ```bash
@@ -118,6 +128,8 @@ Follow-ups: <links or none>
 ## Stop Conditions
 
 - Stop if the worktree is dirty, the branch is unpushed, or preflight fails.
+- Stop before opening a PR that is over the size budget unless the caller
+  accepts it.
 - Stop if the watcher times out or the PR is blocked on a human approval.
 - Stop after three review cycles and report the remaining threads.
 - Never merge without the caller's explicit `--merge`.

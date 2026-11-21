@@ -10,7 +10,7 @@ needed.
 
 Usage:
   python3 scripts/sync-skill-wrappers.py           # write the pointers
-  python3 scripts/sync-skill-wrappers.py --check   # exit 1 if any is stale or missing
+  python3 scripts/sync-skill-wrappers.py --check   # exit 1 if any is stale, missing or orphaned
 
 The same layout is used in rendered projects (`templates/scripts/render.py`
 imports `pointer()` from here) so the two cannot drift.
@@ -41,29 +41,66 @@ def pointer(skill_md: str, rel_src: str) -> str:
     )
 
 
+def sync(root: Path, check: bool) -> dict:
+    """Bring `.claude/skills` in line with `.agents/skills` under `root`.
+
+    Every pointer is computed before anything is written, so a skill with
+    broken frontmatter fails the run cleanly instead of leaving it half done.
+    A generated pointer whose source is gone is an orphan and is removed;
+    hand-written wrappers (no generated marker) are left alone.
+    """
+    wanted: dict[Path, str] = {}
+    errors: list[str] = []
+    for src in sorted((root / ".agents" / "skills").glob("*/SKILL.md")):
+        rel = src.relative_to(root).as_posix()
+        try:
+            wanted[root / ".claude" / "skills" / src.parent.name / "SKILL.md"] = pointer(
+                src.read_text(encoding="utf-8"), rel)
+        except ValueError as exc:
+            errors.append(str(exc))
+    if errors:
+        return {"ok": False, "errors": errors, "updated": [], "orphaned": []}
+    updated = [dst for dst, text in wanted.items()
+               if not dst.is_file() or dst.read_text(encoding="utf-8") != text]
+    marker = MARKER.split("{src}")[0]
+    orphaned = [dst for dst in sorted((root / ".claude" / "skills").glob("*/SKILL.md"))
+                if dst not in wanted and marker in dst.read_text(encoding="utf-8")]
+    if not check:
+        for dst in updated:
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            dst.write_text(wanted[dst], encoding="utf-8")
+        for dst in orphaned:
+            dst.unlink()
+            if not any(dst.parent.iterdir()):
+                dst.parent.rmdir()
+    def to_rel(paths: list[Path]) -> list[str]:
+        return [p.relative_to(root).as_posix() for p in paths]
+    return {"ok": not (check and (updated or orphaned)), "errors": [],
+            "updated": to_rel(updated), "orphaned": to_rel(orphaned)}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Generate .claude/skills pointers from .agents/skills.")
-    ap.add_argument("--check", action="store_true", help="report stale or missing pointers; write nothing")
+    ap.add_argument("--check", action="store_true", help="report stale, missing or orphaned pointers; write nothing")
     args = ap.parse_args()
-    stale = []
-    for src in sorted((ROOT / ".agents" / "skills").glob("*/SKILL.md")):
-        name = src.parent.name
-        rel = src.relative_to(ROOT).as_posix()
-        want = pointer(src.read_text(encoding="utf-8"), rel)
-        dst = ROOT / ".claude" / "skills" / name / "SKILL.md"
-        have = dst.read_text(encoding="utf-8") if dst.is_file() else None
-        if have == want:
-            continue
-        stale.append(dst.relative_to(ROOT).as_posix())
-        if not args.check:
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            dst.write_text(want, encoding="utf-8")
-    if args.check and stale:
-        for s in stale:
-            print(f"STALE: {s} (run python3 scripts/sync-skill-wrappers.py)", file=sys.stderr)
+    result = sync(ROOT, args.check)
+    for error in result["errors"]:
+        print(f"ERROR: {error}", file=sys.stderr)
+    if result["errors"]:
         return 1
-    verb = "would update" if args.check else "updated"
-    print(f"skill pointers: {len(stale)} {verb}" if stale else "skill pointers: up to date")
+    if args.check:
+        for s in result["updated"]:
+            print(f"STALE: {s} (run python3 scripts/sync-skill-wrappers.py)", file=sys.stderr)
+        for s in result["orphaned"]:
+            print(f"ORPHANED: {s} has no skill in .agents/skills (run python3 scripts/sync-skill-wrappers.py)",
+                  file=sys.stderr)
+        if not result["ok"]:
+            return 1
+    n = len(result["updated"]) + len(result["orphaned"])
+    if not n:
+        print("skill pointers: up to date")
+    else:
+        print(f"skill pointers: {n} changed ({len(result['orphaned'])} orphaned)")
     return 0
 
 
