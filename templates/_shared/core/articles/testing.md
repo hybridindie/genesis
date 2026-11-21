@@ -4,9 +4,6 @@ read_when: "Writing or fixing tests, choosing coverage, or touching test infrast
 
 # Testing: Red First, Deterministic, Zero Skips
 
-This file is the single source for test discipline. Other rules and agents
-link here instead of restating it.
-
 ## MUST
 
 - Write the failing test first and confirm it fails for the right reason;
@@ -14,8 +11,9 @@ link here instead of restating it.
 - Every bug fix ships a regression test.
 - Public interfaces (HTTP, MCP, CLI, file formats, addon commands) get a
   contract test before the implementation changes.
-- Deterministic: inject clock, RNG, ids, and network. No `sleep` to
-  synchronise, no real sockets in unit tests, no order dependence.
+- Deterministic: clock, RNG, ids and network are injected
+  (`architecture.md`). No `sleep` to synchronise, no real sockets in unit
+  tests, no order dependence.
 - No unconditional skip or xfail is committed. A skip is allowed only for a
   real environment precondition (missing GPU, OS-specific path), and its line
   carries `skip-ok: <reason>` so the skip gate accepts it.
@@ -36,9 +34,8 @@ assertions matter more than the number.
 
 ## SHOULD
 
-- Follow the repo's existing test layout. For a new repo: `tests/unit`,
-  `tests/contract`, `tests/integration` (real adapters, behind a marker), and
-  `tests/e2e`.
+- Follow the repo's test layout. A new repo uses
+  `tests/{unit,contract,integration,e2e}`, with integration behind a marker.
 - Fakes for external systems; golden files for serialised output.
 - Tests are independent and safe to run in parallel.
 

@@ -1,5 +1,12 @@
 ---
 read_when: "Adding logs, metrics, tracing, or debugging a production issue"
+paths:
+  - "**/*.py"
+  - "**/*.ts"
+  - "**/*.tsx"
+  - "**/*.js"
+  - "**/*.rs"
+  - "**/*.gd"
 ---
 
 # Observability: Structured, Correlated, Secret-Free
@@ -12,7 +19,8 @@ read_when: "Adding logs, metrics, tracing, or debugging a production issue"
 - Levels mean something: `error` needs action, `warning` is degraded, `info`
   is lifecycle, `debug` is diagnostics.
 - Log an error once, at the boundary, with context.
-- Never log secrets, tokens, full payloads, file contents, or home paths.
+- Nothing `security.md` keeps out of logs: secrets, payloads, file contents,
+  home paths.
 
 ## SHOULD
 

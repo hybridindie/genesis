@@ -1,5 +1,12 @@
 ---
 read_when: "Writing async code, transports, background jobs, or anything with timeouts"
+paths:
+  - "**/*.py"
+  - "**/*.ts"
+  - "**/*.tsx"
+  - "**/*.js"
+  - "**/*.rs"
+  - "**/*.gd"
 ---
 
 # Async: Never Block, Always Time Out
@@ -21,7 +28,7 @@ Stack rules (e.g. Godot) refine this for their runtime.
 ## SHOULD
 
 - Structured concurrency (`asyncio.TaskGroup`, `anyio`).
-- Propagate a request/command id through logs, errors, and retries.
+- Carry the request/command id through retries (`logging-observability.md`).
 
 ## ANTI-PATTERNS
 
