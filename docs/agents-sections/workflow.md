@@ -33,6 +33,9 @@ Dispatch
   • Wave 1 can start now; Wave 2 after its contract lands
   • one track per subagent or team, with its owns/verify brief
   • integration runs after all tracks; no overlapping edits
+
+Every plan lives in a fenced `agent-plan` block; `plan.py check` validates it
+and renders the tables (`.agents/doctrine/agent-plan-schema.md`).
 ```
 
 Artifacts are GitHub issues: `Epic: <outcome>`, `Story N: <outcome>` (or
