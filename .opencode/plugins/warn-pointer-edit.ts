@@ -23,6 +23,10 @@ let warnedUnavailable = false
 
 async function reminderFor(filePath: string): Promise<string | undefined> {
   const child = run("bash", [HOOK])
+  // If bash is missing, the spawn fails while this write is in flight and the
+  // stream emits EPIPE; without a listener that is an uncaught exception that
+  // takes the harness down. The spawn failure itself rejects `child` below.
+  child.child.stdin?.on("error", () => {})
   child.child.stdin?.end(JSON.stringify({ tool_input: { file_path: filePath } }))
   const { stdout } = await child
   if (!stdout.trim()) return undefined
