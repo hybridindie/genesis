@@ -8,4 +8,5 @@ file and passes `$ARGUMENTS`. Edit the skill in `.agents/`, then run
 `python3 scripts/sync-skill-wrappers.py`; never edit a pointer.
 
 Invoke with `/epic-composer`, `/epic-acceptance-linter`, `/epic-interview`,
-`/story-decomposer`, `/task-decomposer`, `/bootstrap-harness` or `/ship-pr`, or let Claude load them when relevant.
+`/story-decomposer`, `/task-decomposer`, `/wave-dispatcher`,
+`/bootstrap-harness` or `/ship-pr`, or let Claude load them when relevant.

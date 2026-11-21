@@ -29,10 +29,12 @@ task-decomposer ────────────► task checklist inside ea
   • each task: verb + file, owns, depends, verify, AC
 
   ▼
-Dispatch
-  • Wave 1 can start now; Wave 2 after its contract lands
-  • one track per subagent or team, with its owns/verify brief
-  • integration runs after all tracks; no overlapping edits
+wave-dispatcher ────────────► merged story branches → PRs
+  • dispatch.py prepares each runnable track: branch, worktree, brief
+  • one subagent per track, in parallel
+  • dispatch.py check: scope + verify; the model reviews the diff
+  • dispatch.py merge in merge_order; conflicts block the track
+  • integrate the finished story, then ship-pr
 
 Every plan lives in a fenced `agent-plan` block; `plan.py check` validates it
 and renders the tables (`.agents/doctrine/agent-plan-schema.md`).
