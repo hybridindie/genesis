@@ -1,12 +1,13 @@
 ---
 name: story-decomposer
 description: >
-  Turn a ready Epic into shippable story issues with acceptance criteria, file
-  ownership, waves, and a shared contract so the work can run in parallel across
-  subagents or teams. Trigger phrases: "decompose this epic", "break down this epic into
-  stories", "create stories from this epic", "split this epic", "generate a backlog from
-  this epic". Use when the user has a ready Epic and wants independent stories plus an
-  execution map they can dispatch.
+  Turn a ready Epic into story issues a subagent can pick up cold: context,
+  Given/When/Then criteria, and an agent-plan block with ownership, verify commands and
+  parallel tracks (a contract track first when work shares an interface), validated so
+  parallel tracks never touch the same files. Trigger phrases: "decompose this epic",
+  "break down this epic into stories", "create stories from this epic", "split this
+  epic", "plan the parallel work for this epic". Use when the user has an Epic and wants
+  stories and tracks that can be dispatched to parallel subagents.
 ---
 
 # Story Decomposer
@@ -15,93 +16,108 @@ description: >
   The skill itself. OpenCode reads it here; Claude Code loads it through the
   generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 5.1.0, owner: John D
+  version: 6.1.0, owner: John D
   invokes: .agents/skills/task-decomposer/SKILL.md,
            .agents/templates/epic/story-shell.md,
-           .agents/templates/epic/task-breakdown-shell.md,
+           .agents/scripts/plan.py,
+           .agents/scripts/tracker.py,
            .agents/evals/story-rubric.md
-  doctrine: .agents/doctrine/parallelization-doctrine.md,
+  doctrine: .agents/doctrine/agent-plan-schema.md,
+            .agents/doctrine/parallelization-doctrine.md,
             .agents/doctrine/ai-readable-spec-rules.md,
             .agents/doctrine/source-discipline.md
 -->
 
-Turn a ready Epic into stories that can be dispatched in parallel. Each story
-uses `.agents/templates/epic/story-shell.md`; the execution map is fixed.
+Turn a ready Epic into story issues that a subagent can pick up cold. Each story
+carries an `agent-plan` block with its ownership, verify command and tracks —
+the units a dispatcher hands to parallel subagents. A story body is the
+whole brief a subagent gets, so anything it needs to know goes in it.
 
 ## Inputs
 
-- Required: the Epic body, including outcome, scope, and acceptance criteria.
-- Read: the story shell and the three doctrine files above.
-- Optional: named modules or paths from the Epic for ownership hints.
+- Required: the Epic body with a valid `agent-plan` block (a file, or
+  `tracker.py get <ref> -o epic.md`).
+- Read: `story-shell.md` and the doctrine files above.
+- Read: the files and directories named in each story's `owns`, enough to name
+  real modules, entry points and test locations.
 - Do not read: unrelated code or the whole repository.
 
 ## Deterministic Steps
 
-1. **Gate the input.** If the Epic has no outcome or no acceptance criteria, stop
-   and send it back to `epic-composer` / `epic-interview`.
-2. **List the ACs.** Extract every `ACn` and keep the labels stable.
-3. **Choose the story type** for each slice: user, spike, technical, or bug.
-4. **Map ACs to stories.** Every AC maps to at least one story; every story maps
-   back to an AC or an explicit constraint. Flag a gap instead of inventing one.
-5. **Assign size and wave.** S/M/L only; split anything larger than L. Wave 1
-   contains everything that can start today.
-6. **Assign ownership.** Each story declares `owns` paths and `must not touch`.
-   Parallel stories may not own the same path; split or sequence them.
-7. **Define the shared contract** and integration story when tracks share an
-   interface, type, schema, or file format.
-8. **Validate the map.** Confirm no duplicate ownership, no story without an AC,
-   and no later wave without a named dependency. Write each story to a temporary
-   file and run:
-   ```bash
-   python3 .agents/scripts/validate_artifact.py --kind story "$story_file"
-   ```
-   Stop on `FAIL`.
-9. **Quality pass.** When the caller asks for a strict review, or Wave 1 is
+1. **Gate the input.** `python3 .agents/scripts/plan.py check epic.md`. If it
+   fails, or the Epic has no outcome or ACs, stop and send it back to
+   `epic-composer`.
+2. **Scaffold.** `python3 .agents/scripts/plan.py scaffold epic.md --out .`
+   writes `story-<id>.md` for every Epic story with the plan block filled from
+   the Epic — id, ACs and their wording, `depends_on`, `owns`, `verify`, a
+   `branch`, and `must_not_touch` (everything the stories that can run at the
+   same time own) — and one default track. Keep those fields; you refine, you
+   do not re-slice. If a story must change shape, change the Epic plan first,
+   re-check it and re-scaffold that story (`--stories S2 --force`).
+3. **Write each story's prose** in its scaffolded file:
+   - the user-story frame (or What/Why for spikes and technical stories);
+   - **Context** a subagent with no other knowledge can act on: current
+     behaviour, the files involved (named per `ai-readable-spec-rules.md`),
+     what exists vs. what is new — copy it into the plan's `context`;
+   - Given/When/Then criteria for each AC, and the same wording in `ac_text`.
+4. **Split into tracks** only where it pays. The default single `main` track is
+   right for an S-sized, single-concern story — say so. Otherwise:
+   - a shared surface inside the story becomes a `kind: contract` track that
+     the others depend on;
+   - tracks that can run together own disjoint paths (tests go with the code
+     they test), each with an exact `verify` and, when the story context
+     mentions work it must not do, its own `context`;
+   - add `integration` (`merge_order`, `verify`).
+5. **Check the set.** `python3 .agents/scripts/plan.py check epic.md story-*.md`
+   validates every plan against the Epic, regenerates the tables, checks the
+   prose and prints the track waves. Fix the plan on `FAIL`, never the checker.
+6. **Read one brief as the subagent would.**
+   `python3 .agents/scripts/plan.py brief story-S1.md --track main` — if it
+   could not start without asking something, add that to `context`.
+7. **Quality pass.** When the caller asks for a strict review, or Wave 1 is
    about to be dispatched, apply `.agents/evals/story-rubric.md` (the story
-   table to each story, the parallel-plan table to the map). It advises; it
+   table to each story, the parallel-plan table to the waves). It advises; it
    never blocks the output.
-10. **Emit the stories and map.** Do not create task checklists here; invoke the
-    task decomposer for each story that will be implemented.
+8. **Publish when asked.** Create each story issue with `tracker.py create`,
+   write the returned numbers into the story blocks (`issue`, `branch`) and the
+   Epic block (`stories[].issue`), re-sync both, and `tracker.py put` the Epic.
+9. **Hand off.** Tracks that need more than one obvious change get tasks from
+   `task-decomposer`; the rest are dispatchable as they are.
 
 ## LLM Judgment
 
 Use judgment only for:
 
-- finding the smallest vertical slices;
-- sizing S/M/L;
-- deciding whether a shared contract deserves its own story;
+- writing context a cold subagent can act on;
+- where to cut tracks and what each owns;
+- whether a shared surface deserves a contract track;
 - resolving ownership when the Epic leaves it ambiguous.
 
-Do not invent requirements, file paths, or dependencies.
+Do not invent requirements, file paths, commands, or dependencies. A path you
+could not confirm is marked `(new)` in Context.
 
 ## Output
 
-- One story body per story using `.agents/templates/epic/story-shell.md`,
-  titled `Story N: <outcome>` or `story(scope): <outcome>`.
-- An execution map:
-
-```markdown
-| Wave | Story | Size | Owns | Depends on | Parallel with | Verify |
-|------|-------|------|------|------------|---------------|--------|
-| 1 | … | S/M/L | `<path/>` | — | … | `<command>` |
-```
-
-- A coverage note: every Epic AC covered exactly once, or an explicit gap.
-- If the Epic is small enough to be one story, say so and emit one story.
-- When step 9 ran, the rubric findings per story and for the map.
+- One story body per Epic story, titled `Story N: <outcome>` or
+  `story(scope): <outcome>`, each with the generated track table and exactly one
+  `agent-plan` block.
+- The track waves `plan.py check` printed, so the caller sees which tracks
+  start first.
+- A coverage note: every Epic AC covered by at least one story, or the gap.
+- When step 7 ran, the rubric findings per story and for the waves.
 
 ## Stop Conditions
 
-- Stop if the Epic is not ready; do not decompose an ambiguous outcome.
-- Stop if two stories would own the same path and cannot be sequenced.
+- Stop if the Epic plan does not validate; do not decompose an ambiguous outcome.
+- Stop if two parallel units would own the same path and neither a contract nor
+  a dependency resolves it.
 - Stop if an AC cannot be made observable; return it to the acceptance linter.
+- Stop if a track cannot name a verify command; ask for the repo's test command.
 
 ## Token Budget
 
-- Default: read the Epic and the three doctrine files; open code only for paths
-  named in the Epic. Read one more file only when an ownership/size decision is
-  otherwise a guess, and say why.
-- Target ≤ 900 words for the execution map plus story metadata; story bodies use
-  the template, not prose expansion. Exceed only for a real dependency or
-  ownership ambiguity.
-- Do not restate the Epic or load unrelated rules.
+- Default: read the Epic, the doctrine files, and the code named in `owns`. Read
+  one more file only when ownership or context would otherwise be a guess, and
+  say why.
+- Target ≤ 400 words of prose per story; the plan block and generated tables do
+  not count. Do not restate the Epic.
