@@ -125,6 +125,46 @@ def test_accepts_prepare_dry_run_without_touching_git(repo):
     assert all(Path(u["brief"]).is_file() for u in data["units"])
 
 
+# ── weak checks (#72): a verify that passes before any work cannot fail ─────
+
+def test_accepts_prepare_flagging_a_verify_that_already_passes(repo):
+    root, plans = repo
+    load(root, plans)
+    units = {u["unit"]: u for u in run(root, "prepare", expect=0)["units"]}
+    assert units["S1/contract"]["baseline"] == "fail" and not units["S1/contract"]["weak_check"]
+    assert units["S2/main"]["baseline"] == "pass" and units["S2/main"]["weak_check"]
+    assert "already passes" in Path(units["S2/main"]["brief"]).read_text()
+    assert "already passes" not in Path(units["S1/contract"]["brief"]).read_text()
+
+
+def test_rejects_a_weak_check_when_the_diff_changes_no_test(repo):
+    root, plans = repo
+    load(root, plans)
+    run(root, "prepare", expect=0)
+    work_in(root, "S2", "main", **{"docs/guide.md": "x\n"})
+    data = run(root, "check", "S2/main", expect=1)
+    assert any("cannot fail" in f for f in data["findings"])
+
+
+def test_accepts_a_weak_check_once_the_diff_adds_a_test(repo):
+    root, plans = repo
+    load(root, plans)
+    run(root, "prepare", expect=0)
+    work_in(root, "S2", "main", **{"docs/guide.md": "x\n", "docs/tests/test_guide.py": "def test(): pass\n"})
+    assert run(root, "check", "S2/main", expect=0)["ok"]
+
+
+def test_accepts_a_refactor_track_that_declares_a_passing_baseline(repo):
+    root, plans = repo
+    s2 = dict(S2, tracks=[dict(S2["tracks"][0], verify_baseline="pass")])
+    (plans / "story-S2.md").write_text(body(s2))
+    load(root, plans)
+    units = {u["unit"]: u for u in run(root, "prepare", expect=0)["units"]}
+    assert not units["S2/main"]["weak_check"]
+    work_in(root, "S2", "main", **{"docs/guide.md": "x\n"})
+    assert run(root, "check", "S2/main", expect=0)["ok"]
+
+
 def test_accepts_prepare_creating_worktrees_and_marking_units_running(repo):
     root, plans = repo
     load(root, plans)
@@ -383,3 +423,38 @@ def test_accepts_a_dry_run_that_lists_upstream_merges(repo):
     data = run(root, "prepare", "--plan", expect=0)
     s3 = next(u for u in data["units"] if u["unit"] == "S3/main")
     assert any("merge" in c and "feat/s1-api" in c for c in s3["would_run"])
+
+
+def test_accepts_a_baseline_that_never_cleans_a_worktree_holding_work(repo):
+    # A unit set back to todo is prepared again over its existing worktree.
+    root, plans = repo
+    load(root, plans)
+    run(root, "prepare", expect=0)
+    tree = root.parent / "proj-tracks" / "S2-main"
+    (tree / "docs").mkdir(exist_ok=True)
+    (tree / "docs" / "draft.md").write_text("agent's unsaved work\n")
+    block = yaml.safe_load((plans / "story-S2.md").read_text().split("```yaml agent-plan\n")[1].split("```")[0])
+    block["tracks"][0]["status"] = "todo"
+    (plans / "story-S2.md").write_text(body(block))
+    load(root, plans)                                    # resets the baseline cache
+    units = {u["unit"]: u for u in run(root, "prepare", expect=0)["units"]}
+    assert (tree / "docs" / "draft.md").is_file()
+    assert units["S2/main"]["baseline"] == "not run"
+
+
+def test_rejects_a_weak_check_with_an_empty_diff(repo):
+    root, _ = repo
+    load(root, _)
+    run(root, "prepare", expect=0)
+    tree = root.parent / "proj-tracks" / "S2-main"
+    sh("git", "commit", "--allow-empty", "-qm", "nothing", cwd=tree)
+    data = run(root, "check", "S2/main", expect=1)
+    assert any("cannot fail" in f for f in data["findings"])
+
+
+def test_rejects_a_baseline_timeout_that_is_not_positive(repo):
+    root, plans = repo
+    load(root, plans)
+    out = subprocess.run([sys.executable, str(DISPATCH), "prepare", "--baseline-timeout", "0"],
+                         cwd=root, capture_output=True, text=True)
+    assert out.returncode == 2 and "positive" in out.stderr

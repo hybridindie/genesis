@@ -326,6 +326,8 @@ def validate_story(story: dict) -> list[str]:
             errs.append(f"{where}: missing owns")
         if not is_command(t.get("verify")):
             errs.append(f"{where}: missing verify (an exact command, not a placeholder)")
+        if "verify_baseline" in t and t["verify_baseline"] != "pass":
+            errs.append(f"{where}: verify_baseline may only be `pass` (a refactor that stays green)")
         if t.get("status", "todo") not in STATUSES:
             errs.append(f"{where}: status must be one of {', '.join(STATUSES)}")
         for d in deps[tid]:

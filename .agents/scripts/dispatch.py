@@ -6,7 +6,7 @@
 """The mechanical half of wave-dispatcher: git, plans and status, no judgment.
 
   dispatch.py load (--epic REF | --story REF... | --files FILE...) [--base REF]
-  dispatch.py prepare [--max N] [--plan] [--allow-dirty]
+  dispatch.py prepare [--max N] [--plan] [--allow-dirty] [--baseline-timeout S]
   dispatch.py check UNIT [--timeout SEC]
   dispatch.py merge UNIT
   dispatch.py block UNIT --note TEXT
@@ -40,6 +40,7 @@ import argparse
 import importlib.util
 import json
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -202,6 +203,34 @@ def run_shell(command: str, cwd: Path, timeout: int) -> tuple[bool, str]:
     return proc.returncode == 0, tail
 
 
+TEST_FILE = re.compile(r"(^|/)(tests?|__tests__|spec)/|(^|/)test_[^/]*$|_test\.[^/]+$|\.(test|spec)\.[^/]+$")
+
+WEAK_BRIEF = """
+
+## Your check already passes
+`{verify}` passes before you have changed anything, so on its own it cannot
+show that your work is right. Write a failing test for the acceptance
+criteria first (red), then make it pass (green). `check` rejects this track
+if the diff adds or changes no test file.
+"""
+
+
+def baseline(st: "State", unit: str, verify: str, tree: Path, timeout: int) -> bool:
+    """Whether `verify` already passes on the untouched worktree, run once per unit."""
+    seen = st.data.setdefault("baselines", {})
+    if unit not in seen:
+        passed, _ = run_shell(verify, tree, timeout)
+        restore(tree)
+        seen[unit] = passed
+        st.save()
+    return bool(seen[unit])
+
+
+def weak_check(st: "State", unit: str, t: dict) -> bool:
+    """A verify that passed before any work, on a track that isn't a declared refactor."""
+    return bool(st.data.get("baselines", {}).get(unit)) and t.get("verify_baseline") != "pass"
+
+
 def clean_tree(cwd: Path) -> list[str]:
     return [line[3:] for line in git("status", "--porcelain", cwd=cwd).splitlines() if line.strip()]
 
@@ -326,19 +355,33 @@ def cmd_prepare(st: State, args) -> dict:
         tree = st.trees / f"{sid}-{track}"
         dry: list | None = [] if args.plan else None
         ensure_story_branch(st, story, by_id, dry)
+        unit = f"{sid}/{track}"
+        t = track_of(story, track)
         if dry is not None:
             dry.append(f"git worktree add -b {tbranch} {tree} {branch}")
+            base_state = "not run"
         else:
             if not tree.exists():
                 git("worktree", "add", "-b", tbranch, str(tree), branch)
+            if not plan.is_command(t.get("verify")):
+                base_state = "not run"  # check reports the missing verify
+            elif unit not in st.data.get("baselines", {}) and clean_tree(tree):
+                base_state = "not run"  # a reused worktree holding work: never clean it
+            else:
+                passed = baseline(st, unit, str(t.get("verify")), tree, args.baseline_timeout)
+                base_state = "pass" if passed else "fail"
             st.set_status(sid, track, "running")
+        weak = base_state == "pass" and t.get("verify_baseline") != "pass"
         text = plan.brief(story, track) + (
             f"\n\n## Where to work\nWork only in `{tree}` (cd there first). "
             f"Your branch is `{tbranch}`; commit there.\n")
+        if weak:
+            text += WEAK_BRIEF.format(verify=t.get("verify"))
         bpath = briefs / f"{sid}-{track}.md"
         bpath.write_text(text, encoding="utf-8")
-        item = {"unit": f"{sid}/{track}", "kind": u["kind"], "worktree": str(tree), "branch": tbranch,
-                "story_branch": branch, "owns": u["owns"], "verify": u["verify"], "brief": str(bpath)}
+        item = {"unit": unit, "kind": u["kind"], "worktree": str(tree), "branch": tbranch,
+                "story_branch": branch, "owns": u["owns"], "verify": u["verify"], "brief": str(bpath),
+                "baseline": base_state, "weak_check": weak}
         if dry is not None:
             item["would_run"] = dry
         out.append(item)
@@ -372,6 +415,10 @@ def cmd_check(st: State, args) -> dict:
     outside = [c for c in changed if not plan.covered_by(c, plan.as_list(t.get("owns")))]
     if outside:
         findings.append(f"changed outside owns: {', '.join(outside)}")
+    weak = weak_check(st, args.unit, t)
+    if weak and not any(TEST_FILE.search(c) for c in changed):
+        findings.append(f"verify passed before any work and the diff adds or changes no test, "
+                        f"so the check cannot fail: {t.get('verify')}")
     verify_ok, tail = None, ""
     if not plan.is_command(t.get("verify")):
         tail = "not run: no verify command"
@@ -386,7 +433,7 @@ def cmd_check(st: State, args) -> dict:
     owns = " ".join(f"'{p}'" for p in plan.as_list(t.get("owns")))
     return {"ok": not findings, "unit": args.unit, "findings": findings, "commits": commits,
             "changed": changed, "outside_owns": outside, "verify": t.get("verify"),
-            "verify_passed": verify_ok, "verify_tail": tail,
+            "verify_passed": verify_ok, "verify_tail": tail, "weak_check": weak,
             "review": f"git -C '{tree}' diff {branch}...HEAD -- {owns}"}
 
 
@@ -485,6 +532,13 @@ def cmd_report(st: State, args) -> dict:  # noqa: ARG001
             "waiting": report_waiting(epic, stories)}
 
 
+def positive_seconds(value: str) -> int:
+    n = int(value)
+    if n <= 0:
+        raise argparse.ArgumentTypeError("must be a positive number of seconds")
+    return n
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Mechanical steps of wave-dispatcher (git, plans, status).")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -495,6 +549,8 @@ def main() -> int:
     p = sub.add_parser("prepare"); p.add_argument("--max", type=int, default=3)
     p.add_argument("--plan", action="store_true", help="dry run: write briefs, print the git commands, change nothing")
     p.add_argument("--allow-dirty", action="store_true")
+    p.add_argument("--baseline-timeout", type=positive_seconds, default=300,
+                   help="seconds for the one-time verify run that detects a check that cannot fail")
     p = sub.add_parser("check"); p.add_argument("unit"); p.add_argument("--timeout", type=int, default=900)
     p = sub.add_parser("merge"); p.add_argument("unit")
     p = sub.add_parser("block"); p.add_argument("unit"); p.add_argument("--note", required=True)
