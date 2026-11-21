@@ -19,7 +19,6 @@ scripts/lint-skills.py        ← enforce the deterministic skill contract
 templates/
   _shared/
     AGENTS.md                 ← canonical project context (stack blocks, generated lists)
-    my-workflows.md           ← personal cross-project conventions
     core/articles/            ← rules for every project
     agents/ commands/ skills/ ← shared by every project
     doctrine/                 ← skill-execution contract (rendered to rules/doctrine/)

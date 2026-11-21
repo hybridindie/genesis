@@ -314,7 +314,7 @@ class Writer:
 
 
 def _loads_my_workflows(path: Path) -> bool:
-    """Whether an existing root opencode.json already loads my-workflows.md."""
+    """Whether a root opencode.json still loads the retired my-workflows.md."""
     try:
         instructions = json.loads(path.read_text()).get("instructions") or []
     except (OSError, json.JSONDecodeError, AttributeError):
@@ -322,6 +322,21 @@ def _loads_my_workflows(path: Path) -> bool:
     return isinstance(instructions, list) and any(
         str(item).endswith("my-workflows.md") for item in instructions
     )
+
+
+def retire_my_workflows(out: Path, recorded: dict[str, str], dry: bool) -> None:
+    """my-workflows.md was folded into .claude/rules/. Remove a copy that still
+    matches what genesis rendered; keep an edited one and say where it goes."""
+    path = out / "my-workflows.md"
+    if not path.is_file():
+        return
+    if recorded.get("my-workflows.md") == sha(path.read_bytes()):
+        if not dry:
+            path.unlink()
+        print("  Removed my-workflows.md (its conventions now live in .claude/rules/)", file=sys.stderr)
+    else:
+        print("  Kept my-workflows.md (edited). Nothing loads it any more: move what you"
+              " still want into AGENTS.md under Project Constraints, then delete it", file=sys.stderr)
 
 
 # ── Render ────────────────────────────────────────────────────────────────
@@ -411,8 +426,9 @@ def render(plan: dict[str, Any], args: argparse.Namespace) -> tuple[list[str], l
     if (out / "opencode.json").is_file() and not (out / ".opencode" / "opencode.json").exists():
         # The project keeps its OpenCode config at the root; don't add a second
         # one, but still render the rest of the directory (e.g. ruff.toml).
-        if not _loads_my_workflows(out / "opencode.json"):
-            print("  Kept root opencode.json (add my-workflows.md to its instructions)", file=sys.stderr)
+        if _loads_my_workflows(out / "opencode.json"):
+            print("  Root opencode.json still loads my-workflows.md; drop it from instructions",
+                  file=sys.stderr)
         w.tree(TEMPLATES / "opencode" / ".opencode", ".opencode", skip={"opencode.json"})
     else:
         w.tree(TEMPLATES / "opencode" / ".opencode", ".opencode")
@@ -421,11 +437,7 @@ def render(plan: dict[str, Any], args: argparse.Namespace) -> tuple[list[str], l
     w.file(SHARED / "AGENTS.md", "AGENTS.md")
     w.file(GENESIS / "docs" / "harness-eval.md", "docs/harness-eval.md")
 
-    if (out / "my-workflows.md").exists() and not args.force_workflows:
-        print("  Kept existing my-workflows.md (use --force-workflows to replace)", file=sys.stderr)
-        w.preserve("my-workflows.md")
-    else:
-        w.file(SHARED / "my-workflows.md", "my-workflows.md")
+    retire_my_workflows(out, plan["recorded"], w.dry)
 
     for src in sorted((SHARED / "githooks").iterdir()):
         if (out / ".githooks" / src.name).exists() and not args.force_hooks:
@@ -534,7 +546,6 @@ def main() -> int:
     ap.add_argument("--no-ci", action="store_true", help="don't render a CI workflow")
     ap.add_argument("--force-ci", action="store_true", help="overwrite an existing CI workflow")
     ap.add_argument("--force-hooks", action="store_true", help="overwrite existing .githooks/ files")
-    ap.add_argument("--force-workflows", action="store_true", help="overwrite an existing my-workflows.md")
     ap.add_argument("--force-overwrite", action="store_true",
                     help="replace locally edited harness files instead of keeping them")
     ap.add_argument("--plan", action="store_true", help="print the resolved plan; write nothing")

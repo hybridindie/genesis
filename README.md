@@ -13,7 +13,7 @@ OpenCode and Claude Code are both first-class: `AGENTS.md` is canonical and
 | Layer | Entry point | Installs into |
 |-------|-------------|---------------|
 | **System** (this machine) | `system/install.sh` | `~/.config/zsh`, `~/.config/opencode/AGENTS.md`, `~/.claude/{CLAUDE.md,settings.json}`, shared git config, optional Herdr/Zed |
-| **Project** (one repo) | `install.sh`, `new-project.sh`, `/bootstrap-harness` | the target project's `AGENTS.md`, `CLAUDE.md`, `.claude/`, `.opencode/`, `my-workflows.md` |
+| **Project** (one repo) | `install.sh`, `new-project.sh`, `/bootstrap-harness` | the target project's `AGENTS.md`, `CLAUDE.md`, `.claude/`, `.opencode/` |
 
 The end-to-end flow (new machine → new project → tailoring) is in
 [`SYSTEM.md`](SYSTEM.md); the system layer's flags are in
@@ -88,14 +88,14 @@ render           → core + stacks + packs, placeholders, generated rule index
 /harness-eval    → verify stacks against the code, trim rules that don't fit,
                    suggest missing ones
       ↓
-/customize-harness → weave the project's domain and my-workflows.md into AGENTS.md
+/customize-harness → weave the project's domain into AGENTS.md
 ```
 
 ## What a project gets
 
 - `AGENTS.md`: canonical context with the stack summary, the real commands,
   and a **generated rule index**.
-- `CLAUDE.md`: a thin `@AGENTS.md` + `@my-workflows.md` import.
+- `CLAUDE.md`: a thin `@AGENTS.md` import.
 - `.claude/rules/`: core, stack and pack rules, read on demand.
 - `.claude/{commands,agents,skills,hooks}/`, with mirrors in
   `.opencode/{commands,agents,skills}/`.
@@ -107,7 +107,6 @@ render           → core + stacks + packs, placeholders, generated rule index
   clone.
 - `.github/workflows/ci.yml` (or `.gitea/workflows/ci.yml`): one job per stack,
   only written when the project has no CI yet.
-- `my-workflows.md`: your cross-project conventions. It is kept on re-render.
 - `/ship-pr`: open, watch and triage a PR, then merge with a merge commit once
   it is green.
 

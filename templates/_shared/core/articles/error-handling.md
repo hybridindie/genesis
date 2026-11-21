@@ -32,11 +32,9 @@ Use the shape native to the boundary:
 
 ## SHOULD
 
-- Validate before side effects.
 - Point at the offending field or path, not the whole payload.
-- Correlate the error with the request/command id in logs.
 
 ## ANTI-PATTERNS
 
 - A hint that repeats the code.
-- Secrets, file contents, or home paths in error messages.
+- Secrets or home paths in a message (`security.md`).

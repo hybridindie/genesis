@@ -12,9 +12,9 @@ elsewhere.
   which file to read for which task.
 - **This harness is yours.** It was rendered for this project and is edited in
   place. `/harness-eval` trims rules that don't fit and suggests missing ones;
-  `/customize-harness` adds the domain and `my-workflows.md` conventions here.
-- **`my-workflows.md`** holds personal cross-project conventions and is
-  loaded with this file.
+  `/customize-harness` adds the domain here.
+- **How to work** is `.claude/rules/working-style.md` (scope, size, verify);
+  commits, PRs and review are `.claude/rules/workflow.md`.
 
 ## Project Overview
 

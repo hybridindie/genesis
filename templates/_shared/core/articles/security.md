@@ -4,13 +4,15 @@ read_when: "Handling auth, secrets, user input, or destructive actions"
 
 # Security: Least Privilege, No Secrets in Code
 
-Dependency hygiene lives in `dependency-security.md`.
+This file is the single home for secrets and input validation; other rules
+link here. Dependency hygiene lives in `dependency-security.md`.
 
 ## MUST
 
 - Secrets come from the environment or a secret store; never in code, tests,
-  fixtures, logs, or git history. `.env` is gitignored; commit an example file
-  with names only.
+  fixtures, logs, error messages, URLs, or git history. `.env` is gitignored;
+  commit an example file with names only.
+- Development uses sandbox or paper credentials, never production keys.
 - Validate input at the boundary (schema, length, range, encoding) and check
   that the caller may perform the operation, before any side effect.
 - Parameterise SQL and subprocess calls. No string-built SQL; no
@@ -30,6 +32,6 @@ Dependency hygiene lives in `dependency-security.md`.
 
 ## ANTI-PATTERNS
 
-- Credentials in URLs, logs, or error messages.
+- Tokens, full payloads, file contents, or home paths in logs or errors.
 - Trusting a client-supplied role, path, or command.
 - Disabling TLS verification to "make it work".

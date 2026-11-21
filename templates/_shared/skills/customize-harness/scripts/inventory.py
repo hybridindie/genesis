@@ -176,20 +176,6 @@ def main() -> int:
     pyproject = root / "pyproject.toml"
     pyproject_text = pyproject.read_text(encoding="utf-8") if pyproject.is_file() else ""
     name_match = re.search(r'^name\s*=\s*"([^"]+)"', pyproject_text, re.MULTILINE)
-    workflow_sections: dict[str, list[str]] = {}
-    workflows_file = root / "my-workflows.md"
-    if workflows_file.is_file():
-        section = ""
-        for line in workflows_file.read_text(encoding="utf-8").splitlines():
-            if line.startswith("#"):
-                section = line.strip("# ").strip()
-                workflow_sections.setdefault(section, [])
-            elif section and line.strip():
-                workflow_sections[section].append(line.strip())
-    workflows = [
-        {"section": name, "filled": any("<" not in line and "placeholder" not in line.lower() for line in lines)}
-        for name, lines in workflow_sections.items()
-    ]
     counts = {}
     for key, pattern in {
         "rules": ".claude/rules/**/*.md",
@@ -212,7 +198,6 @@ def main() -> int:
         },
         "counts": counts,
         "rule_index_rows": rows,
-        "workflow_sections": workflows,
         "lsp": lsp_report(root),
     }, indent=2))
     return 0

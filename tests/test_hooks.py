@@ -24,7 +24,7 @@ HOOKS = ROOT / "templates/claude-code/.claude/hooks"
 
 
 def test_string_instructions_are_not_split_into_characters():
-    assert drift.Drift.path_list("my-workflows.md") == ["my-workflows.md"]
+    assert drift.Drift.path_list(".opencode/skills") == [".opencode/skills"]
 
 
 def test_skills_object_and_list_forms():
