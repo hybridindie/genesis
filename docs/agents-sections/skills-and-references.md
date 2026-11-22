@@ -37,6 +37,7 @@ On-demand section — read when invoking a skill or checking its references.
 | `source-discipline.md` | epic-composer, epic-interview, story-decomposer | Separate stated/inferred/unknown; never invent; surface contradictions |
 | `context-discovery.md` | epic-composer, task-decomposer | Greenfield vs brownfield probes |
 | `review-checkpoint.md` | none — apply on request | Present a draft → ask → incorporate |
+| `agent-plan-schema.md` | epic-composer, story-decomposer, task-decomposer, wave-dispatcher | The `agent-plan` block: tracks, `owns`, `consumes`, lanes, lessons |
 
 The execution contract every skill body follows (fixed sections, LLM-only
 zones) is `templates/_shared/doctrine/skill-execution.md` — see

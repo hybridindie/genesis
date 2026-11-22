@@ -53,6 +53,8 @@ Each task uses the **same slash command in every harness** — the skill's name:
 | Lint acceptance criteria | `/epic-acceptance-linter` |
 | Decompose Epic → stories | `/story-decomposer` |
 | Story → tasks | `/task-decomposer` |
+| Run the planned work | `/wave-dispatcher` |
+| Ship a PR | `/ship-pr` |
 
 Type the command from the `/` menu, then paste your content after it — or just
 describe your goal and let the matching skill auto-load from its `description`.
@@ -220,10 +222,12 @@ checkpoint:
 2. **Decompose** → story issues, each with `owns`, waves, and a shared contract.
 3. **Tasks** → run task-decomposer on the stories you are about to dispatch;
    it appends the checklist to each story.
-4. **Dispatch** Wave 1 stories/tracks to different agents; integrate each
-   story's tracks before moving on.
+4. **Dispatch** with `/wave-dispatcher`: it starts every runnable track in its
+   own worktree, checks and merges each one, and integrates finished stories.
+   `/wave-dispatcher --plan` shows what would start without touching git.
+5. **Ship** each story branch with `/ship-pr`.
 
-You rarely run all five commands by hand: epic-composer can hand off to
+You rarely run every command by hand: epic-composer can hand off to
 story-decomposer, and story-decomposer can invoke task-decomposer per story.
 Optional quality passes (linter, rubrics) are there when you want a stricter
 review.

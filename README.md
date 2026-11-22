@@ -8,6 +8,10 @@ shell and the user-level agent rules.
 OpenCode and Claude Code are both first-class: `AGENTS.md` is canonical and
 `CLAUDE.md` imports it.
 
+It also hosts the **Epic Scoping Skills**, which turn source material into a
+planned Epic and run the plan with parallel agents (see
+[Plan and run work](#plan-and-run-work)).
+
 ## Two layers
 
 | Layer | Entry point | Installs into |
@@ -123,10 +127,52 @@ render           → core + stacks + packs, placeholders, generated rule index
   declared one has no rules.
 - **CI** runs the guardrails plus each stack's lint/type/test job.
 
+## Plan and run work
+
+The Epic Scoping Skills live in `.agents/` and work in both harnesses:
+
+```
+/epic-composer     source notes → Epic issue (outcome, ACs, story map in waves)
+/story-decomposer  Epic → story issues (owns, depends_on, shared contract)
+/task-decomposer   story → parallel tracks with disjoint file ownership
+/wave-dispatcher   run each runnable track in its own worktree, check, merge
+/ship-pr           open the PR, address the review, merge once CI is green
+```
+
+Every plan is a fenced `agent-plan` YAML block that `.agents/scripts/plan.py`
+validates. `.agents/scripts/dispatch.py` does the git work for the
+dispatcher:
+
+- It checks each track's diff against the paths it owns and runs its verify
+  command, after a baseline run that catches a check that can't fail.
+- It retries a failed track at most three times, then sends it back to
+  replanning.
+- It gates merges by blast radius: `contained`, `wide`, or `irreversible`,
+  which needs a person's approval.
+- It keeps each unit's attempts and rollbacks for review.
+
+Lessons from confirmed failures go in `.agents/plan-constraints.yaml` and
+reach later plans. The full flow is in
+[`docs/agents-sections/workflow.md`](docs/agents-sections/workflow.md), and
+the usage guide is [`prompts-skills.md`](prompts-skills.md).
+
 ## Repository layout
 
 The file tree and how rendering works are in
 [`docs/agents-sections/source-structure.md`](docs/agents-sections/source-structure.md).
+
+## Developing genesis
+
+```bash
+uv run --with pytest --with pyyaml pytest -q tests .agents/scripts/tests   # unit + eval tests
+python3 scripts/lint-skills.py              # skill bodies follow the execution contract
+python3 scripts/sync-skill-wrappers.py      # regenerate .claude/skills pointers (--check to verify)
+bash templates/claude-code/.claude/hooks/check-primitive-drift.sh   # .claude ↔ .opencode mirrors
+```
+
+CI (`.github/workflows/validate-templates.yml`) runs the tests and the skill
+lint, renders a matrix of stack combinations, and checks each render. A PR stays within the size
+budget of 400 lines and 25 files (`pr_size.py`, run by ship-pr).
 
 ## Editing contract
 
