@@ -67,6 +67,12 @@ def test_accepts_custom_limit(repo):
     assert out == {"used": 900, "limit": 1000, "percent": 90, "state": "warn"}
 
 
+def test_accepts_record_reporting_against_a_custom_limit(repo):
+    code, out = run("record", "--epic", "7", "--unit", "S1/A", "--tokens", "900", "--limit", "1000", cwd=repo)
+    assert code == 0
+    assert (out["limit"], out["percent"], out["state"]) == (1000, 90, "warn")
+
+
 def test_accepts_epics_kept_apart(repo):
     record(repo, 7, "S1/A", 4_000_000)
     record(repo, 8, "S1/A", 10)
@@ -125,3 +131,35 @@ def test_rejects_corrupt_ledger(repo):
     (d / "budget.json").write_text("{not json")
     code, out = run("status", "--epic", "7", cwd=repo)
     assert code == 2 and "not valid JSON" in out["error"]
+
+
+@pytest.mark.parametrize("entry", [
+    "x",
+    None,
+    [7, 5],
+    {"tokens": 5},
+    {"epic": "7", "tokens": 5},
+    {"epic": True, "tokens": 5},
+    {"epic": 7},
+    {"epic": 7, "tokens": None},
+    {"epic": 7, "tokens": "5k"},
+    {"epic": 7, "tokens": 5.5},
+    {"epic": 7, "tokens": -1},
+    {"epic": 7, "tokens": False},
+])
+@pytest.mark.parametrize("cmd", [
+    ["status", "--epic", "7"],
+    ["record", "--epic", "7", "--unit", "S1/A", "--tokens", "5"],
+    ["reset", "--epic", "7"],
+])
+def test_rejects_corrupt_ledger_entry_with_exit_2_and_json(repo, entry, cmd):
+    d = repo / ".git" / "agent-plan"
+    d.mkdir()
+    ledger = d / "budget.json"
+    good = {"epic": 7, "unit": "S1/A", "tokens": 1}
+    text = json.dumps({"version": 1, "entries": [good, entry]})
+    ledger.write_text(text)
+    code, out = run(*cmd, cwd=repo)
+    assert code == 2
+    assert out["ok"] is False and "entry 1" in out["error"]
+    assert ledger.read_text() == text

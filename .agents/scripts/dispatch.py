@@ -635,13 +635,17 @@ def story_issue(st: State, sid: str, story: dict) -> str | None:
 
 
 def cmd_escalate(st: State, args) -> dict:
-    """Climb the ladder after a unit's attempts run out: post the diagnosis, then
-    grant one informed attempt, route it to one replan, or hand it to a person."""
+    """Climb the ladder after a unit's attempts run out: grant one informed
+    attempt, route it to one replan, or hand it to a person, then post the
+    diagnosis once the state has recorded it."""
     unit = args.unit
     sid, track = split_unit(unit)
     story = st.story(sid)
     track_of(story, track)
     # Validate everything before anything is posted or changed.
+    if unit in st.data.get("needs_input", {}):
+        raise DispatchError(f"{unit} is waiting on a person: they must answer "
+                            f"{st.data['needs_input'][unit]!r} before it can be escalated again")
     attempts = st.data.get("attempts", {}).get(unit, 1)
     if attempts < MAX_ATTEMPTS and unit not in st.data.get("replan", []):
         raise DispatchError(f"{unit} is on attempt {attempts} of {MAX_ATTEMPTS}; escalate only a unit that has "
@@ -669,20 +673,17 @@ def cmd_escalate(st: State, args) -> dict:
     tree = st.trees / f"{sid}-{track}"
     branch = story_branch(story)
     tbranch = f"{branch}--{track}"
+    last = st.data.get("checks", {}).get(unit)
+    if args.outcome == "attempt" and last and last["ok"]:
+        raise DispatchError(f"{unit} passed its last check; merge it instead")
     if args.outcome == "attempt" and tree.is_dir() and clean_tree(tree):
         raise DispatchError(f"{tree} has uncommitted changes; commit or remove them before it is reset")
 
+    # Do the local work first and post last, so the issue never shows an
+    # escalation that the state did not record.
     rung = len(past) + 1
     issue = story_issue(st, sid, story)
-    if issue:
-        tracker = _load("tracker")
-        tracker.forge().comment(tracker.number(issue), (
-            f"**Escalation of {unit}** (rung {rung}, outcome `{args.outcome}`)\n\n{diagnosis}\n"
-            + (f"\n**Question:** {question}\n" if question else "")))
     result = {"ok": True, "unit": unit, "rung": rung, "outcome": args.outcome, "commented_on": issue}
-    if not issue:
-        result["note"] = "the story has no issue; the diagnosis was not posted"
-    last = st.data.get("checks", {}).get(unit)
     if last:
         last["returned"] = True
     replan = st.data.setdefault("replan", [])
@@ -722,6 +723,13 @@ def cmd_escalate(st: State, args) -> dict:
     st.save()
     if args.lesson is not None:
         result["lesson"] = add_lesson(st, unit, lesson_paths, args.lesson)
+    if issue:
+        tracker = _load("tracker")
+        tracker.forge().comment(tracker.number(issue), (
+            f"**Escalation of {unit}** (rung {rung}, outcome `{args.outcome}`)\n\n{diagnosis}\n"
+            + (f"\n**Question:** {question}\n" if question else "")))
+    else:
+        result["note"] = "the story has no issue; the diagnosis was not posted"
     return result
 
 

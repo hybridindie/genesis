@@ -21,6 +21,7 @@ SCRIPT = Path(__file__).resolve().parent.parent / "plan_review.py"
 # per line, text parts carrying the assistant's answer. FAKE_HEALTH and
 # FAKE_REVIEW choose its behaviour: "hang", "fail", "error-event", or the
 # answer text (FAKE_REVIEW may be several messages separated by \x1e).
+# FAKE_GARBAGE=1 writes a line of non-UTF-8 bytes before the events.
 FAKE = r'''#!/usr/bin/env python3
 import json, os, sys, time
 args = sys.argv[1:]
@@ -36,6 +37,10 @@ if mode == "fail":
 if mode == "error-event":
     print(json.dumps({"type": "error", "error": {"name": "APIError", "data": {"message": "boom"}}}))
     sys.exit(0)
+if os.environ.get("FAKE_GARBAGE"):
+    sys.stdout.flush()
+    sys.stdout.buffer.write(b"\xff\xfe not utf-8 \x80\n")
+    sys.stdout.buffer.flush()
 for n, msg in enumerate(mode.split("\x1e")):
     mid = f"msg_{n}"
     print(json.dumps({"type": "step_start", "part": {"messageID": mid, "type": "step-start"}}))
@@ -153,6 +158,11 @@ def test_accepts_only_the_final_assistant_message(env, tmp_path):
     '{"verdict": "needs-work", "findings": "fix it"}',
     '{"verdict": "needs-work", "findings": []}',
     '{"verdict": "ready", "findings": [',
+    '{"verdict": ["ready"], "findings": []}',
+    '{"verdict": {"ready": 1}, "findings": []}',
+    '{"verdict": "needs-work", "findings": [{}]}',
+    '{"verdict": "needs-work", "findings": [42]}',
+    '{"verdict": "ready", "findings": [null]}',
 ])
 def test_rejects_unparseable_answer(env, tmp_path, answer):
     code, out = run(env, plan(tmp_path), FAKE_REVIEW=answer)
@@ -163,6 +173,20 @@ def test_rejects_unparseable_answer(env, tmp_path, answer):
 def test_rejects_failed_review_run(env, tmp_path, mode):
     code, out = run(env, plan(tmp_path), FAKE_REVIEW=mode)
     assert code == 3 and out["verdict"] == "unreviewed"
+
+
+def test_rejects_non_utf8_plan_file(env, tmp_path):
+    p = tmp_path / "plan.md"
+    p.write_bytes(b"kind: story\n\xff\xfe caf\xe9\n")
+    code, out = run(env, p, FAKE_REVIEW=NEEDS_WORK)
+    assert code == 3 and out["verdict"] == "unreviewed"
+    assert "cannot read" in out["error"]
+    assert calls(env) == []
+
+
+def test_accepts_non_utf8_opencode_output(env, tmp_path):
+    code, out = run(env, plan(tmp_path), FAKE_REVIEW=NEEDS_WORK, FAKE_GARBAGE="1")
+    assert code == 1 and out["verdict"] == "needs-work"
 
 
 def test_rejects_missing_plan_file(env, tmp_path):

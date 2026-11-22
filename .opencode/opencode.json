@@ -82,9 +82,17 @@
       "description": "Ask the smallest set of questions that unblocks an Epic.",
       "template": "Load the epic-interview skill and follow it.\n\n$ARGUMENTS"
     },
+    "factory": {
+      "description": "Run the factory: pick up approved Epics and carry them to shipped PRs, in this session.",
+      "template": "Load the factory skill and follow it.\n\n$ARGUMENTS"
+    },
     "harness-eval": {
       "description": "Evaluate the installed harness against the project's actual stack.",
       "template": "Read and follow docs/harness-eval.md. Present the plan before making any edits.\n\n$ARGUMENTS"
+    },
+    "plan-reviewer": {
+      "description": "Get a second model's verdict on a drafted Epic or story plan before dispatch.",
+      "template": "Load the plan-reviewer skill and follow it.\n\n$ARGUMENTS"
     },
     "ship-pr": {
       "description": "Open or update a PR, watch CI and review, address threads, and merge when the gates pass.",
@@ -101,14 +109,6 @@
     "wave-dispatcher": {
       "description": "Run the next wave of a planned Epic or story with parallel subagents in worktrees.",
       "template": "Load the wave-dispatcher skill and follow it.\n\n$ARGUMENTS"
-    },
-    "plan-reviewer": {
-      "description": "Get a second model's verdict on a drafted Epic or story plan before dispatch.",
-      "template": "Load the plan-reviewer skill and follow it.\n\n$ARGUMENTS"
-    },
-    "factory": {
-      "description": "Run the factory: pick up approved Epics and carry them to shipped PRs, in this session.",
-      "template": "Load the factory skill and follow it.\n\n$ARGUMENTS"
     }
   }
 }
