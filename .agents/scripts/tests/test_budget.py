@@ -125,3 +125,35 @@ def test_rejects_corrupt_ledger(repo):
     (d / "budget.json").write_text("{not json")
     code, out = run("status", "--epic", "7", cwd=repo)
     assert code == 2 and "not valid JSON" in out["error"]
+
+
+@pytest.mark.parametrize("entry", [
+    "x",
+    None,
+    [7, 5],
+    {"tokens": 5},
+    {"epic": "7", "tokens": 5},
+    {"epic": True, "tokens": 5},
+    {"epic": 7},
+    {"epic": 7, "tokens": None},
+    {"epic": 7, "tokens": "5k"},
+    {"epic": 7, "tokens": 5.5},
+    {"epic": 7, "tokens": -1},
+    {"epic": 7, "tokens": False},
+])
+@pytest.mark.parametrize("cmd", [
+    ["status", "--epic", "7"],
+    ["record", "--epic", "7", "--unit", "S1/A", "--tokens", "5"],
+    ["reset", "--epic", "7"],
+])
+def test_rejects_corrupt_ledger_entry_with_exit_2_and_json(repo, entry, cmd):
+    d = repo / ".git" / "agent-plan"
+    d.mkdir()
+    ledger = d / "budget.json"
+    good = {"epic": 7, "unit": "S1/A", "tokens": 1}
+    text = json.dumps({"version": 1, "entries": [good, entry]})
+    ledger.write_text(text)
+    code, out = run(*cmd, cwd=repo)
+    assert code == 2
+    assert out["ok"] is False and "entry 1" in out["error"]
+    assert ledger.read_text() == text

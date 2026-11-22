@@ -58,6 +58,23 @@ def work_dir() -> Path:
     return common / "agent-plan"
 
 
+def is_int(value) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def check_entry(path: Path, i: int, entry) -> None:
+    """Refuse an entry that would crash the totals, naming it."""
+    if not isinstance(entry, dict):
+        problem = "is not an object"
+    elif not is_int(entry.get("epic")):
+        problem = "has no whole-number epic"
+    elif not is_int(entry.get("tokens")) or entry["tokens"] < 0:
+        problem = "has no non-negative whole-number tokens"
+    else:
+        return
+    raise BudgetError(f"{path} entry {i} {problem}: {json.dumps(entry)}")
+
+
 @contextmanager
 def ledger():
     """Yield the ledger dict under an exclusive lock and write it back atomically."""
@@ -73,6 +90,8 @@ def ledger():
                 raise BudgetError(f"{path} is not valid JSON: {exc}") from exc
             if not isinstance(data, dict) or not isinstance(data.get("entries"), list):
                 raise BudgetError(f"{path} has no entries list")
+            for i, entry in enumerate(data["entries"]):
+                check_entry(path, i, entry)
         else:
             data = {"version": 1, "entries": []}
         before = json.dumps(data, sort_keys=True)
