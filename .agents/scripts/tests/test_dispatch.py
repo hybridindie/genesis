@@ -614,3 +614,59 @@ def test_rejects_recording_an_empty_lesson(repo, args):
     load(root, plans)
     assert "non-empty" in run(root, "learn", "--unit", "S1/contract", *args, expect=2)["error"]
     assert not (root / ".agents" / "plan-constraints.yaml").exists()
+
+
+# ── unit history (#77): attempts, checks, blocks and rollbacks survive ───────
+
+def history(root, unit):
+    return next(u for u in run(root, "report", expect=0)["units"] if u["unit"] == unit)["history"]
+
+
+def test_accepts_history_surviving_retry_and_merge(repo):
+    root, _ = failing_contract(repo)
+    run(root, "retry", "S1/contract", "--note", "create app/types.py", expect=0)
+    work_in(root, "S1", "contract", "fix", **{"app/types.py": "T = 1\n"})
+    events = run(root, "check", "S1/contract", expect=0)["history"]
+    assert [(e["event"], e["attempt"]) for e in events] == [
+        ("prepare", 1), ("check", 1), ("retry", 2), ("check", 2)]
+    run(root, "merge", "S1/contract", expect=0)
+    assert history(root, "S1/contract") == {
+        "starts": 1, "attempts": 2, "checks": 2, "failed_checks": 1, "blocks": 0,
+        "rollbacks": 0, "outcome": "merge"}
+
+
+def test_accepts_history_counting_a_block_and_a_restart_as_a_rollback(repo):
+    root, plans = prepared(repo)
+    run(root, "block", "S2/main", "--note", "needs a docs owner", expect=0)
+    edit_loaded(root, "S2", lambda s: s["tracks"][0].update(status="todo"))
+    run(root, "prepare", expect=0)
+    h = history(root, "S2/main")
+    assert h["starts"] == 2 and h["blocks"] == 1 and h["rollbacks"] == 1 and h["outcome"] is None
+
+
+def test_accepts_history_recording_a_merge_conflict_as_a_rollback(repo):
+    root, _ = prepared(repo)
+    finish(root, "S1/contract", **{"app/types.py": "T = 1\n"})
+    run(root, "prepare", expect=0)
+    work_in(root, "S1", "A", **{"app/a.py": "a\n", "app/types.py": "T = 'a'\n"})
+    run(root, "merge", "S1/A", expect=0)
+    work_in(root, "S1", "B", **{"app/b.py": "b\n", "app/types.py": "T = 'b'\n"})
+    run(root, "merge", "S1/B", expect=1)
+    h = history(root, "S1/B")
+    assert h["rollbacks"] == 1 and h["outcome"] == "conflict"
+
+
+def test_accepts_history_surviving_a_reload_of_the_plans(repo):
+    root, plans = failing_contract(repo)
+    load(root, plans)
+    assert history(root, "S1/contract")["failed_checks"] == 1
+
+
+def test_accepts_a_replanned_unit_reporting_its_outcome(repo):
+    root, _ = failing_contract(repo)
+    for _ in (2, 3):
+        run(root, "retry", "S1/contract", "--note", "again", expect=0)
+        run(root, "check", "S1/contract", expect=1)
+    run(root, "retry", "S1/contract", "--note", "again", expect=1)
+    h = history(root, "S1/contract")
+    assert h["attempts"] == 3 and h["failed_checks"] == 3 and h["outcome"] == "replan"

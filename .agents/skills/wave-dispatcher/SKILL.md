@@ -17,7 +17,7 @@ description: >
   The skill itself. OpenCode reads it here; Claude Code loads it through the
   generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 2.4.0, owner: John D
+  version: 2.5.0, owner: John D
   invokes: .agents/scripts/dispatch.py,
            .agents/scripts/plan.py
   doctrine: .agents/doctrine/agent-plan-schema.md,
@@ -68,7 +68,9 @@ Run every command from the repository root; `d=".agents/scripts/dispatch.py"`.
    `wide` or `irreversible` unit, read the diff with the `review` command it
    prints, against the brief: every task done, the ACs actually met, and a
    contract track implementing the real contract (a stub or faked result that
-   only satisfies a weak test is a finding).
+   only satisfies a weak test is a finding). Weigh its `history` too: a unit
+   that passed on its third attempt, or was restarted after a conflict, gets
+   a closer read than one that passed first time.
    - `ok` → merge by the unit's `lane` (it can be stricter than prepare
      said, if the diff touched a migration or deploy path):
      - `contained`: `python3 $d merge <unit>`; the checks are the gate.
@@ -97,7 +99,9 @@ Run every command from the repository root; `d=".agents/scripts/dispatch.py"`.
    `python3 $d integrate <story> --push` (runs the integration and story
    verify commands, pushes on success). With `--ship`, run ship-pr on the
    branch; never merge without the caller's `--merge`.
-7. **Report** from `python3 $d report`.
+7. **Report** from `python3 $d report`. Each unit's `history` gives its
+   attempts, failed checks, blocks and rollbacks (restarts and merge
+   conflicts) across every run, including ones already merged.
 
 ## LLM Judgment
 
@@ -116,11 +120,11 @@ story-decomposer or the human.
 ```markdown
 Epic: <ref>    Round: <n>    Running: <n>    Done: <n>/<total>    Blocked: <n>
 
-| Unit | Status | Verify | Note |
-|------|--------|--------|------|
-| S1/contract | done | pass | merged abc123 |
-| S1/A | blocked | fail | 2 tests fail in test_routes.py; edits uv.lock |
-| S2/main | blocked | weak | verify passed before work; diff adds no test |
+| Unit | Status | Verify | Tries | Rollbacks | Note |
+|------|--------|--------|-------|-----------|------|
+| S1/contract | done | pass | 2 | 0 | merged abc123 |
+| S1/A | blocked | fail | 1 | 1 | 2 tests fail in test_routes.py; edits uv.lock |
+| S2/main | blocked | weak | 1 | 0 | verify passed before work; diff adds no test |
 
 Next runnable: <units or none — waiting on …>
 Stories integrated: <branches or none>
