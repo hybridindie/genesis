@@ -140,8 +140,9 @@ elif args[:2] == ["issue", "edit"]:
         if name not in issue["labels"]:
             issue["labels"].append(name)
     for name in flag("--remove-label"):
-        if name in issue["labels"]:
-            issue["labels"].remove(name)
+        if name not in issue["labels"]:  # real gh fails on a label the issue lacks
+            sys.exit(f"could not remove label: {{name!r}} not found")
+        issue["labels"].remove(name)
 else:
     sys.exit(f"fake gh: unexpected {{args}}")
 json.dump(state, open(state_path, "w"))
@@ -204,6 +205,28 @@ def test_github_label_add_reuses_an_existing_label_and_removes_others(gh_repo):
     assert gh_repo.state()["issues"]["7"]["labels"] == ["factory:queued", "factory:running"]
     creates = [c for c in gh_repo.calls() if c[:2] == ["label", "create"]]
     assert [c[2] for c in creates] == ["factory:queued", "factory:running"]
+
+
+def test_github_label_remove_skips_a_label_the_issue_lacks(gh_repo):
+    out = gh_repo.run("label", "7", "--remove", "factory:running")
+    assert out.returncode == 0, out.stderr
+    assert gh_repo.state()["issues"]["7"]["labels"] == ["bug"]
+    assert not [c for c in gh_repo.calls() if c[:2] == ["issue", "edit"]]
+
+
+def test_github_label_cleanup_can_repeat(gh_repo):
+    for _ in range(2):
+        out = gh_repo.run("label", "7", "--add", "factory:done", "--remove", "bug", "factory:running")
+        assert out.returncode == 0, out.stderr
+    assert gh_repo.state()["issues"]["7"]["labels"] == ["factory:done"]
+    edits = [c for c in gh_repo.calls() if c[:2] == ["issue", "edit"]]
+    assert all("factory:running" not in c for c in edits)
+
+
+def test_github_label_remove_matches_case_insensitively(gh_repo):
+    out = gh_repo.run("label", "7", "--remove", "BUG")
+    assert out.returncode == 0, out.stderr
+    assert gh_repo.state()["issues"]["7"]["labels"] == []
 
 
 def test_github_author_prints_the_opener_login(gh_repo):
