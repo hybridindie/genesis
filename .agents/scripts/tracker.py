@@ -143,7 +143,7 @@ class Gitea:
         if not self.token:
             sys.exit("tracker: set GITEA_TOKEN (or TEA_TOKEN) for Gitea")
 
-    def call(self, method: str, path: str, payload: dict | None = None):
+    def call(self, method: str, path: str, payload: dict | None = None) -> dict | list:
         req = urllib.request.Request(
             self.api + path, method=method,
             data=json.dumps(payload).encode() if payload is not None else None,
@@ -227,11 +227,12 @@ def main() -> int:
         if not args.add and not args.remove:
             print("tracker: label needs --add or --remove", file=sys.stderr)
             return 2
-        refused = [name for name in args.add if name.strip().casefold() in HUMAN_ONLY_LABELS]
-        if refused:
-            print(f"tracker: refusing to add {', '.join(refused)}: a person applies that label, "
-                  "not an agent", file=sys.stderr)
-            return 2
+        for verb, names in (("add", args.add), ("remove", args.remove)):
+            refused = [name for name in names if name.strip().casefold() in HUMAN_ONLY_LABELS]
+            if refused:  # a person applies and withdraws approval, never an agent
+                print(f"tracker: refusing to {verb} {', '.join(refused)}: a person applies that label, "
+                      "not an agent", file=sys.stderr)
+                return 2
     f = forge()
     if args.cmd == "get":
         body = f.get(number(args.ref))

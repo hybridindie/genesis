@@ -253,6 +253,14 @@ def test_label_add_refuses_a_label_only_a_person_applies(gh_repo, protected):
     assert gh_repo.state()["issues"]["7"]["labels"] == ["bug"]
 
 
+@pytest.mark.parametrize("protected", ["factory:approved", "Factory:Auto-Approve"])
+def test_label_remove_refuses_a_label_only_a_person_applies(gh_repo, protected):
+    out = gh_repo.run("label", "#7", "--remove", protected)
+    assert out.returncode == 2
+    assert protected in out.stderr and "person" in out.stderr
+    assert gh_repo.calls() == []
+
+
 def test_label_needs_something_to_add_or_remove(gh_repo):
     out = gh_repo.run("label", "#7")
     assert out.returncode == 2
