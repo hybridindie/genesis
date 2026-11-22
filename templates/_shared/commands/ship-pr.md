@@ -1,5 +1,5 @@
 ---
-description: Open or update a PR, watch CI and the automated review, address the review, and merge with --merge when green
+description: Open or update a PR, watch CI and the automated review, address the review, and merge once CI is green and every thread is addressed
 ---
 
 Read and follow the ship-pr skill:
@@ -11,4 +11,5 @@ Arguments: `$ARGUMENTS`
 
 - empty — use the pull request for the current branch
 - a PR number or URL — target that PR
-- `--merge` — allow merging after the gates pass (default: never merge)
+- `--no-merge` — watch and address threads, but don't merge (default: merge
+  once CI is green and every thread is addressed)

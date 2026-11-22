@@ -17,7 +17,7 @@ description: >
   The skill itself. OpenCode reads it here; Claude Code loads it through the
   generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 2.5.0, owner: John D
+  version: 2.5.1, owner: John D
   invokes: .agents/scripts/dispatch.py,
            .agents/scripts/plan.py
   doctrine: .agents/doctrine/agent-plan-schema.md,
@@ -98,7 +98,7 @@ Run every command from the repository root; `d=".agents/scripts/dispatch.py"`.
    `python3 $d report` → `stories_ready_to_integrate`:
    `python3 $d integrate <story> --push` (runs the integration and story
    verify commands, pushes on success). With `--ship`, run ship-pr on the
-   branch; never merge without the caller's `--merge`.
+   branch; it merges only on green CI with every thread addressed.
 7. **Report** from `python3 $d report`. Each unit's `history` gives its
    attempts, failed checks, blocks and rollbacks (restarts and merge
    conflicts) across every run, including ones already merged.
