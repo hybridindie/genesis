@@ -112,7 +112,8 @@ class GitHub:
             # gh fails on removing a label the issue lacks; Gitea skips it. Match
             # Gitea so a repeated cleanup is a no-op. Names are case-insensitive.
             current = {name.casefold(): name for name in self.labels(n)}
-            remove = [current[name.casefold()] for name in remove if name.casefold() in current]
+            remove = list(dict.fromkeys(
+                current[name.casefold()] for name in remove if name.casefold() in current))
         if not add and not remove:
             return
         if add:

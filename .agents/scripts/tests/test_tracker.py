@@ -229,6 +229,14 @@ def test_github_label_remove_matches_case_insensitively(gh_repo):
     assert gh_repo.state()["issues"]["7"]["labels"] == []
 
 
+def test_github_label_remove_sends_case_differing_duplicates_once(gh_repo):
+    out = gh_repo.run("label", "7", "--remove", "bug", "BUG")
+    assert out.returncode == 0, out.stderr
+    assert gh_repo.state()["issues"]["7"]["labels"] == []
+    edit = [c for c in gh_repo.calls() if c[:2] == ["issue", "edit"]][-1]
+    assert edit.count("--remove-label") == 1
+
+
 def test_github_author_prints_the_opener_login(gh_repo):
     out = gh_repo.run("author", "https://github.com/o/r/issues/7")
     assert out.returncode == 0, out.stderr
