@@ -104,7 +104,8 @@ render           → core + stacks + packs, placeholders, generated rule index
 - `.claude/{commands,agents,skills,hooks}/`, with mirrors in
   `.opencode/{commands,agents,skills}/`.
 - `.claude/harness.json`: stacks, packs, paths and tooling, which the drift
-  gate checks.
+  gate checks. A tailored repo that covers a stack under its own rule name
+  says so with `rule_aliases` (`{"rust": "native.md"}`).
 - `.claude/harness.sums`: sha256 of each rendered file, in `sha256sum`
   format, so a re-render can tell your edits apart from its own output.
 - `.githooks/`: tracked pre-commit/pre-push guardrails, installed once per

@@ -42,6 +42,38 @@ def test_only_a_read_deny_counts_as_protecting_env():
     assert drift.Drift.denies_env(legacy) is True
 
 
+def test_a_globbed_env_deny_counts():
+    # OpenCode's `permission.read` takes globs: "*.env" denies every .env.
+    assert drift.Drift.is_env_path("*.env") is True
+    assert drift.Drift.is_env_path("*.env.*") is True
+    assert drift.Drift.is_env_path("*.env.example") is False
+    assert drift.Drift.denies_env({"read": {"*": "allow", "*.env": "deny"}}) is True
+
+
+def test_rule_aliases_name_a_tailored_stack_rule(tmp_path):
+    rules = tmp_path / ".claude/rules"
+    rules.mkdir(parents=True)
+    (rules / "native.md").write_text("---\nread_when: x\n---\n")
+    plain = drift.Drift(tmp_path)
+    plain.stacks({"stacks": ["rust"]})
+    assert any("stack rust has no" in w for w in plain.warnings)
+    aliased = drift.Drift(tmp_path)
+    aliased.stacks({"stacks": ["rust"], "rule_aliases": {"rust": "native.md"}})
+    assert not any("stack rust" in w for w in aliased.warnings)
+    assert not aliased.errors
+
+
+def test_a_dangling_skill_link_is_still_a_skill(tmp_path):
+    # A skill linked to a sibling checkout dangles where the checkout is absent
+    # (CI): it is still listed, not reported missing.
+    (tmp_path / ".claude/skills").mkdir(parents=True)
+    (tmp_path / ".claude/skills/linked").symlink_to(tmp_path / "absent/linked")
+    (tmp_path / "AGENTS.md").write_text("### Commands\n\n### Skills\n\n`linked`\n")
+    checker = drift.Drift(tmp_path)
+    checker.map_lists()
+    assert not any("linked" in e for e in checker.errors)
+
+
 def test_env_template_files_do_not_count():
     assert drift.Drift.is_env_path("**/.env") is True
     assert drift.Drift.is_env_path(".env.example") is False

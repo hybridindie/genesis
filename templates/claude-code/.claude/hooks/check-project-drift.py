@@ -104,7 +104,14 @@ class Drift:
             ("stack", STACK_MARKERS, set(manifest.get("stacks") or [])),
             ("pack", PACK_MARKERS, set(manifest.get("packs") or [])),
         ):
+            raw_aliases = manifest.get("rule_aliases")
+            aliases = raw_aliases if isinstance(raw_aliases, dict) else {}
             for name, marker in sorted(markers.items()):
+                # A tailored repo may cover a stack under its own rule name
+                # (`rule_aliases` in harness.json, e.g. rust -> native.md).
+                alias = aliases.get(name)
+                if name in declared and isinstance(alias, str) and alias:
+                    marker = alias
                 present = (rules / marker).is_file()
                 if name in declared:
                     if not present:  # tailored repos may cover a stack under their own rule name
@@ -173,9 +180,14 @@ class Drift:
             for name in sorted(listed_commands - command_files):
                 self.fail(f"DRIFT: AGENTS.md lists /{name} but .claude/commands/{name}.md is missing")
 
+        # A skill is a directory with a SKILL.md, or a link to one outside the
+        # repo (a skill linked to a sibling checkout dangles where that
+        # checkout is absent, as in CI, and still counts).
+        skills_root = self.root / ".claude" / "skills"
         skill_dirs = {
-            p.parent.name
-            for p in (self.root / ".claude" / "skills").glob("*/SKILL.md")
+            p.name
+            for p in (skills_root.iterdir() if skills_root.is_dir() else [])
+            if (p / "SKILL.md").is_file() or p.is_symlink()
         }
         skills_text = self.section(text, "Skills")
         if not skills_text:
@@ -277,7 +289,8 @@ class Drift:
     @staticmethod
     def is_env_path(value: str) -> bool:
         """`.env` and its variants, not `.env.example` or an `environments/` dir."""
-        name = value.rstrip("/").split("/")[-1]
+        # A glob (`*.env`, `**/.env.*`) names the same files: drop its stars.
+        name = value.rstrip("/").split("/")[-1].lstrip("*")
         return name == ".env" or (
             name.startswith(".env.") and not name.endswith((".example", ".sample", ".template"))
         )

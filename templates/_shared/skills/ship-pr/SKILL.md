@@ -12,7 +12,7 @@ user-invocable: true
 
 <!--
   contract: .claude/rules/doctrine/skill-execution.md
-  version: 3.0.0, owner: John D
+  version: 3.1.0, owner: John D
   invokes: ship-pr/scripts/watch_pr.py, ship-pr/scripts/pr_size.py
 -->
 
@@ -34,7 +34,7 @@ CI is green and every review thread is addressed. `--no-merge` stops short.
    never bypass a hook.
 2. **Size budget.** Before opening a PR:
    ```bash
-   scripts=.claude/skills/ship-pr/scripts
+   scripts=.agents/skills/ship-pr/scripts
    [[ -d $scripts ]] || scripts=templates/_shared/skills/ship-pr/scripts  # genesis itself
    python3 "$scripts/pr_size.py" --base origin/main
    ```
@@ -77,9 +77,15 @@ CI is green and every review thread is addressed. `--no-merge` stops short.
    python3 "$scripts/pr_threads.py" --pr "$PR"
    ```
    The script owns the GraphQL query, repo lookup, and resolved/outdated filter.
+   OpenCodeReview also posts a summary comment (`<!-- ocr-summary -->`) whose
+   *Additional findings* are not threads, and which names any file it didn't
+   review: read the latest one on the current head too
+   (`gh api repos/{owner}/{repo}/issues/$PR/comments`).
 7. **Triage each.** Real defect → fix + test + rerun preflight + push. Misread →
    reply with evidence. Separate concern → linked follow-up issue + reply.
-   Ambiguous → leave open and list for the human.
+   Ambiguous → leave open and list for the human. Answer the summary's
+   additional findings in one PR comment, one line each (fixed in <sha>, or
+   why not); a file it didn't review is a reason to split the PR.
 8. **Reply and resolve.**
    ```bash
    gh api graphql -f query='
@@ -102,8 +108,13 @@ CI is green and every review thread is addressed. `--no-merge` stops short.
    thread is fixed or rebutted with evidence and resolved, preflight is green,
    `mergeStateStatus=CLEAN`, there is no `CHANGES_REQUESTED` and no
    `do-not-merge` label. An open thread — including an ambiguous one left for
-   the human — blocks the merge. Then:
+   the human — blocks the merge. Deleting the branch closes every PR based on
+   it, so retarget those to the base first. Then:
    ```bash
+   head=$(gh pr view "$PR" --json headRefName,baseRefName -q '.headRefName + " " + .baseRefName')
+   for n in $(gh pr list --base "${head% *}" --json number -q '.[].number'); do
+     gh pr edit "$n" --base "${head#* }"
+   done
    gh pr merge "$PR" --merge --delete-branch
    ```
    If branch protection needs a human approval, stop and report it. Do not use
