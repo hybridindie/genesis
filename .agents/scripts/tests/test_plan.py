@@ -834,3 +834,109 @@ def test_accepts_scaffold_carrying_consumes_into_the_story():
     e = consuming_epic({"S1": ["backend/api/types.py"], "S2": ["frontend/src/api.ts"]})
     bodies = plan.scaffold(epic_md(e), TEMPLATE, only=["S3"])
     assert plan.extract(bodies["S3"])["consumes"] == {"S1": ["backend/api/types.py"], "S2": ["frontend/src/api.ts"]}
+
+
+# ── learning edge (#76): confirmed causes become planning constraints ────────
+
+LESSONS = """\
+constraints:
+  - paths: [backend/app/schedules/models.py]
+    constraint: Changing the Schedule model needs frontend/src/schedules/api.ts regenerated in the same story.
+    source: S4/api
+    date: "2026-11-21"
+  - paths: [docs/**]
+    constraint: Docs builds need the mkdocs nav updated.
+    source: S2/main
+    date: "2026-11-20"
+"""
+
+
+def lessons(tmp_path):
+    p = tmp_path / "plan-constraints.yaml"
+    p.write_text(LESSONS)
+    return plan.load_constraints(str(p))
+
+
+def test_accepts_only_the_constraints_that_touch_what_a_unit_owns(tmp_path):
+    found = plan.constraints_for(["backend/app/schedules/**"], lessons(tmp_path))
+    assert [c["source"] for c in found] == ["S4/api"]
+    assert plan.constraints_for(["frontend/**"], lessons(tmp_path)) == []
+
+
+def test_accepts_a_brief_that_carries_the_relevant_lesson(tmp_path):
+    s = story("S1", ["backend/**"], [track("main", ["backend/app/schedules/**"])])
+    text = plan.brief(s, "main", lessons(tmp_path))
+    assert "Schedule model needs frontend/src/schedules/api.ts regenerated" in text and "S4/api" in text
+    assert "mkdocs" not in text
+
+
+def test_accepts_a_missing_constraints_file_as_none(tmp_path):
+    assert plan.load_constraints(str(tmp_path / "absent.yaml")) == []
+
+
+@pytest.mark.parametrize("bad", ["constraints: [x]\n", "constraints:\n  - paths: a/**\n    constraint: c\n",
+                                 "constraints:\n  - paths: [a/**]\n", "- 1\n"])
+def test_rejects_a_malformed_constraints_file(tmp_path, bad):
+    p = tmp_path / "plan-constraints.yaml"
+    p.write_text(bad)
+    with pytest.raises(plan.PlanError, match="plan-constraints"):
+        plan.load_constraints(str(p))
+
+
+def test_accepts_check_listing_constraints_for_overlapping_plans(tmp_path):
+    e = three_story_epic()
+    paths = [write(tmp_path, "epic.md", full_epic_md(e))]
+    for sid, b in plan.scaffold(epic_md(e), TEMPLATE).items():
+        paths.append(write(tmp_path, f"story-{sid}.md", b))
+    (tmp_path / "c.yaml").write_text(LESSONS.replace("backend/app/schedules/models.py", "backend/api/x.py"))
+    ok, lines = plan.check(paths, constraints=plan.load_constraints(str(tmp_path / "c.yaml")))
+    learned = [line for line in lines if line.startswith("LEARNED")]
+    assert ok and any("S1" in line and "S4/api" in line for line in learned)
+    assert any("S3" in line and "mkdocs" in line for line in learned)
+    assert not any("S2" in line.split(":")[0] for line in learned)
+
+
+# ── late review fixes: #96 (consumes) and #97 (lessons) ──────────────────────
+
+def test_warns_on_a_consumes_entry_that_names_nothing():
+    e = consuming_epic({"S1": [], "S2": ["frontend/x.ts"]})
+    assert plan.edge_warnings(e, []) == ["story S3 depends on S1 but names nothing it consumes from it"]
+
+
+def test_warns_on_story_level_edges_without_an_epic():
+    s3 = story("S3", ["docs/**"], [track("main", ["docs/**"])], depends_on=["S1"])
+    assert plan.edge_warnings(None, [s3]) == ["story S3 depends on S1 but names nothing it consumes from it"]
+
+
+def test_rejects_a_story_plan_consuming_outside_the_epics_upstream_owns():
+    e = three_story_epic()
+    s3 = story("S3", ["docs/**"], [track("main", ["docs/**"])], acs=["AC3"], depends_on=["S1", "S2"],
+               consumes={"S1": ["frontend/x.ts"]})
+    assert any("consumes frontend/x.ts from S1" in x for x in plan.validate_set(e, [s3]))
+
+
+def test_accepts_a_brief_despite_a_malformed_consumes_value():
+    s = story("S1", ["src/**"], [track("api", ["src/routes.py"], kind="contract"),
+                                 track("web", ["web/**"], depends_on=["api"], consumes={"api": "src/routes.py"})],
+              integration={"verify": "make e2e"})
+    assert "`src/routes.py`" in plan.brief(s, "web")
+    s["tracks"][1]["consumes"] = {"api": None}
+    plan.brief(s, "web")
+
+
+def test_rejects_a_lesson_with_an_empty_glob(tmp_path):
+    p = tmp_path / "plan-constraints.yaml"
+    p.write_text('constraints:\n  - paths: ["  "]\n    constraint: c\n')
+    with pytest.raises(plan.PlanError, match="plan-constraints"):
+        plan.load_constraints(str(p))
+
+
+def test_rejects_an_unreadable_lessons_file_as_a_plan_error(tmp_path):
+    p = tmp_path / "plan-constraints.yaml"
+    p.write_text(LESSONS)
+    p.chmod(0)                                      # present but unreadable
+    try:
+        with pytest.raises(plan.PlanError, match="plan-constraints"):
+            plan.load_constraints(str(p))
+    finally:
+        p.chmod(0o644)

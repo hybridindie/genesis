@@ -17,7 +17,7 @@ description: >
   The skill itself. OpenCode reads it here; Claude Code loads it through the
   generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 2.3.0, owner: John D
+  version: 2.4.0, owner: John D
   invokes: .agents/scripts/dispatch.py,
            .agents/scripts/plan.py
   doctrine: .agents/doctrine/agent-plan-schema.md,
@@ -85,6 +85,11 @@ Run every command from the repository root; `d=".agents/scripts/dispatch.py"`.
      blocks the unit for replanning (`report` → `needs_replan`).
    - A plan or ownership problem → `python3 $d block <unit> --note "<every
      finding, one clause each>"`. Leave the worktree.
+   - Once a failure's cause is confirmed and it would recur (for example a
+     schema change that always needs a regenerated client), propose a lesson
+     to the human: the paths and the one-sentence constraint. Only after they
+     approve, run `python3 $d learn --unit <unit> --paths <globs> --constraint
+     "<text>"` and commit `.agents/plan-constraints.yaml`.
 5. **Loop** to step 2: merged tracks unblock their dependants and the next
    stories. Stop after 10 rounds.
 6. **Integrate finished stories.** For each story in

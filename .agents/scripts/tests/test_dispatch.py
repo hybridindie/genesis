@@ -587,3 +587,30 @@ def test_rejects_merging_a_migration_even_without_a_prior_check(repo):
     work_in(root, "S2", "main", **{"docs/migrations/0001_init.sql": "create table t();\n"})
     data = run(root, "merge", "S2/main", expect=1)              # no check first
     assert any("--human" in f for f in data["findings"])
+
+
+# ── learning edge (#76) ───────────────────────────────────────────────────────
+
+def test_accepts_a_learned_constraint_reaching_a_later_brief(repo):
+    root, plans = repo
+    load(root, plans)
+    data = run(root, "learn", "--unit", "S1/contract", "--paths", "app/types.py",
+               "--constraint", "Regenerate app/schema.json whenever app/types.py changes.", expect=0)
+    saved = yaml.safe_load((root / ".agents" / "plan-constraints.yaml").read_text())["constraints"]
+    assert saved[0]["source"] == "S1/contract" and saved[0]["paths"] == ["app/types.py"] and saved[0]["date"]
+    assert data["recorded"] is True
+    again = run(root, "learn", "--unit", "S1/contract", "--paths", "app/types.py",
+                "--constraint", "Regenerate app/schema.json whenever app/types.py changes.", expect=0)
+    assert again["recorded"] is False                    # an identical lesson is kept once
+    units = {u["unit"]: u for u in run(root, "prepare", expect=0)["units"]}
+    assert "Regenerate app/schema.json" in Path(units["S1/contract"]["brief"]).read_text()
+    assert "Regenerate app/schema.json" not in Path(units["S2/main"]["brief"]).read_text()
+
+
+@pytest.mark.parametrize("args", [["--paths", "app/types.py", "--constraint", "   "],
+                                  ["--paths", " ", "--constraint", "real text"]])
+def test_rejects_recording_an_empty_lesson(repo, args):
+    root, plans = repo
+    load(root, plans)
+    assert "non-empty" in run(root, "learn", "--unit", "S1/contract", *args, expect=2)["error"]
+    assert not (root / ".agents" / "plan-constraints.yaml").exists()

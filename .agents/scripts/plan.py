@@ -263,19 +263,19 @@ def validate_consumes(where: str, entry: dict, owns_of: dict[str, list]) -> list
 def edge_warnings(epic: dict | None, stories: list[dict]) -> list[str]:
     """Dependencies that name nothing crossing them: "and then" edges that may
     serialize work for nothing. Warnings, not errors, until plans carry them."""
+    def unnamed(entry: dict) -> list[str]:  # a dependency mapped to nothing names nothing
+        consumes = entry.get("consumes") if isinstance(entry.get("consumes"), dict) else {}
+        return [d for d in map(str, as_list(entry.get("depends_on"))) if not as_list(consumes.get(d))]
+
     out = []
-    for s in as_list((epic or {}).get("stories")):
-        named = set(map(str, (s.get("consumes") or {}))) if isinstance(s.get("consumes"), dict) else set()
-        for d in map(str, as_list(s.get("depends_on"))):
-            if d not in named:
-                out.append(f"story {s.get('id')} depends on {d} but names nothing it consumes from it")
+    # The epic is authoritative for story edges; without one, use the story plans'.
+    for s in as_list(epic.get("stories")) if epic else stories:
+        sid = s.get("id") if epic else story_key(s)
+        out += [f"story {sid} depends on {d} but names nothing it consumes from it" for d in unnamed(s)]
     for story in stories:
         for tr in as_list(story.get("tracks")):
-            named = set(map(str, (tr.get("consumes") or {}))) if isinstance(tr.get("consumes"), dict) else set()
-            for d in map(str, as_list(tr.get("depends_on"))):
-                if d not in named:
-                    out.append(f"story {story_key(story)} track {tr.get('id')} depends on {d} "
-                               "but names nothing it consumes from it")
+            out += [f"story {story_key(story)} track {tr.get('id')} depends on {d} "
+                    "but names nothing it consumes from it" for d in unnamed(tr)]
     return out
 
 
@@ -559,6 +559,8 @@ def validate_set(epic: dict | None, stories: list[dict]) -> list[str]:
             if entry is None:
                 errs.append(f"story {sid}: not in the epic's stories")
                 continue
+            # A story plan's own consumes must also stay inside its upstreams' owns.
+            errs += validate_consumes(f"story {sid}", s, {i: as_list(e.get("owns")) for i, e in entries.items()})
             # The epic is what keeps parallel stories apart, so a story may
             # narrow its entry but never widen it or change its ordering.
             epic_owns = as_list(entry.get("owns"))
@@ -570,7 +572,7 @@ def validate_set(epic: dict | None, stories: list[dict]) -> list[str]:
             theirs = sorted(map(str, as_list(entry.get("depends_on"))))
             if mine != theirs:
                 errs.append(f"story {sid}: depends_on {mine} differs from the epic's {theirs}")
-    return errs
+    return list(dict.fromkeys(errs))  # story and set checks can report the same edge
 
 
 # ── scheduling ───────────────────────────────────────────────────────────────
@@ -794,9 +796,60 @@ def set_status(text: str, track: str, status: str, note: str | None) -> str:
     return sync(new, extract(new))
 
 
+# ── learned constraints ──────────────────────────────────────────────────────
+
+CONSTRAINTS_FILE = ".agents/plan-constraints.yaml"
+
+
+def default_constraints_path() -> str:
+    """The constraints file at the repository root (or the working directory)."""
+    import subprocess
+    try:
+        top = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True).stdout.strip()
+    except OSError:
+        top = ""
+    return str(Path(top or ".") / CONSTRAINTS_FILE)
+
+
+def load_constraints(path: str) -> list[dict]:
+    """Lessons from earlier runs: `constraints: [{paths, constraint, source, date}]`.
+    A missing file means none yet."""
+    p = Path(path)
+    if not p.is_file():
+        return []
+    try:
+        data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+    except (yaml.YAMLError, UnicodeDecodeError) as exc:
+        raise PlanError(f"{path}: plan-constraints is not valid YAML: {exc}") from exc
+    except OSError as exc:
+        raise PlanError(f"{path}: cannot read plan-constraints: {exc.strerror}") from exc
+    items = data.get("constraints") if isinstance(data, dict) else None
+    if not isinstance(items, list):
+        raise PlanError(f"{path}: plan-constraints needs a top-level `constraints:` list")
+    for i, c in enumerate(items):
+        if not (isinstance(c, dict) and isinstance(c.get("paths"), list) and c["paths"]
+                and all(isinstance(x, str) and x.strip() for x in c["paths"])
+                and isinstance(c.get("constraint"), str)
+                and c["constraint"].strip()):
+            raise PlanError(f"{path}: plan-constraints entry {i} needs `paths: [globs]` and `constraint: text`")
+    return items
+
+
+def constraints_for(owns: list, constraints: list[dict]) -> list[dict]:
+    """The lessons whose paths overlap what a unit owns."""
+    owned = [str(o) for o in as_list(owns)]
+    return [c for c in constraints if any(patterns_meet(o, str(g)) for o in owned for g in c["paths"])]
+
+
+def lesson_line(c: dict) -> str:
+    where = ", ".join(f"`{p}`" for p in c["paths"])
+    origin = ", ".join(str(x) for x in (c.get("source"), c.get("date")) if x)
+    return f"- {c['constraint'].strip()} (applies to {where}{'; from ' + origin if origin else ''})"
+
+
 # ── briefs ───────────────────────────────────────────────────────────────────
 
-def brief(story: dict, track_id: str) -> str:
+def brief(story: dict, track_id: str, constraints: list[dict] | None = None) -> str:
     tracks = as_list(story.get("tracks"))
     t = next((x for x in tracks if str(x.get("id")) == track_id), None)
     if t is None:
@@ -818,12 +871,18 @@ def brief(story: dict, track_id: str) -> str:
     ]
     if contract is not None and contract is not t:
         lines.append(f"- **Shared contract (already merged, read-only):** {code(contract.get('owns'))}")
-    reads = [x for items in (t.get("consumes") or {}).values() for x in items] if isinstance(t.get("consumes"), dict) else []
+    reads = ([str(x) for items in t["consumes"].values() for x in as_list(items)]
+             if isinstance(t.get("consumes"), dict) else [])
     if reads:
         lines.append(f"- **You read from upstream (merged first, read-only):** {code(reads)}")
     context = t.get("context") or story.get("context")
     if context:
         lines += ["", "## Context", str(context).strip()]
+    learned = constraints_for(as_list(t.get("owns")), constraints or [])
+    if learned:
+        lines += ["", "## Lessons from earlier runs",
+                  "Confirmed causes of past failures in the paths you own. Follow them:"]
+        lines += [lesson_line(c) for c in learned]
     acs = story.get("ac_text") or {}
     task_acs = sorted({str(a) for k in tasks for a in as_list(k.get("acs"))})
     if not tasks:
@@ -864,7 +923,8 @@ def _validate_artifact():
     return module
 
 
-def check(paths: list[str], write: bool = True) -> tuple[bool, list[str]]:
+def check(paths: list[str], write: bool = True,
+          constraints: list[dict] | None = None) -> tuple[bool, list[str]]:
     """Validate the plan set, re-sync generated tables, check each body's prose
     shape, and summarize the waves. Returns (ok, report lines)."""
     lines: list[str] = []
@@ -898,6 +958,11 @@ def check(paths: list[str], write: bool = True) -> tuple[bool, list[str]]:
             if waiting:
                 lines.append(f"tracks waiting on unplanned stories: {', '.join(waiting)}")
         lines += [f"WARN edge: {w}" for w in edge_warnings(epic, stories)]
+        planned = ([(str(s.get("id")), as_list(s.get("owns"))) for s in as_list(epic.get("stories"))] if epic
+                   else [(story_key(s), as_list(s.get("owns"))) for s in stories])
+        for sid, owns in planned:  # apply these when splitting or tracking the story
+            lines += [f"LEARNED {sid}: {c['constraint'].strip()} (from {c.get('source', 'an earlier run')})"
+                      for c in constraints_for(owns, constraints or [])]
         n_tracks = sum(len(as_list(x.get("tracks"))) for x in stories)
         lines.append(f"PASS: {'epic + ' if epic else ''}{len(stories)} stories, {n_tracks} tracks")
     return not errs, lines
@@ -1002,9 +1067,11 @@ def main() -> int:
     p = sub.add_parser("sync"); p.add_argument("file")
     p = sub.add_parser("next"); p.add_argument("files", nargs="+"); p.add_argument("--max", type=int, default=4)
     p = sub.add_parser("brief"); p.add_argument("file"); p.add_argument("--track", required=True)
+    p.add_argument("--constraints", help=f"lessons file (default: <repo>/{CONSTRAINTS_FILE})")
     p = sub.add_parser("scope"); p.add_argument("file"); p.add_argument("--track", required=True)
     p.add_argument("--changed", nargs="*", default=[])
     p = sub.add_parser("check"); p.add_argument("files", nargs="+"); p.add_argument("--no-sync", action="store_true")
+    p.add_argument("--constraints", help=f"lessons file (default: <repo>/{CONSTRAINTS_FILE})")
     p = sub.add_parser("scaffold"); p.add_argument("epic"); p.add_argument("--out", default=".")
     p.add_argument("--stories", help="comma-separated story ids (default: all)")
     p.add_argument("--template", default=str(Path(__file__).resolve().parents[1] / "templates" / "epic" / "story-shell.md"))
@@ -1067,7 +1134,8 @@ def main() -> int:
             print(json.dumps(next_runnable(epic, stories, args.max), indent=2))
             return 0
         if args.cmd == "brief":
-            print(brief(extract(read_text(args.file), args.file), args.track))
+            print(brief(extract(read_text(args.file), args.file), args.track,
+                        load_constraints(args.constraints or default_constraints_path())))
             return 0
         if args.cmd == "scope":
             story = extract(read_text(args.file), args.file)
@@ -1082,7 +1150,8 @@ def main() -> int:
             print(f"PASS: {len(args.changed)} changed paths inside track {args.track}")
             return 0
         if args.cmd == "check":
-            ok, lines = check(args.files, write=not args.no_sync)
+            ok, lines = check(args.files, write=not args.no_sync,
+                              constraints=load_constraints(args.constraints or default_constraints_path()))
             for line in lines:
                 print(line, file=sys.stdout if ok or not line.startswith("FAIL") else sys.stderr)
             return 0 if ok else 1

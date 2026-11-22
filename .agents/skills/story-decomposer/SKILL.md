@@ -16,7 +16,7 @@ description: >
   The skill itself. OpenCode reads it here; Claude Code loads it through the
   generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 6.2.0, owner: John D
+  version: 6.3.0, owner: John D
   invokes: .agents/skills/task-decomposer/SKILL.md,
            .agents/templates/epic/story-shell.md,
            .agents/scripts/plan.py,
@@ -46,7 +46,11 @@ whole brief a subagent gets, so anything it needs to know goes in it.
 
 1. **Gate the input.** `python3 .agents/scripts/plan.py check epic.md`. If it
    fails, or the Epic has no outcome or ACs, stop and send it back to
-   `epic-composer`.
+   `epic-composer`. Note every `LEARNED <story>: ...` line it prints: those are
+   confirmed causes of earlier failures in that story's paths
+   (`.agents/plan-constraints.yaml`). Apply each one when you write that
+   story's context and tracks — for example by keeping a model change and its
+   regenerated client in the same track.
 2. **Scaffold.** `python3 .agents/scripts/plan.py scaffold epic.md --out .`
    writes `story-<id>.md` for every Epic story with the plan block filled from
    the Epic — id, ACs and their wording, `depends_on` and `consumes`, `owns`,
