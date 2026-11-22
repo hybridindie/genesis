@@ -12,7 +12,7 @@ user-invocable: true
 
 <!--
   contract: .claude/rules/doctrine/skill-execution.md
-  version: 3.1.0, owner: John D
+  version: 3.2.0, owner: John D
   invokes: ship-pr/scripts/watch_pr.py, ship-pr/scripts/pr_size.py
 -->
 
@@ -102,7 +102,20 @@ CI is green and every review thread is addressed. `--no-merge` stops short.
      resolveReviewThread(input: {threadId: $thread}) { thread { isResolved } }
    }' -F thread="$THREAD"
    ```
-9. **Loop cap.** Repeat watch/fix at most three cycles; then report what remains.
+9. **Loop cap, then escalate.** Repeat watch/fix at most three cycles. After
+   the third failed cycle, do not run a fourth of the same fix, and do not stop
+   at a bare report — climb the escalation ladder
+   (`.agents/doctrine/escalation.md`, where present):
+   1. **Diagnose.** Write a short diagnosis and post it as a PR comment: the
+      failing check or thread quoted, what each cycle changed and why it did
+      not hold, one cause marked *confirmed* (reproduced, predicted, or read
+      from the source) or *suspected*, and the evidence.
+   2. **One informed attempt**, only if the cause is confirmed and the fix lies
+      inside this PR: make the change the diagnosis names, then watch once more.
+      At most once.
+   3. **A person.** If the cause is suspected, needs a decision only a person
+      can make, or the informed attempt also fails, stop and hand the PR over
+      with one specific question and the diagnosis. Never loop again.
 10. **Merge when the gates pass**, unless `--no-merge`. Merge if and only if:
    every check passes (watcher `0`), the configured review has landed, every
    thread is fixed or rebutted with evidence and resolved, preflight is green,
@@ -126,7 +139,9 @@ Use judgment only for:
 
 - classifying a review comment as defect, misread, or separate concern;
 - writing the reply/rebuttal;
-- deciding whether an ambiguous thread needs the human.
+- deciding whether an ambiguous thread needs the human;
+- writing the diagnosis after three failed cycles, and whether its cause is
+  confirmed.
 
 Do not invent CI results or resolve a thread you did not handle.
 
@@ -137,6 +152,7 @@ PR: <url>
 CI: <final state>    Review: <state>    Merge: <commit or not merged>
 Threads: <fixed> fixed, <rebutted> rebutted, <open> open
 Follow-ups: <links or none>
+Escalation: <diagnosis link + attempt or question, or none>
 ```
 
 ## Stop Conditions
@@ -145,7 +161,8 @@ Follow-ups: <links or none>
 - Stop before opening a PR that is over the size budget unless the caller
   accepts it.
 - Stop if the watcher times out or the PR is blocked on a human approval.
-- Stop after three review cycles and report the remaining threads.
+- After three failed review cycles, diagnose; then take at most one informed
+  attempt, and otherwise stop with one question for a person (step 9).
 - Never merge with a failing or pending check, a missing review, or an open
   thread; never with `--no-merge`.
 
