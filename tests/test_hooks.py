@@ -48,6 +48,17 @@ def test_a_globbed_env_deny_counts():
     assert drift.Drift.is_env_path("*.env.*") is True
     assert drift.Drift.is_env_path("*.env.example") is False
     assert drift.Drift.denies_env({"read": {"*": "allow", "*.env": "deny"}}) is True
+    # Trailing stars and bash denies name the same files.
+    assert drift.Drift.is_env_path(".env*") is True
+    assert drift.Drift.is_env_path("**/.env*") is True
+    assert drift.Drift.is_env_path("cat *.env*") is True
+
+
+def test_a_shorthand_deny_counts_only_under_a_read_capable_tool():
+    # An edit-only deny leaves reads open; a blanket read deny covers .env.
+    assert drift.Drift.denies_env({"permission": {"edit": {".env": "deny"}}}) is False
+    assert drift.Drift.denies_env({"permission": {"bash": {"cat *.env*": "deny"}}}) is True
+    assert drift.Drift.denies_env({"permission": {"read": "deny"}}) is True
 
 
 def test_rule_aliases_name_a_tailored_stack_rule(tmp_path):

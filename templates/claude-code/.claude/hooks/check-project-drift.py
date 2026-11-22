@@ -289,26 +289,43 @@ class Drift:
     @staticmethod
     def is_env_path(value: str) -> bool:
         """`.env` and its variants, not `.env.example` or an `environments/` dir."""
-        # A glob (`*.env`, `**/.env.*`) names the same files: drop its stars.
-        name = value.rstrip("/").split("/")[-1].lstrip("*")
+        # Globs (`*.env`, `**/.env*`) and bash denies (`cat *.env*`) name the
+        # same files: take the last path's file-name token, its stars dropped.
+        parts = value.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1].split()
+        name = (parts[-1] if parts else "").strip("*")
         return name == ".env" or (
             name.startswith(".env.") and not name.endswith((".example", ".sample", ".template"))
         )
 
+    # The tools a `{pattern: "deny"}` shorthand guards reads under.
+    READ_TOOLS = (None, "read", "bash")
+
     @staticmethod
-    def denies_env(node: object) -> bool:
-        """Accepts the v2 `permissions` list and the `permission` object form."""
+    def denies_env(node: object, tool: str | None = None) -> bool:
+        """Accepts the v2 `permissions` list and the `permission` object form.
+
+        A `{pattern: "deny"}` shorthand counts only under a read-capable tool
+        (`tool`, the key it sits under): an `edit`-only deny leaves reads open.
+        A blanket `"read": "deny"` covers `.env` too.
+        """
         if isinstance(node, dict):
             action = node.get("action")
             if (node.get("effect") == "deny"
                     and Drift.is_env_path(str(node.get("resource", "")))
                     and action in (None, "read")):
                 return True
-            if any(Drift.is_env_path(str(k)) and v == "deny" for k, v in node.items()):
+            if node.get("read") == "deny":
                 return True
-            return any(Drift.denies_env(v) for v in node.values())
+            if tool in Drift.READ_TOOLS and any(
+                Drift.is_env_path(str(k)) and v == "deny" for k, v in node.items()
+            ):
+                return True
+            return any(
+                Drift.denies_env(v, tool if k in ("permission", "permissions") else k)
+                for k, v in node.items()
+            )
         if isinstance(node, list):
-            return any(Drift.denies_env(v) for v in node)
+            return any(Drift.denies_env(v, tool) for v in node)
         return False
 
     # ── Versions and paths ─────────────────────────────────────────────
