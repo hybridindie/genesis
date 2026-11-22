@@ -198,7 +198,7 @@ def test_github_label_add_creates_a_missing_label_then_lists_it(gh_repo):
 
 
 def test_github_label_add_reuses_an_existing_label_and_removes_others(gh_repo):
-    out = gh_repo.run("label", "7", "--add", "bug", "--remove", "bug")
+    out = gh_repo.run("label", "7", "--add", "bug")
     assert out.returncode == 0, out.stderr
     out = gh_repo.run("label", "7", "--add", "factory:queued", "factory:running", "--remove", "bug")
     assert out.returncode == 0, out.stderr
@@ -248,7 +248,7 @@ def test_github_author_prints_the_opener_login(gh_repo):
 def test_label_add_refuses_a_label_only_a_person_applies(gh_repo, protected):
     out = gh_repo.run("label", "#7", "--add", "factory:running", protected)
     assert out.returncode == 2
-    assert protected in out.stderr and "person" in out.stderr
+    assert protected.strip() in out.stderr and "person" in out.stderr
     assert gh_repo.calls() == []
     assert gh_repo.state()["issues"]["7"]["labels"] == ["bug"]
 
@@ -259,6 +259,28 @@ def test_label_remove_refuses_a_label_only_a_person_applies(gh_repo, protected):
     assert out.returncode == 2
     assert protected in out.stderr and "person" in out.stderr
     assert gh_repo.calls() == []
+
+
+@pytest.mark.parametrize("names", [["--add", "factory: approved"], ["--add", "Factory:\tAuto-Approve"],
+                                   ["--add", "bug", "--remove", " BUG "]])
+def test_label_refuses_near_miss_approvals_and_add_remove_clashes(gh_repo, names):
+    out = gh_repo.run("label", "#7", *names)
+    assert out.returncode == 2, out.stderr
+    assert gh_repo.calls() == []
+
+
+def test_label_add_strips_names_so_no_near_duplicate_is_created(gh_repo):
+    out = gh_repo.run("label", "7", "--add", " bug ")
+    assert out.returncode == 0, out.stderr
+    assert not [c for c in gh_repo.calls() if c[:2] == ["label", "create"]]
+
+
+def test_forge_label_methods_enforce_the_guard_for_library_callers():
+    for f in (tracker.GitHub(), object.__new__(tracker.Gitea)):
+        with pytest.raises(tracker.LabelRefused):
+            f.label("7", ["factory:approved"], [])
+        with pytest.raises(tracker.LabelRefused):
+            f.label("7", [], ["FACTORY:AUTO-APPROVE"])
 
 
 def test_label_needs_something_to_add_or_remove(gh_repo):

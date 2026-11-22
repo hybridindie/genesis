@@ -33,6 +33,31 @@ HUMAN_ONLY_LABELS = ("factory:approved", "factory:auto-approve")
 NEW_LABEL_COLOR = "ededed"
 
 
+class LabelRefused(ValueError):
+    """A label change an agent may not make, or an ambiguous one."""
+
+
+def canonical(name: str) -> str:
+    """How labels compare: case and every space ignored."""
+    return re.sub(r"\s+", "", name).casefold()
+
+
+def check_labels(add: list[str], remove: list[str]) -> tuple[list[str], list[str]]:
+    """Strip and de-duplicate names; refuse approval labels and a name both added and removed.
+
+    Every forge's `label` calls this, so library callers get the same guard as the CLI."""
+    add = list({canonical(n): n.strip() for n in add if n.strip()}.values())
+    remove = list({canonical(n): n.strip() for n in remove if n.strip()}.values())
+    for verb, names in (("add", add), ("remove", remove)):
+        refused = [n for n in names if canonical(n) in {canonical(h) for h in HUMAN_ONLY_LABELS}]
+        if refused:  # a person applies and withdraws approval, never an agent
+            raise LabelRefused(f"refusing to {verb} {', '.join(refused)}: a person applies that label, not an agent")
+    clash = {canonical(n) for n in add} & {canonical(n) for n in remove}
+    if clash:
+        raise LabelRefused(f"a label can't be both added and removed: {', '.join(sorted(clash))}")
+    return add, remove
+
+
 def sh(*cmd: str, stdin: str | None = None) -> str:
     try:
         out = subprocess.run(cmd, input=stdin, capture_output=True, text=True, check=True, timeout=60)
@@ -108,6 +133,7 @@ class GitHub:
         return [lb["name"] for lb in json.loads(sh("gh", "issue", "view", n, "--json", "labels"))["labels"]]
 
     def label(self, n: str, add: list[str], remove: list[str]) -> None:
+        add, remove = check_labels(add, remove)
         if remove:
             # gh fails on removing a label the issue lacks; Gitea skips it. Match
             # Gitea so a repeated cleanup is a no-op. Names are case-insensitive.
@@ -184,6 +210,7 @@ class Gitea:
         return found
 
     def label(self, n: str, add: list[str], remove: list[str]) -> None:
+        add, remove = check_labels(add, remove)
         ids = self.repo_labels()
         for name in add:
             if name not in ids:
@@ -227,12 +254,11 @@ def main() -> int:
         if not args.add and not args.remove:
             print("tracker: label needs --add or --remove", file=sys.stderr)
             return 2
-        for verb, names in (("add", args.add), ("remove", args.remove)):
-            refused = [name for name in names if name.strip().casefold() in HUMAN_ONLY_LABELS]
-            if refused:  # a person applies and withdraws approval, never an agent
-                print(f"tracker: refusing to {verb} {', '.join(refused)}: a person applies that label, "
-                      "not an agent", file=sys.stderr)
-                return 2
+        try:
+            check_labels(args.add, args.remove)
+        except LabelRefused as exc:
+            print(f"tracker: {exc}", file=sys.stderr)
+            return 2
     f = forge()
     if args.cmd == "get":
         body = f.get(number(args.ref))
@@ -256,7 +282,7 @@ def main() -> int:
         for name in f.labels(number(args.ref)):
             print(name)
     elif args.cmd == "label":
-        f.label(number(args.ref), list(dict.fromkeys(args.add)), list(dict.fromkeys(args.remove)))
+        f.label(number(args.ref), args.add, args.remove)
         print(f"labelled #{number(args.ref)}")
     elif args.cmd == "author":
         print(f.author(number(args.ref)))
