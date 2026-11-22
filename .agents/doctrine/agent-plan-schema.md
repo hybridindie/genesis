@@ -1,7 +1,7 @@
 <!--
   agent-plan-schema.md — the machine-readable plan carried by Epic and story issues
   Referenced by: epic-composer, story-decomposer, task-decomposer, wave-dispatcher
-  version: 1.5.0, owner: John D
+  version: 1.6.0, owner: John D
   Single source of truth for the `agent-plan` block. `.agents/scripts/plan.py`
   enforces it; skills write it; the dispatcher schedules from it.
 -->
@@ -169,7 +169,7 @@ change.
 ## Lessons from earlier runs
 
 A confirmed cause of a failure becomes a constraint that later plans follow,
-in `.agents/plan-constraints.yaml` at the repo root (commit it):
+in `.agents/plan-constraints.yaml` at the repo root:
 
 ```yaml
 constraints:
@@ -179,7 +179,15 @@ constraints:
     date: "2026-11-21"
 ```
 
-`dispatch.py learn` appends one, only after a person confirms the cause.
+Lessons are recorded automatically from a diagnosis: `dispatch.py escalate
+<unit> --diagnosis <file> --lesson-paths <globs> --lesson <text>` appends one
+with no approval step, under the rules for a confirmed cause in
+[`escalation.md`](escalation.md). `dispatch.py learn` does the same outside an
+escalation. Both validate the entry and store a repeated lesson once. The
+review happens at the PR: the constraints file is committed with the run and
+lands through a reviewed PR like any other change, so a wrong lesson is caught
+there, not at the prompt.
+
 `plan.py check` prints `LEARNED <story>: ...` for every constraint whose paths
 overlap a story's `owns`, and each brief carries the ones that overlap its
 track. The fix for the run you're in is `retry`; a lesson changes every run
