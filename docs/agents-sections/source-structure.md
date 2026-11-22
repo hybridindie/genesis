@@ -12,9 +12,26 @@ system/                       ← machine layer (SYSTEM.md, system/README.md)
 
 install.sh                    ← curl | bash entry: fetch genesis, render into cwd
 new-project.sh                ← create a repo + render the harness
+
 .agents/                      ← epic scoping skills (see architecture.md)
-scripts/lint-skills.py        ← enforce the deterministic skill contract
-.agents/scripts/validate_artifact.py ← validate Epic/story/task/AC shapes
+  skills/ doctrine/ templates/ evals/
+  scripts/
+    plan.py                   ← validate agent-plan blocks, render tables, briefs
+    dispatch.py               ← worktrees, check, retry, merge lanes, history
+    tracker.py                ← read/write GitHub or Gitea issue bodies
+    validate_artifact.py      ← validate Epic/story/task/AC shapes
+    tests/                    ← unit tests for the scripts above
+  plan-constraints.yaml       ← lessons from confirmed failures (when recorded)
+.claude/ .opencode/           ← genesis's own harness (pointers, hooks, commands)
+
+scripts/
+  lint-skills.py              ← enforce the deterministic skill contract
+  sync-skill-wrappers.py      ← generate the .claude/skills pointers
+  changed-skills.py           ← which skills a diff touches (behavioural evals)
+tests/                        ← render, hook, script and eval tests
+  evals/                      ← fixture plans and behavioural cases per skill
+docs/                         ← agents-sections/, harness-eval.md, skill-evals.md
+.github/workflows/            ← validate-templates.yml (CI)
 
 templates/
   _shared/

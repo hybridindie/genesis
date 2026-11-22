@@ -31,9 +31,15 @@ task-decomposer ────────────► task checklist inside ea
   ▼
 wave-dispatcher ────────────► merged story branches → PRs
   • dispatch.py prepares each runnable track: branch, worktree, brief
+    (with lessons from .agents/plan-constraints.yaml), baseline verify
   • one subagent per track, in parallel
-  • dispatch.py check: scope + verify; the model reviews the diff
-  • dispatch.py merge in merge_order; conflicts block the track
+  • dispatch.py check: scope + verify, weak-check and edge warnings,
+    the unit's lane and history; the model reviews wide diffs
+  • retry: back to the same worktree with the findings, ≤ 3 attempts,
+    then blocked for replanning
+  • dispatch.py merge in merge_order by lane: contained, wide, or
+    irreversible (a person approves); conflicts block the track
+  • learn: a confirmed cause becomes a constraint for later plans
   • integrate the finished story, then ship-pr
 
 Every plan lives in a fenced `agent-plan` block; `plan.py check` validates it

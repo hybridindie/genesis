@@ -2,8 +2,12 @@
   "$schema": "https://opencode.ai/config.json",
   "lsp": {
     "godot": {
-      "command": ["godot-lsp"],
-      "extensions": [".gd"]
+      "command": [
+        "godot-lsp"
+      ],
+      "extensions": [
+        ".gd"
+      ]
     }
   },
   "instructions": [
@@ -66,6 +70,10 @@
       "description": "Install or update the AI harness in a target project.",
       "template": "Load the bootstrap-harness skill and follow it.\n\n$ARGUMENTS"
     },
+    "epic-acceptance-linter": {
+      "description": "Review acceptance criteria for testability and coverage.",
+      "template": "Load the epic-acceptance-linter skill and follow it.\n\n$ARGUMENTS"
+    },
     "epic-composer": {
       "description": "Draft an Epic issue from source material.",
       "template": "Load the epic-composer skill and follow it.\n\n$ARGUMENTS"
@@ -74,9 +82,13 @@
       "description": "Ask the smallest set of questions that unblocks an Epic.",
       "template": "Load the epic-interview skill and follow it.\n\n$ARGUMENTS"
     },
-    "epic-acceptance-linter": {
-      "description": "Review acceptance criteria for testability and coverage.",
-      "template": "Load the epic-acceptance-linter skill and follow it.\n\n$ARGUMENTS"
+    "harness-eval": {
+      "description": "Evaluate the installed harness against the project's actual stack.",
+      "template": "Read and follow docs/harness-eval.md. Present the plan before making any edits.\n\n$ARGUMENTS"
+    },
+    "ship-pr": {
+      "description": "Open or update a PR, watch CI and review, address threads, and merge when the gates pass.",
+      "template": "Read and follow templates/_shared/skills/ship-pr/SKILL.md.\n\n$ARGUMENTS"
     },
     "story-decomposer": {
       "description": "Decompose a ready Epic into parallel story issues.",
@@ -89,10 +101,6 @@
     "wave-dispatcher": {
       "description": "Run the next wave of a planned Epic or story with parallel subagents in worktrees.",
       "template": "Load the wave-dispatcher skill and follow it.\n\n$ARGUMENTS"
-    },
-    "harness-eval": {
-      "description": "Evaluate the installed harness against the project's actual stack.",
-      "template": "Read and follow docs/harness-eval.md. Present the plan before making any edits.\n\n$ARGUMENTS"
     }
   }
 }
