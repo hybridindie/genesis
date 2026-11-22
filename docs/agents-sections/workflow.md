@@ -22,6 +22,11 @@ story-decomposer ───────────► one issue per story
   • execution map: Wave → story → owns → depends → verify
 
   ▼
+plan-reviewer ──────────────► ready | needs-work | blocked
+  • plan.py check, then a second model via plan_review.py
+  • needs-work goes back to the author, ≤ 3 rounds, then escalation
+
+  ▼
 task-decomposer ────────────► task checklist inside each story
   • shared contract task first
   • parallel tracks with disjoint file ownership
@@ -40,6 +45,7 @@ wave-dispatcher ────────────► merged story branches �
   • dispatch.py merge in merge_order by lane: contained, wide, or
     irreversible (a person approves); conflicts block the track
   • learn: a confirmed cause becomes a constraint for later plans
+  • escalate after 3 failures: diagnosis, then attempt | replan | needs-input
   • integrate the finished story, then ship-pr
 
 Every plan lives in a fenced `agent-plan` block; `plan.py check` validates it
@@ -49,3 +55,28 @@ and renders the tables (`.agents/doctrine/agent-plan-schema.md`).
 Artifacts are GitHub issues: `Epic: <outcome>`, `Story N: <outcome>` (or
 `story(scope): …`), with the task checklist embedded in the story. The optional
 quality passes (`epic-rubric`, `story-rubric`) advise; they do not gate.
+
+## The factory
+
+`/factory` runs the pipeline from story-decomposer onwards without prompting,
+in the session that started it. Every 5 minutes it polls for open `Epic:`
+issues and takes the oldest approved one (no `factory:drafted`, or a person's
+`factory:approved` / `factory:auto-approve`), one Epic at a time:
+
+```
+poll ─► factory:running ─► budget gate ─► stories ─► plan review ─► tasks
+         ─► waves (budget gate before each round) ─► factory:shipped
+```
+
+- **Budget:** `budget.py` keeps a ledger per Epic, 5,000,000 tokens by
+  default. At 80% it posts one warning; at 100% it starts nothing new and
+  labels the Epic `factory:over-budget`.
+- **Escalation:** every loop follows `.agents/doctrine/escalation.md`. A unit
+  that ends at `needs-input` gets `factory:needs-input` on its story; the rest
+  of the wave keeps running. Plan review that is blocked or unreviewable puts
+  `factory:needs-input` on the Epic and stops it.
+- **Reporting:** one status line per round in the session and a round summary
+  comment on the Epic.
+
+Labels and the full flow: the README's "The factory" section and
+`.agents/skills/factory/SKILL.md`.

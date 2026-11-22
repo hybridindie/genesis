@@ -135,9 +135,11 @@ The Epic Scoping Skills live in `.agents/` and work in both harnesses:
 ```
 /epic-composer     source notes → Epic issue (outcome, ACs, story map in waves)
 /story-decomposer  Epic → story issues (owns, depends_on, shared contract)
+/plan-reviewer     second-model verdict on a plan before dispatch
 /task-decomposer   story → parallel tracks with disjoint file ownership
 /wave-dispatcher   run each runnable track in its own worktree, check, merge
 /ship-pr           open the PR, address the review, merge once CI is green
+/factory           run all of the above for each approved Epic, unattended
 ```
 
 Every plan is a fenced `agent-plan` YAML block that `.agents/scripts/plan.py`
@@ -156,6 +158,42 @@ Lessons from confirmed failures go in `.agents/plan-constraints.yaml` and
 reach later plans. The full flow is in
 [`docs/agents-sections/workflow.md`](docs/agents-sections/workflow.md), and
 the usage guide is [`prompts-skills.md`](prompts-skills.md).
+
+### The factory
+
+Start it by typing `/factory` (or "start the factory") in a session. It runs in
+that session, in the foreground, so you can watch each round and step in. Every
+5 minutes it polls for open `Epic:` issues and takes the oldest approved one,
+one Epic at a time: story-decomposer → plan-reviewer → task-decomposer →
+wave-dispatcher with ship-pr. The full behaviour is in
+[`.agents/skills/factory/SKILL.md`](.agents/skills/factory/SKILL.md).
+
+Labels on the Epic (story issues get `factory:needs-input` too):
+
+| Label | Set by | Meaning |
+|---|---|---|
+| `factory:drafted` | the drafter | an agent wrote this Epic; it waits for a person's approval |
+| `factory:approved` | a person | a drafted Epic may run |
+| `factory:auto-approve` | a person | run drafted Epics without a per-Epic approval |
+| `factory:running` | the factory | picked up and in progress |
+| `factory:needs-input` | the factory | stopped on a question only a person can answer |
+| `factory:over-budget` | the factory | the token budget ran out; paused |
+| `factory:shipped` | the factory | every story merged |
+
+An Epic without `factory:drafted` counts as approved. The factory never sets
+the two approval labels; `tracker.py` refuses them.
+
+**Escalation ladder** ([`.agents/doctrine/escalation.md`](.agents/doctrine/escalation.md)):
+every loop gets three attempts, then a written diagnosis, then exactly one rung:
+one informed `attempt`, one `replan`, or `needs-input` for a person. Only a
+confirmed cause may take `attempt` or `replan`. Escalating a unit blocks only
+that unit and those that depend on it.
+
+**Budget:** 5,000,000 tokens per Epic by default (`--limit` to change), tracked
+by `.agents/scripts/budget.py` from each subagent's reported spend. At 80% the
+factory posts one warning comment on the Epic; at 100% it starts nothing new,
+adds `factory:over-budget` and waits for you to raise the limit or remove the
+label.
 
 ## Repository layout
 

@@ -49,7 +49,9 @@ Read these when you need the detail — they are not auto-loaded:
 | epic-acceptance-linter | `/epic-acceptance-linter` | `.agents/skills/epic-acceptance-linter/SKILL.md` |
 | story-decomposer | `/story-decomposer` | `.agents/skills/story-decomposer/SKILL.md` |
 | task-decomposer | `/task-decomposer` | `.agents/skills/task-decomposer/SKILL.md` |
+| plan-reviewer | `/plan-reviewer` | `.agents/skills/plan-reviewer/SKILL.md` |
 | wave-dispatcher | `/wave-dispatcher` | `.agents/skills/wave-dispatcher/SKILL.md` |
+| factory | `/factory` | `.agents/skills/factory/SKILL.md` |
 | bootstrap-harness | `/bootstrap-harness` | `.agents/skills/bootstrap-harness/SKILL.md` |
 | ship-pr | `/ship-pr` | `templates/_shared/skills/ship-pr/SKILL.md` |
 

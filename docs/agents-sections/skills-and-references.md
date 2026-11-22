@@ -11,7 +11,9 @@ On-demand section — read when invoking a skill or checking its references.
 | epic-acceptance-linter | `.agents/skills/epic-acceptance-linter/SKILL.md` | Review acceptance criteria; suggest concrete rewrites |
 | story-decomposer | `.agents/skills/story-decomposer/SKILL.md` | Turn an Epic into story issues with waves, contracts and file ownership |
 | task-decomposer | `.agents/skills/task-decomposer/SKILL.md` | Break one story into a parallel task checklist for delegation |
+| plan-reviewer | `.agents/skills/plan-reviewer/SKILL.md` | Gate a drafted plan: `plan.py check`, then a second model's verdict via `plan_review.py`, ≤ 3 needs-work rounds |
 | wave-dispatcher | `.agents/skills/wave-dispatcher/SKILL.md` | Run planned stories with parallel subagents in worktrees, driven by `dispatch.py` |
+| factory | `.agents/skills/factory/SKILL.md` | Poll for approved Epics and carry each one to shipped PRs, with a token budget and the escalation ladder |
 | bootstrap-harness | `.agents/skills/bootstrap-harness/SKILL.md` | Install/tailor a project harness (also `install-harness` and `install.sh`) |
 | ship-pr | `templates/_shared/skills/ship-pr/SKILL.md` | Open a PR, watch CI and review, address threads, merge on green CI and addressed threads (also ships to every project) |
 
@@ -38,6 +40,7 @@ On-demand section — read when invoking a skill or checking its references.
 | `context-discovery.md` | epic-composer, task-decomposer | Greenfield vs brownfield probes |
 | `review-checkpoint.md` | none — apply on request | Present a draft → ask → incorporate |
 | `agent-plan-schema.md` | epic-composer, story-decomposer, task-decomposer, wave-dispatcher | The `agent-plan` block: tracks, `owns`, `consumes`, lanes, lessons |
+| `escalation.md` | wave-dispatcher, plan-reviewer, factory | The ladder after three failures: a diagnosis, then one rung — `attempt`, `replan` or `needs-input` |
 
 The execution contract every skill body follows (fixed sections, LLM-only
 zones) is `templates/_shared/doctrine/skill-execution.md` — see
