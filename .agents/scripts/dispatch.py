@@ -167,6 +167,29 @@ class State:
         self.publish(f.name)
 
 
+def record(st: State, unit: str, event: str, **fields) -> None:
+    """Append to a unit's history. Unlike retry state, history is never
+    forgotten: it outlives merges, restarts and reloads of the plans."""
+    st.data.setdefault("history", {}).setdefault(unit, []).append({
+        "event": event, "attempt": st.data.get("attempts", {}).get(unit, 1),
+        "at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"), **fields})
+
+
+def summarize(events: list[dict]) -> dict:
+    """Roll a unit's history up into the numbers a reviewer weighs."""
+    def count(name: str) -> int:
+        return sum(1 for e in events if e["event"] == name)
+    checks = [e for e in events if e["event"] == "check"]
+    ends = [e["event"] for e in events if e["event"] in ("merge", "conflict", "replan")]
+    return {"starts": count("prepare"), "attempts": max((e["attempt"] for e in events), default=0),
+            "checks": len(checks), "failed_checks": sum(1 for e in checks if not e["ok"]),
+            "blocks": count("block"),
+            # A restart throws away earlier attempts; a conflict throws away the merge.
+            "rollbacks": sum(1 for e in events if e["event"] == "prepare" and e.get("restart"))
+            + count("conflict"),
+            "outcome": ends[-1] if ends else None}
+
+
 def split_unit(unit: str) -> tuple[str, str]:
     if "/" not in unit:
         raise DispatchError(f"unit must be <story>/<track>, got {unit!r}")
@@ -295,7 +318,8 @@ def cmd_load(st: State, args) -> dict:
     for name, text in bodies.items():
         (st.work / name).write_text(text, encoding="utf-8")
     st.data = {"sources": sources, "base": args.base or default_base(),
-               "trees": str(st.root.parent / f"{st.root.name}-tracks")}
+               "trees": str(st.root.parent / f"{st.root.name}-tracks"),
+               "history": st.data.get("history", {})}  # a reload after replanning keeps the record
     st.save()
     epic, stories = st.plans()
     errs = plan.validate_set(epic, stories)
@@ -386,6 +410,8 @@ def cmd_prepare(st: State, args) -> dict:
                 passed = baseline(st, unit, str(t.get("verify")), tree, args.baseline_timeout)
                 base_state = "pass" if passed else "fail"
             forget(st, unit)  # a re-planned unit starts over
+            record(st, unit, "prepare", restart=bool(st.data.get("history", {}).get(unit)))
+            st.save()
             st.set_status(sid, track, "running")
         weak = base_state == "pass" and t.get("verify_baseline") != "pass"
         text = plan.brief(story, track, lessons) + (
@@ -466,11 +492,13 @@ def cmd_check(st: State, args) -> dict:
     st.data.setdefault("checks", {})[args.unit] = {
         "ok": not findings, "head": git("rev-parse", "HEAD", cwd=tree), "changed": changed,
         "findings": findings, "verify_tail": tail}
+    record(st, args.unit, "check", ok=not findings, findings=findings, lane=lane)
     st.save()
     return {"ok": not findings, "unit": args.unit, "findings": findings, "commits": commits,
             "changed": changed, "outside_owns": outside, "verify": t.get("verify"),
             "verify_passed": verify_ok, "verify_tail": tail, "weak_check": weak,
             "lane": lane, "irreversible_paths": hard,
+            "history": st.data["history"][args.unit],
             "review": f"git -C '{tree}' diff {branch}...HEAD -- {owns}"}
 
 
@@ -524,12 +552,14 @@ def cmd_retry(st: State, args) -> dict:
                 f"(story-decomposer); last findings: {'; '.join(last['findings'])}")
         st.set_status(sid, track, "blocked", note)
         last["returned"] = True
+        record(st, args.unit, "replan", note=note)
         replan = st.data.setdefault("replan", [])
         if args.unit not in replan:
             replan.append(args.unit)
         st.save()
         return {"ok": False, "unit": args.unit, "replan": True, "note": note}
     attempts[args.unit] = attempt
+    record(st, args.unit, "retry", note=args.note)
     last["returned"] = True  # the next retry needs a new check of the new attempt
     st.data.setdefault("retries", {})[args.unit] = {
         "head": last["head"], "changed": last["changed"], "findings": last["findings"], "note": args.note}
@@ -566,6 +596,8 @@ def cmd_block(st: State, args) -> dict:
     sid, track = split_unit(args.unit)
     track_of(st.story(sid), track)
     st.set_status(sid, track, "blocked", args.note)
+    record(st, args.unit, "block", note=args.note)
+    st.save()
     return {"ok": True, "unit": args.unit, "status": "blocked", "note": args.note}
 
 
@@ -612,9 +644,12 @@ def cmd_merge(st: State, args) -> dict:
             raise  # an environment failure (identity, hooks, locks): fix it, don't blame the plan
         note = f"merge conflict in {', '.join(conflicts)}; the plan's ownership is wrong"
         st.set_status(sid, track, "blocked", note)
+        record(st, args.unit, "conflict", files=conflicts)
+        st.save()
         return {"ok": False, "unit": args.unit, "findings": [note]}
     sha = git("rev-parse", "--short", "HEAD", cwd=integ)
     st.set_status(sid, track, "done", f"merged {sha}")
+    record(st, args.unit, "merge", sha=sha, lane=lane, human=bool(args.human))
     forget(st, args.unit)
     st.save()
     if tree.exists():
@@ -669,6 +704,7 @@ def cmd_report(st: State, args) -> dict:  # noqa: ARG001
     counts = {k: sum(1 for r in rows if r["status"] == k) for k in plan.STATUSES}
     for r in rows:
         r["attempts"] = st.data.get("attempts", {}).get(r["unit"], 1)
+        r["history"] = summarize(st.data.get("history", {}).get(r["unit"], []))
     return {"ok": True, "counts": counts, "units": rows, "stories_ready_to_integrate": done_stories,
             "needs_replan": st.data.get("replan", []),
             "awaiting_human": sorted(
