@@ -2,7 +2,7 @@
 name: ship-pr
 description: >
   Open or update a pull request, watch CI and the automated review, address the review
-  threads, and merge with --merge when the gates are green. Trigger phrases: "open a
+  threads, and merge once CI is green and every thread is addressed. Trigger phrases: "open a
   PR", "ship this PR", "watch the PR", "address the review", "merge when green", "push
   this and open a PR". Use when the current branch is ready to ship.
 ---
@@ -14,4 +14,4 @@ OpenCode copy.
 
 Its scripts are in `templates/_shared/skills/ship-pr/scripts/`.
 
-Arguments: `$ARGUMENTS` (PR number/URL; `--merge` to allow merging).
+Arguments: `$ARGUMENTS` (PR number/URL; `--no-merge` to stop before merging).

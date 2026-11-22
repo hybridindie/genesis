@@ -1,6 +1,6 @@
 ---
 name: ship-pr
-description: Open or update a PR, watch CI and review, address review threads, and merge only with explicit --merge.
+description: Open or update a PR, watch CI and review, address review threads, and merge once CI is green and every thread is addressed.
 when_to_use: >
   Run when the user asks to ship, watch, triage, or merge a pull request.
   Trigger phrases: "ship this PR", "open a PR", "watch CI", "address the review",
@@ -12,17 +12,17 @@ user-invocable: true
 
 <!--
   contract: .claude/rules/doctrine/skill-execution.md
-  version: 2.2.0, owner: John D
+  version: 3.0.0, owner: John D
   invokes: ship-pr/scripts/watch_pr.py, ship-pr/scripts/pr_size.py
 -->
 
-Open or update a PR, watch CI/review, address threads, and merge only when the
-caller asked for `--merge`.
+Open or update a PR, watch CI/review, address threads, and merge if and only if
+CI is green and every review thread is addressed. `--no-merge` stops short.
 
 ## Inputs
 
-- Required: a PR number/URL or the current branch; explicit `--merge` to allow
-  merging.
+- Required: a PR number/URL or the current branch. Optional `--no-merge` to
+  watch and address threads without merging.
 - Read: PR metadata, checks, unresolved review threads, and the diff only when a
   thread needs it.
 - Do not read: the whole repository or unrelated PRs.
@@ -97,9 +97,12 @@ caller asked for `--merge`.
    }' -F thread="$THREAD"
    ```
 9. **Loop cap.** Repeat watch/fix at most three cycles; then report what remains.
-10. **Merge only with `--merge`.** Require preflight green, watcher `0`,
-   `mergeStateStatus=CLEAN`, no `CHANGES_REQUESTED`, no unresolved blocking
-   thread, and no `do-not-merge` label. Then:
+10. **Merge when the gates pass**, unless `--no-merge`. Merge if and only if:
+   every check passes (watcher `0`), the configured review has landed, every
+   thread is fixed or rebutted with evidence and resolved, preflight is green,
+   `mergeStateStatus=CLEAN`, there is no `CHANGES_REQUESTED` and no
+   `do-not-merge` label. An open thread — including an ambiguous one left for
+   the human — blocks the merge. Then:
    ```bash
    gh pr merge "$PR" --merge --delete-branch
    ```
@@ -132,7 +135,8 @@ Follow-ups: <links or none>
   accepts it.
 - Stop if the watcher times out or the PR is blocked on a human approval.
 - Stop after three review cycles and report the remaining threads.
-- Never merge without the caller's explicit `--merge`.
+- Never merge with a failing or pending check, a missing review, or an open
+  thread; never with `--no-merge`.
 
 ## Token Budget
 
