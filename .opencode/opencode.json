@@ -86,6 +86,10 @@
       "description": "Evaluate the installed harness against the project's actual stack.",
       "template": "Read and follow docs/harness-eval.md. Present the plan before making any edits.\n\n$ARGUMENTS"
     },
+    "plan-reviewer": {
+      "description": "Get a second model's verdict on a drafted Epic or story plan before dispatch.",
+      "template": "Load the plan-reviewer skill and follow it.\n\n$ARGUMENTS"
+    },
     "ship-pr": {
       "description": "Open or update a PR, watch CI and review, address threads, and merge when the gates pass.",
       "template": "Read and follow templates/_shared/skills/ship-pr/SKILL.md.\n\n$ARGUMENTS"

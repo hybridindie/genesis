@@ -140,8 +140,9 @@ elif args[:2] == ["issue", "edit"]:
         if name not in issue["labels"]:
             issue["labels"].append(name)
     for name in flag("--remove-label"):
-        if name in issue["labels"]:
-            issue["labels"].remove(name)
+        if name not in issue["labels"]:  # real gh fails on a label the issue lacks
+            sys.exit(f"could not remove label: {{name!r}} not found")
+        issue["labels"].remove(name)
 else:
     sys.exit(f"fake gh: unexpected {{args}}")
 json.dump(state, open(state_path, "w"))
@@ -197,13 +198,43 @@ def test_github_label_add_creates_a_missing_label_then_lists_it(gh_repo):
 
 
 def test_github_label_add_reuses_an_existing_label_and_removes_others(gh_repo):
-    out = gh_repo.run("label", "7", "--add", "bug", "--remove", "bug")
+    out = gh_repo.run("label", "7", "--add", "bug")
     assert out.returncode == 0, out.stderr
     out = gh_repo.run("label", "7", "--add", "factory:queued", "factory:running", "--remove", "bug")
     assert out.returncode == 0, out.stderr
     assert gh_repo.state()["issues"]["7"]["labels"] == ["factory:queued", "factory:running"]
     creates = [c for c in gh_repo.calls() if c[:2] == ["label", "create"]]
     assert [c[2] for c in creates] == ["factory:queued", "factory:running"]
+
+
+def test_github_label_remove_skips_a_label_the_issue_lacks(gh_repo):
+    out = gh_repo.run("label", "7", "--remove", "factory:running")
+    assert out.returncode == 0, out.stderr
+    assert gh_repo.state()["issues"]["7"]["labels"] == ["bug"]
+    assert not [c for c in gh_repo.calls() if c[:2] == ["issue", "edit"]]
+
+
+def test_github_label_cleanup_can_repeat(gh_repo):
+    for _ in range(2):
+        out = gh_repo.run("label", "7", "--add", "factory:done", "--remove", "bug", "factory:running")
+        assert out.returncode == 0, out.stderr
+    assert gh_repo.state()["issues"]["7"]["labels"] == ["factory:done"]
+    edits = [c for c in gh_repo.calls() if c[:2] == ["issue", "edit"]]
+    assert all("factory:running" not in c for c in edits)
+
+
+def test_github_label_remove_matches_case_insensitively(gh_repo):
+    out = gh_repo.run("label", "7", "--remove", "BUG")
+    assert out.returncode == 0, out.stderr
+    assert gh_repo.state()["issues"]["7"]["labels"] == []
+
+
+def test_github_label_remove_sends_case_differing_duplicates_once(gh_repo):
+    out = gh_repo.run("label", "7", "--remove", "bug", "BUG")
+    assert out.returncode == 0, out.stderr
+    assert gh_repo.state()["issues"]["7"]["labels"] == []
+    edit = [c for c in gh_repo.calls() if c[:2] == ["issue", "edit"]][-1]
+    assert edit.count("--remove-label") == 1
 
 
 def test_github_author_prints_the_opener_login(gh_repo):
@@ -217,9 +248,39 @@ def test_github_author_prints_the_opener_login(gh_repo):
 def test_label_add_refuses_a_label_only_a_person_applies(gh_repo, protected):
     out = gh_repo.run("label", "#7", "--add", "factory:running", protected)
     assert out.returncode == 2
-    assert protected in out.stderr and "person" in out.stderr
+    assert protected.strip() in out.stderr and "person" in out.stderr
     assert gh_repo.calls() == []
     assert gh_repo.state()["issues"]["7"]["labels"] == ["bug"]
+
+
+@pytest.mark.parametrize("protected", ["factory:approved", "Factory:Auto-Approve"])
+def test_label_remove_refuses_a_label_only_a_person_applies(gh_repo, protected):
+    out = gh_repo.run("label", "#7", "--remove", protected)
+    assert out.returncode == 2
+    assert protected in out.stderr and "person" in out.stderr
+    assert gh_repo.calls() == []
+
+
+@pytest.mark.parametrize("names", [["--add", "factory: approved"], ["--add", "Factory:\tAuto-Approve"],
+                                   ["--add", "bug", "--remove", " BUG "]])
+def test_label_refuses_near_miss_approvals_and_add_remove_clashes(gh_repo, names):
+    out = gh_repo.run("label", "#7", *names)
+    assert out.returncode == 2, out.stderr
+    assert gh_repo.calls() == []
+
+
+def test_label_add_strips_names_so_no_near_duplicate_is_created(gh_repo):
+    out = gh_repo.run("label", "7", "--add", " bug ")
+    assert out.returncode == 0, out.stderr
+    assert not [c for c in gh_repo.calls() if c[:2] == ["label", "create"]]
+
+
+def test_forge_label_methods_enforce_the_guard_for_library_callers():
+    for f in (tracker.GitHub(), object.__new__(tracker.Gitea)):
+        with pytest.raises(tracker.LabelRefused):
+            f.label("7", ["factory:approved"], [])
+        with pytest.raises(tracker.LabelRefused):
+            f.label("7", [], ["FACTORY:AUTO-APPROVE"])
 
 
 def test_label_needs_something_to_add_or_remove(gh_repo):
