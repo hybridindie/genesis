@@ -82,6 +82,10 @@
       "description": "Ask the smallest set of questions that unblocks an Epic.",
       "template": "Load the epic-interview skill and follow it.\n\n$ARGUMENTS"
     },
+    "factory": {
+      "description": "Run the factory: pick up approved Epics and carry them to shipped PRs, in this session.",
+      "template": "Load the factory skill and follow it.\n\n$ARGUMENTS"
+    },
     "harness-eval": {
       "description": "Evaluate the installed harness against the project's actual stack.",
       "template": "Read and follow docs/harness-eval.md. Present the plan before making any edits.\n\n$ARGUMENTS"
