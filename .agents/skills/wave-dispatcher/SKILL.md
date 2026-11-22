@@ -17,11 +17,13 @@ description: >
   The skill itself. OpenCode reads it here; Claude Code loads it through the
   generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 2.5.1, owner: John D
+  version: 2.6.0, owner: John D
   invokes: .agents/scripts/dispatch.py,
-           .agents/scripts/plan.py
+           .agents/scripts/plan.py,
+           .agents/scripts/budget.py
   doctrine: .agents/doctrine/agent-plan-schema.md,
-            .agents/doctrine/parallelization-doctrine.md
+            .agents/doctrine/parallelization-doctrine.md,
+            .agents/doctrine/escalation.md
 -->
 
 Execute a planned Epic or story with parallel subagents. `dispatch.py` does
@@ -46,7 +48,11 @@ the checks pass.
 
 ## Deterministic Steps
 
-Run every command from the repository root; `d=".agents/scripts/dispatch.py"`.
+Run every command from the repository root; `d=".agents/scripts/dispatch.py"`,
+`b=".agents/scripts/budget.py"`. **After every subagent finishes** (track,
+reviewer or diagnosis), run `python3 $b record --epic <epic> --unit <unit>
+--tokens <tokens it reported>`; before each `prepare`, `python3 $b status
+--epic <epic>` — on `pause`, start nothing new.
 
 1. **Load.** `python3 $d load --epic <ref>` (or `--story <ref>...`, or
    `--files <paths>` for local bodies). Stop if `ok` is false; report
@@ -70,11 +76,13 @@ Run every command from the repository root; `d=".agents/scripts/dispatch.py"`.
    contract track implementing the real contract (a stub or faked result that
    only satisfies a weak test is a finding). Weigh its `history` too: a unit
    that passed on its third attempt, or was restarted after a conflict, gets
-   a closer read than one that passed first time.
+   a closer read than one that passed first time. A `wide` unit's review is
+   done by a fresh subagent (diff, brief, ACs, `history`; findings only, no
+   edits), not by you; its findings feed the fix below.
    - `ok` → merge by the unit's `lane` (it can be stricter than prepare
      said, if the diff touched a migration or deploy path):
      - `contained`: `python3 $d merge <unit>`; the checks are the gate.
-     - `wide`: merge once your diff review passes.
+     - `wide`: merge once the reviewer subagent's review passes.
      - `irreversible`: never merge it yourself. Report it for a person's
        approval (`report` → `awaiting_human`); after they approve,
        `python3 $d merge <unit> --human`.
@@ -83,15 +91,27 @@ Run every command from the repository root; `d=".agents/scripts/dispatch.py"`.
      "<what to fix>"`, then start a fresh subagent on the `brief` it prints.
      The worktree and the work that passed are kept; the brief adds the
      findings, the verify output and "fix only these". `check` flags a retry
-     that touches files the findings don't name. After 3 attempts `retry`
-     blocks the unit for replanning (`report` → `needs_replan`).
+     that touches files the findings don't name. Known gap: `retry` refuses
+     a unit whose last check passed, so for a reviewer's findings on a
+     passing wide unit, resume that unit's subagent in its worktree with
+     them, then re-run `check` and the review.
+   - After the third failure (`retry` blocks it, `report` → `needs_replan`),
+     do not stop or ask anyone: climb `.agents/doctrine/escalation.md`.
+     Start a fresh read-only subagent (no edits, commits or `dispatch.py`)
+     with the unit's findings, each attempt's diff, the verify tails and
+     `history`; it writes the diagnosis file the doctrine describes. Then run
+     `python3 $d escalate <unit> --diagnosis <file> --outcome <rung>` with
+     the rung it supports: `attempt` (confirmed, inside `owns`; start a fresh
+     subagent on the printed `brief`), `replan` (confirmed, in the plan) or
+     `needs-input --question "<what a person must decide>"` (suspected, or
+     a person's call; the only rung left once attempt or replan failed). A
+     lesson the diagnosis names for a confirmed cause goes on the same call,
+     `--lesson "<constraint>" --lesson-paths <globs>`, without asking first.
    - A plan or ownership problem → `python3 $d block <unit> --note "<every
      finding, one clause each>"`. Leave the worktree.
-   - Once a failure's cause is confirmed and it would recur (for example a
-     schema change that always needs a regenerated client), propose a lesson
-     to the human: the paths and the one-sentence constraint. Only after they
-     approve, run `python3 $d learn --unit <unit> --paths <globs> --constraint
-     "<text>"` and commit `.agents/plan-constraints.yaml`.
+   - A confirmed, recurring cause outside an escalation (say, a schema change
+     that always needs a regenerated client): `python3 $d learn --unit <unit>
+     --paths <globs> --constraint "<text>"`, commit `.agents/plan-constraints.yaml`.
 5. **Loop** to step 2: merged tracks unblock their dependants and the next
    stories. Stop after 10 rounds.
 6. **Integrate finished stories.** For each story in
@@ -109,7 +129,12 @@ Use judgment only for:
 
 - reviewing a wide or irreversible track's diff against its brief and ACs;
 - choosing retry (fixable inside the track's paths) or block (a plan or
-  ownership problem), and writing that note.
+  ownership problem), and writing that note;
+- choosing the escalation outcome the diagnosis supports — a suspected cause
+  always goes to `needs-input`.
+
+The wide-lane diff review and the diagnosis are each a fresh subagent's
+judgment, not yours: you act on what they report.
 
 Do not edit a subagent's code, change ownership, or run the git steps
 `dispatch.py` owns by hand — report the failure; the plan gets fixed by
@@ -130,6 +155,8 @@ Next runnable: <units or none — waiting on …>
 Stories integrated: <branches or none>
 Blocked worktrees: <paths>
 Awaiting a human (irreversible lane): <units or none>
+Needs input (escalated): <unit: question, or none>
+Budget: <used>/<limit> (<percent>%, <state>)
 ```
 
 With `--plan`: the units that would start, their `would_run` commands and briefs.
@@ -139,6 +166,9 @@ With `--plan`: the units that would start, their `would_run` commands and briefs
 - Stop if `load` or `prepare` reports `ok: false` or an `error`.
 - Stop dispatching a story after a merge conflict; other stories continue.
 - Stop when nothing is runnable and nothing is running.
+- Start nothing new when `budget.py status` says `pause`.
+- Never retry a unit a fourth time without an `escalate` call; the ladder
+  ends with `needs-input`, never another loop.
 - Never push to or merge into the default branch; never force-push.
 
 ## Token Budget
