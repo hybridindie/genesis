@@ -212,7 +212,8 @@ def test_github_author_prints_the_opener_login(gh_repo):
     assert out.stdout.strip() == "octocat"
 
 
-@pytest.mark.parametrize("protected", ["factory:approved", "factory:auto-approve"])
+@pytest.mark.parametrize("protected", ["factory:approved", "factory:auto-approve",
+                                       "Factory:Approved", "FACTORY:AUTO-APPROVE", " factory:approved "])
 def test_label_add_refuses_a_label_only_a_person_applies(gh_repo, protected):
     out = gh_repo.run("label", "#7", "--add", "factory:running", protected)
     assert out.returncode == 2

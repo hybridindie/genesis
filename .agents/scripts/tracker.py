@@ -219,7 +219,7 @@ def main() -> int:
         if not args.add and not args.remove:
             print("tracker: label needs --add or --remove", file=sys.stderr)
             return 2
-        refused = [name for name in args.add if name in HUMAN_ONLY_LABELS]
+        refused = [name for name in args.add if name.strip().casefold() in HUMAN_ONLY_LABELS]
         if refused:
             print(f"tracker: refusing to add {', '.join(refused)}: a person applies that label, "
                   "not an agent", file=sys.stderr)
