@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import importlib.util
+import json
+import os
+import subprocess
+import sys
 import urllib.error
 from pathlib import Path
 
@@ -97,3 +101,222 @@ def test_reports_a_hung_cli_as_a_tracker_error(monkeypatch):
     monkeypatch.setattr(tracker.subprocess, "run", hang)
     with pytest.raises(SystemExit, match="timed out"):
         tracker.sh("gh", "issue", "view", "1")
+
+
+# --- labels, label and author -------------------------------------------------
+
+SCRIPT = HERE.parent / "tracker.py"
+
+FAKE_GH = '''#!{python}
+"""A stand-in for gh: issue state lives in $FAKE_GH_STATE, calls go to $FAKE_GH_LOG."""
+import json, os, sys
+state_path = os.environ["FAKE_GH_STATE"]
+state = json.load(open(state_path))
+args = sys.argv[1:]
+with open(os.environ["FAKE_GH_LOG"], "a") as log:
+    log.write(json.dumps(args) + "\\n")
+def flag(name):
+    return [args[i + 1] for i, a in enumerate(args) if a == name]
+if args[:2] == ["issue", "view"]:
+    issue = state["issues"][args[2]]
+    field = flag("--json")[0]
+    if field == "labels":
+        print(json.dumps({{"labels": [{{"name": n}} for n in issue["labels"]]}}))
+    elif field == "author":
+        print(json.dumps({{"author": {{"login": issue["author"]}}}}))
+    else:
+        print(json.dumps({{field: issue.get(field, "")}}))
+elif args[:2] == ["label", "list"]:
+    print(json.dumps([{{"name": n}} for n in state["repo_labels"]]))
+elif args[:2] == ["label", "create"]:
+    if args[2] in state["repo_labels"]:
+        sys.exit("label already exists")
+    state["repo_labels"].append(args[2])
+elif args[:2] == ["issue", "edit"]:
+    issue = state["issues"][args[2]]
+    for name in flag("--add-label"):
+        if name not in state["repo_labels"]:
+            sys.exit(f"could not add label: {{name!r}} not found")
+        if name not in issue["labels"]:
+            issue["labels"].append(name)
+    for name in flag("--remove-label"):
+        if name in issue["labels"]:
+            issue["labels"].remove(name)
+else:
+    sys.exit(f"fake gh: unexpected {{args}}")
+json.dump(state, open(state_path, "w"))
+'''
+
+
+@pytest.fixture
+def gh_repo(tmp_path):
+    """A temporary git repo with a github.com origin and a fake gh first on PATH."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "remote", "add", "origin", "git@github.com:o/r.git"], cwd=repo, check=True)
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    gh = bindir / "gh"
+    gh.write_text(FAKE_GH.format(python=sys.executable))
+    gh.chmod(0o755)
+    state = tmp_path / "gh-state.json"
+    state.write_text(json.dumps({
+        "repo_labels": ["bug"],
+        "issues": {"7": {"labels": ["bug"], "author": "octocat", "body": ""}},
+    }))
+    log = tmp_path / "gh-log.jsonl"
+    log.write_text("")
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("TRACKER", "GITEA_TOKEN", "TEA_TOKEN", "GITEA_URL")}
+    env.update(PATH=f"{bindir}{os.pathsep}{env.get('PATH', '')}",
+               FAKE_GH_STATE=str(state), FAKE_GH_LOG=str(log))
+
+    class Repo:
+        def run(self, *args):
+            return subprocess.run([sys.executable, str(SCRIPT), *args], cwd=repo, env=env,
+                                  capture_output=True, text=True, timeout=60)
+
+        def state(self):
+            return json.loads(state.read_text())
+
+        def calls(self):
+            return [json.loads(line) for line in log.read_text().splitlines()]
+
+    return Repo()
+
+
+def test_github_label_add_creates_a_missing_label_then_lists_it(gh_repo):
+    out = gh_repo.run("label", "#7", "--add", "factory:running")
+    assert out.returncode == 0, out.stderr
+    assert "factory:running" in gh_repo.state()["repo_labels"]
+    assert ["label", "create", "factory:running"] == gh_repo.calls()[1][:3]
+    listed = gh_repo.run("labels", "#7")
+    assert listed.returncode == 0, listed.stderr
+    assert listed.stdout.splitlines() == ["bug", "factory:running"]
+
+
+def test_github_label_add_reuses_an_existing_label_and_removes_others(gh_repo):
+    out = gh_repo.run("label", "7", "--add", "bug", "--remove", "bug")
+    assert out.returncode == 0, out.stderr
+    out = gh_repo.run("label", "7", "--add", "factory:queued", "factory:running", "--remove", "bug")
+    assert out.returncode == 0, out.stderr
+    assert gh_repo.state()["issues"]["7"]["labels"] == ["factory:queued", "factory:running"]
+    creates = [c for c in gh_repo.calls() if c[:2] == ["label", "create"]]
+    assert [c[2] for c in creates] == ["factory:queued", "factory:running"]
+
+
+def test_github_author_prints_the_opener_login(gh_repo):
+    out = gh_repo.run("author", "https://github.com/o/r/issues/7")
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.strip() == "octocat"
+
+
+@pytest.mark.parametrize("protected", ["factory:approved", "factory:auto-approve"])
+def test_label_add_refuses_a_label_only_a_person_applies(gh_repo, protected):
+    out = gh_repo.run("label", "#7", "--add", "factory:running", protected)
+    assert out.returncode == 2
+    assert protected in out.stderr and "person" in out.stderr
+    assert gh_repo.calls() == []
+    assert gh_repo.state()["issues"]["7"]["labels"] == ["bug"]
+
+
+def test_label_needs_something_to_add_or_remove(gh_repo):
+    out = gh_repo.run("label", "#7")
+    assert out.returncode == 2
+    assert gh_repo.calls() == []
+
+
+class FakeGitea:
+    """Answers urlopen for a Gitea repo with label ids; records every request."""
+
+    def __init__(self):
+        self.labels = [{"id": 1, "name": "bug"}]
+        self.issue = {"number": 7, "user": {"login": "giteauser"}, "labels": [{"id": 1, "name": "bug"}]}
+        self.requests = []
+
+    def __call__(self, req, timeout=None):
+        method, url = req.get_method(), req.full_url
+        body = json.loads(req.data) if req.data else None
+        self.requests.append((method, url, body))
+        path = url.split("/api/v1/repos/o/r", 1)[1]
+        route, _, query = path.partition("?")
+        if method == "GET" and route == "/labels":
+            page = int(dict(q.split("=") for q in query.split("&")).get("page", "1"))
+            result = self.labels if page == 1 else []
+        elif method == "POST" and route == "/labels":
+            label = {"id": max(l["id"] for l in self.labels) + 1, "name": body["name"]}
+            self.labels.append(label)
+            result = label
+        elif method == "GET" and route == "/issues/7":
+            result = self.issue
+        elif method == "GET" and route == "/issues/7/labels":
+            result = self.issue["labels"]
+        elif method == "POST" and route == "/issues/7/labels":
+            for lid in body["labels"]:
+                label = next(l for l in self.labels if l["id"] == lid)
+                if label not in self.issue["labels"]:
+                    self.issue["labels"].append(label)
+            result = self.issue["labels"]
+        elif method == "DELETE" and route.startswith("/issues/7/labels/"):
+            lid = int(route.rsplit("/", 1)[1])
+            self.issue["labels"] = [l for l in self.issue["labels"] if l["id"] != lid]
+            result = None
+        else:
+            raise AssertionError(f"unexpected {method} {url}")
+        payload = b"" if result is None else json.dumps(result).encode()
+
+        class Resp:
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+            def read(self): return payload
+        return Resp()
+
+
+@pytest.fixture
+def gitea(monkeypatch):
+    monkeypatch.setenv("GITEA_TOKEN", "t")
+    fake = FakeGitea()
+    monkeypatch.setattr(tracker.urllib.request, "urlopen", fake)
+    monkeypatch.setattr(tracker, "forge", lambda: tracker.Gitea("https://git.example.com", "o", "r"))
+    return fake
+
+
+def run_main(monkeypatch, capsys, *args):
+    monkeypatch.setattr(tracker.sys, "argv", ["tracker.py", *args])
+    code = tracker.main()
+    return code, capsys.readouterr()
+
+
+def test_gitea_label_add_creates_a_missing_label_then_lists_it(gitea, monkeypatch, capsys):
+    code, _ = run_main(monkeypatch, capsys, "label", "#7", "--add", "factory:running")
+    assert code == 0
+    assert ("POST", "https://git.example.com/api/v1/repos/o/r/labels",
+            {"name": "factory:running", "color": "#ededed"}) in gitea.requests
+    assert ("POST", "https://git.example.com/api/v1/repos/o/r/issues/7/labels",
+            {"labels": [2]}) in gitea.requests
+    code, out = run_main(monkeypatch, capsys, "labels", "#7")
+    assert code == 0
+    assert out.out.splitlines() == ["bug", "factory:running"]
+
+
+def test_gitea_label_remove_resolves_the_name_to_its_id(gitea, monkeypatch, capsys):
+    code, _ = run_main(monkeypatch, capsys, "label", "7", "--remove", "bug", "missing")
+    assert code == 0
+    assert gitea.issue["labels"] == []
+    deletes = [r for r in gitea.requests if r[0] == "DELETE"]
+    assert [r[1] for r in deletes] == ["https://git.example.com/api/v1/repos/o/r/issues/7/labels/1"]
+    assert not [r for r in gitea.requests if r[0] == "POST"]
+
+
+def test_gitea_author_prints_the_opener_login(gitea, monkeypatch, capsys):
+    code, out = run_main(monkeypatch, capsys, "author", "#7")
+    assert code == 0
+    assert out.out.strip() == "giteauser"
+
+
+def test_protected_label_is_refused_before_any_gitea_call(gitea, monkeypatch, capsys):
+    code, out = run_main(monkeypatch, capsys, "label", "#7", "--add", "factory:approved")
+    assert code == 2
+    assert "person" in out.err
+    assert gitea.requests == []
