@@ -812,3 +812,46 @@ def test_rejects_an_incomplete_lesson_before_posting_anything(repo, forge_log, a
     assert escalate(root, diagnosis, "replan", *args, expect=2)["error"]
     assert not forge_log.exists()
     assert not (root / ".agents" / "plan-constraints.yaml").exists()
+
+
+# ── review fixes from #117 ───────────────────────────────────────────────────
+
+@pytest.mark.parametrize("outcome", ["attempt", "replan", "needs-input"])
+def test_rejects_escalating_a_unit_waiting_on_a_person(repo, forge_log, outcome):
+    root, plans, diagnosis = exhausted(repo, forge_log)
+    escalate(root, diagnosis, "needs-input", "--question", "Reads or writes?", expect=0)
+    posted = forge_log.read_text()
+    error = escalate(root, diagnosis, outcome, "--question", "again?", expect=2)["error"]
+    assert "person" in error and "answer" in error
+    assert forge_log.read_text() == posted                # nothing more posted
+    assert status(plans, "S1", "contract") == "blocked"
+    assert run(root, "report", expect=0)["needs_input"] == [{"unit": "S1/contract", "question": "Reads or writes?"}]
+
+
+def test_rejects_posting_an_escalation_the_state_never_recorded(repo, forge_log):
+    root, _, diagnosis = exhausted(repo, forge_log)
+    tree = root.parent / "proj-tracks" / "S1-contract"
+    gitdir = Path(sh("git", "rev-parse", "--absolute-git-dir", cwd=tree).strip())
+    (gitdir / "index.lock").write_text("")                # the reset will fail
+    assert "git" in escalate(root, diagnosis, "attempt", expect=2)["error"]
+    assert not forge_log.exists()                         # the issue shows nothing the state lacks
+    row = next(u for u in run(root, "report", expect=0)["units"] if u["unit"] == "S1/contract")
+    assert row["history"]["escalations"] == 0
+
+
+def test_rejects_an_informed_attempt_that_would_discard_passing_work(repo, forge_log):
+    root, plans = repo
+    (plans / "story-S1.md").write_text(body(dict(S1, issue="#11")))
+    root, _ = failing_contract(repo)
+    for attempt in (2, 3):
+        run(root, "retry", "S1/contract", "--note", "again", expect=0)
+        if attempt == 2:
+            run(root, "check", "S1/contract", expect=1)
+    tree = work_in(root, "S1", "contract", "fix", **{"app/types.py": "T = 1\n"})
+    assert run(root, "check", "S1/contract", expect=0)["ok"]
+    head = sh("git", "rev-parse", "HEAD", cwd=tree)
+    diagnosis = root.parent / "d.md"
+    diagnosis.write_text("cause\n")
+    assert "merge it instead" in escalate(root, diagnosis, "attempt", expect=2)["error"]
+    assert sh("git", "rev-parse", "HEAD", cwd=tree) == head  # the passing work is kept
+    assert not forge_log.exists()

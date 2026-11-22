@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """A per-Epic token ledger, so a run can warn and pause before it overspends.
 
-  budget.py record --epic N --unit U --tokens T
+  budget.py record --epic N --unit U --tokens T [--limit L]
   budget.py status --epic N [--limit L]
   budget.py reset --epic N
 
@@ -25,7 +25,6 @@ import fcntl
 import json
 import os
 import subprocess
-import sys
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
@@ -58,6 +57,23 @@ def work_dir() -> Path:
     return common / "agent-plan"
 
 
+def is_int(value) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def check_entry(path: Path, i: int, entry) -> None:
+    """Refuse an entry that would crash the totals, naming it."""
+    if not isinstance(entry, dict):
+        problem = "is not an object"
+    elif not is_int(entry.get("epic")):
+        problem = "has no whole-number epic"
+    elif not is_int(entry.get("tokens")) or entry["tokens"] < 0:
+        problem = "has no non-negative whole-number tokens"
+    else:
+        return
+    raise BudgetError(f"{path} entry {i} {problem}: {json.dumps(entry)}")
+
+
 @contextmanager
 def ledger():
     """Yield the ledger dict under an exclusive lock and write it back atomically."""
@@ -73,6 +89,8 @@ def ledger():
                 raise BudgetError(f"{path} is not valid JSON: {exc}") from exc
             if not isinstance(data, dict) or not isinstance(data.get("entries"), list):
                 raise BudgetError(f"{path} has no entries list")
+            for i, entry in enumerate(data["entries"]):
+                check_entry(path, i, entry)
         else:
             data = {"version": 1, "entries": []}
         before = json.dumps(data, sort_keys=True)
@@ -108,7 +126,7 @@ def cmd_record(args) -> dict:
             "at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
         })
         total = used(data, args.epic)
-    return {"epic": args.epic, "unit": args.unit, "tokens": args.tokens, **summary(total, DEFAULT_LIMIT)}
+    return {"epic": args.epic, "unit": args.unit, "tokens": args.tokens, **summary(total, args.limit)}
 
 
 def cmd_status(args) -> dict:
@@ -164,6 +182,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--epic", type=epic_number, required=True)
     p.add_argument("--unit", type=unit_name, required=True)
     p.add_argument("--tokens", type=non_negative, required=True)
+    p.add_argument("--limit", type=positive, default=DEFAULT_LIMIT)
     p = sub.add_parser("status", help="print used, limit, percent and state")
     p.add_argument("--epic", type=epic_number, required=True)
     p.add_argument("--limit", type=positive, default=DEFAULT_LIMIT)
