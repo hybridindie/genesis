@@ -12,6 +12,8 @@
   dispatch.py merge UNIT [--human]
   dispatch.py block UNIT --note TEXT
   dispatch.py learn --unit UNIT --paths GLOB... --constraint TEXT
+  dispatch.py escalate UNIT --diagnosis FILE --outcome attempt|replan|needs-input
+                       [--question TEXT] [--lesson-paths GLOB... --lesson TEXT]
   dispatch.py integrate STORY [--push]
   dispatch.py report
 
@@ -183,7 +185,7 @@ def summarize(events: list[dict]) -> dict:
     ends = [e["event"] for e in events if e["event"] in ("merge", "conflict", "replan")]
     return {"starts": count("prepare"), "attempts": max((e["attempt"] for e in events), default=0),
             "checks": len(checks), "failed_checks": sum(1 for e in checks if not e["ok"]),
-            "blocks": count("block"),
+            "blocks": count("block"), "escalations": count("escalate"),
             # A restart throws away earlier attempts; a conflict throws away the merge.
             "rollbacks": sum(1 for e in events if e["event"] == "prepare" and e.get("restart"))
             + count("conflict"),
@@ -527,7 +529,7 @@ don't name. If they can't be fixed inside your paths, stop and say so.
 
 def forget(st: State, unit: str) -> None:
     """Drop a unit's retry history once it reaches a fresh start or is merged."""
-    for key in ("attempts", "retries", "checks", "lanes"):
+    for key in ("attempts", "retries", "checks", "lanes", "needs_input"):
         st.data.get(key, {}).pop(unit, None)
     if unit in st.data.get("replan", []):
         st.data["replan"].remove(unit)
@@ -547,6 +549,9 @@ def cmd_retry(st: State, args) -> dict:
         raise DispatchError(f"{args.unit} passed its last check; merge it instead")
     attempts = st.data.setdefault("attempts", {})
     attempt = attempts.get(args.unit, 1) + 1
+    if attempt > MAX_ATTEMPTS + 1:  # past the one informed attempt `escalate` grants
+        raise DispatchError(f"{args.unit} has used its informed attempt {MAX_ATTEMPTS + 1}; there is no "
+                            f"attempt {attempt}: escalate it with --outcome replan or needs-input")
     if attempt > MAX_ATTEMPTS:
         note = (f"replan: failed {MAX_ATTEMPTS} attempts, so the plan that produced it needs fixing "
                 f"(story-decomposer); last findings: {'; '.join(last['findings'])}")
@@ -574,15 +579,16 @@ def cmd_retry(st: State, args) -> dict:
             "brief": str(brief), "worktree": str(st.trees / f"{sid}-{track}")}
 
 
-def cmd_learn(st: State, args) -> dict:
-    """Record a confirmed cause as a planning constraint for later runs."""
-    sid, track = split_unit(args.unit)
-    track_of(st.story(sid), track)
+def check_lesson(paths: list[str], text: str, flags: str = "--constraint and every --paths value") -> None:
+    if not text.strip() or not paths or any(not p.strip() for p in paths):
+        raise DispatchError(f"{flags} must be non-empty")
+
+
+def add_lesson(st: State, unit: str, paths: list[str], text: str) -> dict:
+    """Append a lesson to the constraints file unless an identical one is there."""
     path = st.root / plan.CONSTRAINTS_FILE
     existing = plan.load_constraints(str(path))
-    if not args.constraint.strip() or any(not p.strip() for p in args.paths):
-        raise DispatchError("--constraint and every --paths value must be non-empty")
-    entry = {"paths": list(args.paths), "constraint": args.constraint.strip(), "source": args.unit,
+    entry = {"paths": list(paths), "constraint": text.strip(), "source": unit,
              "date": datetime.date.today().isoformat()}
     if any(c["paths"] == entry["paths"] and c["constraint"].strip() == entry["constraint"] for c in existing):
         return {"ok": True, "recorded": False, "file": str(path), "note": "already recorded"}
@@ -590,6 +596,141 @@ def cmd_learn(st: State, args) -> dict:
     path.write_text(plan.dump({"constraints": [*existing, entry]}), encoding="utf-8")
     return {"ok": True, "recorded": True, "file": str(path), "constraint": entry,
             "next": f"commit {plan.CONSTRAINTS_FILE} so later runs and other machines see it"}
+
+
+def cmd_learn(st: State, args) -> dict:
+    """Record a confirmed cause as a planning constraint for later runs."""
+    sid, track = split_unit(args.unit)
+    track_of(st.story(sid), track)
+    check_lesson(args.paths, args.constraint)
+    return add_lesson(st, args.unit, args.paths, args.constraint)
+
+
+ESCALATED_BRIEF = """
+
+## Attempt {attempt}: one informed attempt after {max} failed
+The first {max} attempts failed their check. The lead diagnosed why; read the
+diagnosis before you change anything, and act on its cause rather than on the
+symptoms. Your worktree was reset to the story branch, so start from there.
+This is the last attempt: if the diagnosis is wrong or the fix needs paths
+you do not own, stop and say so.
+
+### Diagnosis
+{diagnosis}
+"""
+
+OUTCOMES = ("attempt", "replan", "needs-input")
+
+
+def story_issue(st: State, sid: str, story: dict) -> str | None:
+    """The story's issue reference: its plan's `issue`, the issue it was loaded
+    from, or the epic's entry for it."""
+    refs = [story.get("issue")]
+    src = st.data.get("sources", {}).get(f"story-{sid}.md", {})
+    if src.get("kind") == "tracker":
+        refs.append(src.get("ref"))
+    epic = st.plans()[0]
+    refs += [s.get("issue") for s in plan.as_list((epic or {}).get("stories")) if str(s.get("id")) == sid]
+    return next((str(r) for r in refs if plan.issue_number(r)), None)
+
+
+def cmd_escalate(st: State, args) -> dict:
+    """Climb the ladder after a unit's attempts run out: grant one informed
+    attempt, route it to one replan, or hand it to a person, then post the
+    diagnosis once the state has recorded it."""
+    unit = args.unit
+    sid, track = split_unit(unit)
+    story = st.story(sid)
+    track_of(story, track)
+    # Validate everything before anything is posted or changed.
+    if unit in st.data.get("needs_input", {}):
+        raise DispatchError(f"{unit} is waiting on a person: they must answer "
+                            f"{st.data['needs_input'][unit]!r} before it can be escalated again")
+    attempts = st.data.get("attempts", {}).get(unit, 1)
+    if attempts < MAX_ATTEMPTS and unit not in st.data.get("replan", []):
+        raise DispatchError(f"{unit} is on attempt {attempts} of {MAX_ATTEMPTS}; escalate only a unit that has "
+                            "used its attempts or is blocked for replanning (use retry)")
+    try:
+        diagnosis = Path(args.diagnosis).read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeDecodeError) as exc:
+        raise DispatchError(f"cannot read the diagnosis {args.diagnosis}: {exc}") from exc
+    if not diagnosis:
+        raise DispatchError(f"the diagnosis {args.diagnosis} is empty")
+    past = [e.get("outcome") for e in st.data.get("history", {}).get(unit, []) if e["event"] == "escalate"]
+    if "replan" in past and args.outcome != "needs-input":
+        raise DispatchError(f"{unit} was already replanned once; only --outcome needs-input is left")
+    if args.outcome == "attempt" and "attempt" in past:
+        raise DispatchError(f"{unit} already had its informed attempt; an attempt is granted once")
+    question = (args.question or "").strip()
+    if args.outcome == "needs-input" and not question:
+        raise DispatchError("--outcome needs-input needs --question: what the person must answer")
+    lesson_paths = list(args.lesson_paths or [])
+    if args.lesson is not None or lesson_paths:
+        if args.lesson is None or not lesson_paths:
+            raise DispatchError("--lesson and --lesson-paths go together")
+        plan.load_constraints(str(st.root / plan.CONSTRAINTS_FILE))
+        check_lesson(lesson_paths, args.lesson, "--lesson and every --lesson-paths value")
+    tree = st.trees / f"{sid}-{track}"
+    branch = story_branch(story)
+    tbranch = f"{branch}--{track}"
+    last = st.data.get("checks", {}).get(unit)
+    if args.outcome == "attempt" and last and last["ok"]:
+        raise DispatchError(f"{unit} passed its last check; merge it instead")
+    if args.outcome == "attempt" and tree.is_dir() and clean_tree(tree):
+        raise DispatchError(f"{tree} has uncommitted changes; commit or remove them before it is reset")
+
+    # Do the local work first and post last, so the issue never shows an
+    # escalation that the state did not record.
+    rung = len(past) + 1
+    issue = story_issue(st, sid, story)
+    result = {"ok": True, "unit": unit, "rung": rung, "outcome": args.outcome, "commented_on": issue}
+    if last:
+        last["returned"] = True
+    replan = st.data.setdefault("replan", [])
+
+    if args.outcome == "attempt":
+        attempt = MAX_ATTEMPTS + 1
+        if tree.is_dir():
+            git("checkout", "-f", "-B", tbranch, branch, cwd=tree)
+            git("clean", "-fdq", cwd=tree)
+        else:
+            git("worktree", "add", "-B", tbranch, str(tree), branch)
+        st.data.setdefault("attempts", {})[unit] = attempt
+        for key in ("retries", "checks"):  # the reset discards what they describe
+            st.data.get(key, {}).pop(unit, None)
+        if unit in replan:
+            replan.remove(unit)
+        briefs = st.work / "briefs"
+        original = (briefs / f"{sid}-{track}.md")
+        text = original.read_text(encoding="utf-8") if original.is_file() else ""
+        brief = briefs / f"{sid}-{track}-attempt{attempt}.md"
+        briefs.mkdir(parents=True, exist_ok=True)
+        brief.write_text(text + ESCALATED_BRIEF.format(attempt=attempt, max=MAX_ATTEMPTS, diagnosis=diagnosis),
+                         encoding="utf-8")
+        st.set_status(sid, track, "running", f"attempt {attempt}: informed by a diagnosis")
+        result.update(attempt=attempt, brief=str(brief), worktree=str(tree))
+    elif args.outcome == "replan":
+        st.set_status(sid, track, "blocked", diagnosis)
+        if unit not in replan:
+            replan.append(unit)
+    else:
+        st.set_status(sid, track, "blocked", question)
+        if unit in replan:
+            replan.remove(unit)
+        st.data.setdefault("needs_input", {})[unit] = question
+        result["question"] = question
+    record(st, unit, "escalate", rung=rung, outcome=args.outcome)
+    st.save()
+    if args.lesson is not None:
+        result["lesson"] = add_lesson(st, unit, lesson_paths, args.lesson)
+    if issue:
+        tracker = _load("tracker")
+        tracker.forge().comment(tracker.number(issue), (
+            f"**Escalation of {unit}** (rung {rung}, outcome `{args.outcome}`)\n\n{diagnosis}\n"
+            + (f"\n**Question:** {question}\n" if question else "")))
+    else:
+        result["note"] = "the story has no issue; the diagnosis was not posted"
+    return result
 
 
 def cmd_block(st: State, args) -> dict:
@@ -707,6 +848,7 @@ def cmd_report(st: State, args) -> dict:  # noqa: ARG001
         r["history"] = summarize(st.data.get("history", {}).get(r["unit"], []))
     return {"ok": True, "counts": counts, "units": rows, "stories_ready_to_integrate": done_stories,
             "needs_replan": st.data.get("replan", []),
+            "needs_input": [{"unit": u, "question": q} for u, q in st.data.get("needs_input", {}).items()],
             "awaiting_human": sorted(
                 u for u, lane in st.data.get("lanes", {}).items()
                 if lane == "irreversible" and st.data.get("checks", {}).get(u, {}).get("ok")
@@ -743,6 +885,12 @@ def main() -> int:
     p = sub.add_parser("learn", help="record a confirmed cause as a constraint for later plans")
     p.add_argument("--unit", required=True); p.add_argument("--paths", nargs="+", required=True)
     p.add_argument("--constraint", required=True)
+    p = sub.add_parser("escalate", help="after the attempts run out: post a diagnosis and take one rung")
+    p.add_argument("unit"); p.add_argument("--diagnosis", required=True, help="file with the diagnosis")
+    p.add_argument("--outcome", required=True, choices=OUTCOMES)
+    p.add_argument("--question", help="what a person must answer (required for needs-input)")
+    p.add_argument("--lesson-paths", nargs="+", help="globs the lesson applies to")
+    p.add_argument("--lesson", help="a confirmed cause, recorded as a planning constraint")
     p = sub.add_parser("integrate"); p.add_argument("story"); p.add_argument("--push", action="store_true")
     p.add_argument("--timeout", type=int, default=1800)
     sub.add_parser("report")
