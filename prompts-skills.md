@@ -53,7 +53,9 @@ Each task uses the **same slash command in every harness** — the skill's name:
 | Lint acceptance criteria | `/epic-acceptance-linter` |
 | Decompose Epic → stories | `/story-decomposer` |
 | Story → tasks | `/task-decomposer` |
+| Review a plan with a second model | `/plan-reviewer` |
 | Run the planned work | `/wave-dispatcher` |
+| Ship approved Epics unattended | `/factory` |
 | Ship a PR | `/ship-pr` |
 
 Type the command from the `/` menu, then paste your content after it — or just
@@ -226,6 +228,34 @@ checkpoint:
    own worktree, checks and merges each one, and integrates finished stories.
    `/wave-dispatcher --plan` shows what would start without touching git.
 5. **Ship** each story branch with `/ship-pr`.
+
+Between steps 2 and 3, `/plan-reviewer` gets a second model's verdict on the
+stories before anything is dispatched.
+
+### Run the factory
+
+To have approved Epics picked up and shipped without prompting each step, start
+the factory in a session and leave it open:
+
+```
+/factory
+```
+
+```
+/factory --epic #42 --limit 2000000
+```
+
+The first form polls every 5 minutes and works the oldest approved Epic; the
+second runs one named Epic with a 2,000,000-token budget and stops. Approve an
+agent-drafted Epic by adding `factory:approved` to it. Each round prints a
+status line such as:
+
+```
+factory #42 round 3: done 4/7 · running 2 · blocked 0 · escalated 1 · budget 1200000/2000000 (60%, ok)
+```
+
+Answer any question it posts on a story labelled `factory:needs-input`; labels,
+escalation and budget are described in the README's "The factory" section.
 
 You rarely run every command by hand: epic-composer can hand off to
 story-decomposer, and story-decomposer can invoke task-decomposer per story.
