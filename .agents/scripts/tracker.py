@@ -5,6 +5,10 @@
   tracker.py put    REF FILE                   replace the issue body with FILE
   tracker.py create --title T --body-file F    open an issue; prints its number
   tracker.py comment REF --body TEXT           add a comment
+  tracker.py labels REF                        print the issue's label names, one per line
+  tracker.py label  REF [--add NAME...] [--remove NAME...]
+                                               add/remove labels (missing ones are created)
+  tracker.py author REF                        print the login that opened the issue
 
 REF is `#13`, `13`, or a full issue URL. The forge comes from the `origin`
 remote: github.com uses the `gh` CLI (already authenticated); anything else is
@@ -23,6 +27,35 @@ import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
+
+# Approval labels are a person's decision; an agent never applies them.
+HUMAN_ONLY_LABELS = ("factory:approved", "factory:auto-approve")
+NEW_LABEL_COLOR = "ededed"
+
+
+class LabelRefused(ValueError):
+    """A label change an agent may not make, or an ambiguous one."""
+
+
+def canonical(name: str) -> str:
+    """How labels compare: case and every space ignored."""
+    return re.sub(r"\s+", "", name).casefold()
+
+
+def check_labels(add: list[str], remove: list[str]) -> tuple[list[str], list[str]]:
+    """Strip and de-duplicate names; refuse approval labels and a name both added and removed.
+
+    Every forge's `label` calls this, so library callers get the same guard as the CLI."""
+    add = list({canonical(n): n.strip() for n in add if n.strip()}.values())
+    remove = list({canonical(n): n.strip() for n in remove if n.strip()}.values())
+    for verb, names in (("add", add), ("remove", remove)):
+        refused = [n for n in names if canonical(n) in {canonical(h) for h in HUMAN_ONLY_LABELS}]
+        if refused:  # a person applies and withdraws approval, never an agent
+            raise LabelRefused(f"refusing to {verb} {', '.join(refused)}: a person applies that label, not an agent")
+    clash = {canonical(n) for n in add} & {canonical(n) for n in remove}
+    if clash:
+        raise LabelRefused(f"a label can't be both added and removed: {', '.join(sorted(clash))}")
+    return add, remove
 
 
 def sh(*cmd: str, stdin: str | None = None) -> str:
@@ -96,6 +129,37 @@ class GitHub:
     def comment(self, n: str, body: str) -> None:
         sh("gh", "issue", "comment", n, "--body-file", "-", stdin=body)
 
+    def labels(self, n: str) -> list[str]:
+        return [lb["name"] for lb in json.loads(sh("gh", "issue", "view", n, "--json", "labels"))["labels"]]
+
+    def label(self, n: str, add: list[str], remove: list[str]) -> None:
+        add, remove = check_labels(add, remove)
+        if remove:
+            # gh fails on removing a label the issue lacks; Gitea skips it. Match
+            # Gitea so a repeated cleanup is a no-op. Names are case-insensitive.
+            current = {name.casefold(): name for name in self.labels(n)}
+            remove = list(dict.fromkeys(
+                current[name.casefold()] for name in remove if name.casefold() in current))
+        if not add and not remove:
+            return
+        if add:
+            # GitHub label names are case-insensitive
+            known = {lb["name"].casefold()
+                     for lb in json.loads(sh("gh", "label", "list", "--json", "name", "--limit", "1000"))}
+            for name in add:
+                if name.casefold() not in known:
+                    sh("gh", "label", "create", name, "--color", NEW_LABEL_COLOR)
+                    known.add(name.casefold())
+        cmd = ["gh", "issue", "edit", n]
+        for name in add:
+            cmd += ["--add-label", name]
+        for name in remove:
+            cmd += ["--remove-label", name]
+        sh(*cmd)
+
+    def author(self, n: str) -> str:
+        return json.loads(sh("gh", "issue", "view", n, "--json", "author"))["author"]["login"]
+
 
 class Gitea:
     def __init__(self, base: str, owner: str, repo: str):
@@ -105,7 +169,7 @@ class Gitea:
         if not self.token:
             sys.exit("tracker: set GITEA_TOKEN (or TEA_TOKEN) for Gitea")
 
-    def call(self, method: str, path: str, payload: dict | None = None) -> dict:
+    def call(self, method: str, path: str, payload: dict | None = None) -> dict | list:
         req = urllib.request.Request(
             self.api + path, method=method,
             data=json.dumps(payload).encode() if payload is not None else None,
@@ -133,6 +197,33 @@ class Gitea:
     def comment(self, n: str, body: str) -> None:
         self.call("POST", f"/issues/{n}/comments", {"body": body})
 
+    def labels(self, n: str) -> list[str]:
+        return [lb["name"] for lb in self.call("GET", f"/issues/{n}/labels") or []]
+
+    def repo_labels(self) -> dict[str, int]:
+        found: dict[str, int] = {}
+        for page in range(1, 1000):
+            batch = self.call("GET", f"/labels?limit=50&page={page}") or []
+            if not batch:
+                break
+            found.update((lb["name"], lb["id"]) for lb in batch)
+        return found
+
+    def label(self, n: str, add: list[str], remove: list[str]) -> None:
+        add, remove = check_labels(add, remove)
+        ids = self.repo_labels()
+        for name in add:
+            if name not in ids:
+                ids[name] = self.call("POST", "/labels", {"name": name, "color": f"#{NEW_LABEL_COLOR}"})["id"]
+        if add:
+            self.call("POST", f"/issues/{n}/labels", {"labels": [ids[name] for name in add]})
+        for name in remove:
+            if name in ids:  # a label the repo lacks cannot be on the issue
+                self.call("DELETE", f"/issues/{n}/labels/{ids[name]}")
+
+    def author(self, n: str) -> str:
+        return self.call("GET", f"/issues/{n}")["user"]["login"]
+
 
 def forge():
     kind = (os.environ.get("TRACKER") or "").strip().lower() or None
@@ -153,7 +244,21 @@ def main() -> int:
     p = sub.add_parser("put"); p.add_argument("ref"); p.add_argument("file")
     p = sub.add_parser("create"); p.add_argument("--title", required=True); p.add_argument("--body-file", required=True)
     p = sub.add_parser("comment"); p.add_argument("ref"); p.add_argument("--body", required=True)
+    p = sub.add_parser("labels"); p.add_argument("ref")
+    p = sub.add_parser("label"); p.add_argument("ref")
+    p.add_argument("--add", nargs="+", action="extend", default=[], metavar="NAME")
+    p.add_argument("--remove", nargs="+", action="extend", default=[], metavar="NAME")
+    p = sub.add_parser("author"); p.add_argument("ref")
     args = ap.parse_args()
+    if args.cmd == "label":  # validate before touching the forge, so a refusal changes nothing
+        if not args.add and not args.remove:
+            print("tracker: label needs --add or --remove", file=sys.stderr)
+            return 2
+        try:
+            check_labels(args.add, args.remove)
+        except LabelRefused as exc:
+            print(f"tracker: {exc}", file=sys.stderr)
+            return 2
     f = forge()
     if args.cmd == "get":
         body = f.get(number(args.ref))
@@ -173,6 +278,14 @@ def main() -> int:
     elif args.cmd == "comment":
         f.comment(number(args.ref), args.body)
         print(f"commented on #{number(args.ref)}")
+    elif args.cmd == "labels":
+        for name in f.labels(number(args.ref)):
+            print(name)
+    elif args.cmd == "label":
+        f.label(number(args.ref), args.add, args.remove)
+        print(f"labelled #{number(args.ref)}")
+    elif args.cmd == "author":
+        print(f.author(number(args.ref)))
     return 0
 
 
