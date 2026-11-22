@@ -67,6 +67,12 @@ def test_accepts_custom_limit(repo):
     assert out == {"used": 900, "limit": 1000, "percent": 90, "state": "warn"}
 
 
+def test_accepts_record_reporting_against_a_custom_limit(repo):
+    code, out = run("record", "--epic", "7", "--unit", "S1/A", "--tokens", "900", "--limit", "1000", cwd=repo)
+    assert code == 0
+    assert (out["limit"], out["percent"], out["state"]) == (1000, 90, "warn")
+
+
 def test_accepts_epics_kept_apart(repo):
     record(repo, 7, "S1/A", 4_000_000)
     record(repo, 8, "S1/A", 10)
