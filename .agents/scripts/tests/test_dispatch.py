@@ -631,7 +631,7 @@ def test_accepts_history_surviving_retry_and_merge(repo):
         ("prepare", 1), ("check", 1), ("retry", 2), ("check", 2)]
     run(root, "merge", "S1/contract", expect=0)
     assert history(root, "S1/contract") == {
-        "starts": 1, "attempts": 2, "checks": 2, "failed_checks": 1, "blocks": 0,
+        "starts": 1, "attempts": 2, "checks": 2, "failed_checks": 1, "blocks": 0, "escalations": 0,
         "rollbacks": 0, "outcome": "merge"}
 
 
@@ -670,3 +670,145 @@ def test_accepts_a_replanned_unit_reporting_its_outcome(repo):
     run(root, "retry", "S1/contract", "--note", "again", expect=1)
     h = history(root, "S1/contract")
     assert h["attempts"] == 3 and h["failed_checks"] == 3 and h["outcome"] == "replan"
+
+
+# ── escalation ladder (#108): diagnose, then one attempt, one replan or a person ──
+
+@pytest.fixture
+def forge_log(tmp_path, monkeypatch):
+    """A fake `gh` on PATH that records every call, so comments are observable."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = tmp_path / "gh.log"
+    gh = bin_dir / "gh"
+    gh.write_text(f'#!/bin/sh\necho "ARGS $*" >> "{log}"\ncat >> "{log}"\necho >> "{log}"\n')
+    gh.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+    monkeypatch.setenv("TRACKER", "github")
+    return log
+
+
+def exhausted(repo, forge_log):
+    """S1/contract (issue #11) after its third attempt failed its check."""
+    root, plans = repo
+    (plans / "story-S1.md").write_text(body(dict(S1, issue="#11")))
+    root, plans = failing_contract(repo)
+    for attempt in (2, 3):
+        assert run(root, "retry", "S1/contract", "--note", "try again", expect=0)["attempt"] == attempt
+        run(root, "check", "S1/contract", expect=1)
+    diagnosis = root.parent / "d.md"
+    diagnosis.write_text("Cause: app/types.py is never created.\nConfirmed by the verify output.\n")
+    return root, plans, diagnosis
+
+
+def escalate(root, diagnosis, outcome, *extra, expect=None):
+    return run(root, "escalate", "S1/contract", "--diagnosis", str(diagnosis), "--outcome", outcome,
+               *extra, expect=expect)
+
+
+def test_accepts_an_informed_fourth_attempt_with_the_diagnosis(repo, forge_log):
+    root, plans, diagnosis = exhausted(repo, forge_log)
+    tree = work_in(root, "S1", "contract", "stray", **{"app/junk.py": "x\n"})
+    data = escalate(root, diagnosis, "attempt", expect=0)
+    log = forge_log.read_text()
+    assert "ARGS issue comment 11" in log and "app/types.py is never created" in log
+    assert data["attempt"] == 4
+    brief = Path(data["brief"]).read_text()
+    assert brief.endswith("\n") and "app/types.py is never created" in brief and "Attempt 4" in brief
+    assert Path(data["brief"]).name == "S1-contract-attempt4.md"
+    # the worktree is back on the story branch: the failed attempts' commits are gone
+    assert sh("git", "rev-parse", "HEAD", cwd=tree) == sh("git", "rev-parse", "feat/s1-api", cwd=root)
+    assert not (tree / "app" / "junk.py").exists()
+    assert status(plans, "S1", "contract") == "running"
+    events = run(root, "report", expect=0)
+    row = next(u for u in events["units"] if u["unit"] == "S1/contract")
+    assert row["history"]["escalations"] == 1 and "S1/contract" not in events["needs_replan"]
+
+
+def test_rejects_a_second_informed_attempt_and_a_fifth_attempt(repo, forge_log):
+    root, _, diagnosis = exhausted(repo, forge_log)
+    escalate(root, diagnosis, "attempt", expect=0)
+    run(root, "check", "S1/contract", expect=1)
+    assert "once" in escalate(root, diagnosis, "attempt", expect=2)["error"]
+    assert "attempt" in run(root, "retry", "S1/contract", "--note", "again", expect=2)["error"]
+
+
+def test_accepts_escalating_a_unit_already_blocked_for_replanning(repo, forge_log):
+    root, plans, diagnosis = exhausted(repo, forge_log)
+    run(root, "retry", "S1/contract", "--note", "again", expect=1)      # routed to replan
+    assert escalate(root, diagnosis, "attempt", expect=0)["attempt"] == 4
+    assert status(plans, "S1", "contract") == "running"
+
+
+def test_rejects_escalating_a_unit_with_attempts_left(repo, forge_log):
+    root, plans = repo
+    root, _ = failing_contract(repo)
+    diagnosis = root.parent / "d.md"
+    diagnosis.write_text("cause\n")
+    assert "attempts" in escalate(root, diagnosis, "attempt", expect=2)["error"]
+    assert not forge_log.exists()                         # nothing posted on a refusal
+
+
+def test_rejects_an_empty_or_missing_diagnosis(repo, forge_log):
+    root, _, diagnosis = exhausted(repo, forge_log)
+    diagnosis.write_text("  \n")
+    assert "diagnosis" in escalate(root, diagnosis, "attempt", expect=2)["error"]
+    assert "diagnosis" in escalate(root, root.parent / "nope.md", "attempt", expect=2)["error"]
+
+
+def test_accepts_a_replan_once_and_then_only_needs_input(repo, forge_log):
+    root, plans, diagnosis = exhausted(repo, forge_log)
+    data = escalate(root, diagnosis, "replan", expect=0)
+    assert data["outcome"] == "replan" and status(plans, "S1", "contract") == "blocked"
+    note = next(t for t in yaml.safe_load((plans / "story-S1.md").read_text().split(
+        "```yaml agent-plan\n")[1].split("```")[0])["tracks"] if t["id"] == "contract")["note"]
+    assert "app/types.py is never created" in note
+    assert "S1/contract" in run(root, "report", expect=0)["needs_replan"]
+    assert "replan" in escalate(root, diagnosis, "replan", expect=2)["error"]
+    assert "replan" in escalate(root, diagnosis, "attempt", expect=2)["error"]
+    escalate(root, diagnosis, "needs-input", "--question", "Which module owns the schema?", expect=0)
+
+
+def test_accepts_needs_input_listing_the_question_and_keeping_others_runnable(repo, forge_log):
+    root, plans = repo
+    (plans / "story-S1.md").write_text(body(dict(S1, issue="#11")))
+    load(root, plans)
+    run(root, "prepare", "--max", "1", expect=0)          # only S1/contract
+    run(root, "check", "S1/contract", expect=1)
+    for _ in (2, 3):
+        run(root, "retry", "S1/contract", "--note", "again", expect=0)
+        run(root, "check", "S1/contract", expect=1)
+    diagnosis = root.parent / "d.md"
+    diagnosis.write_text("Cause unconfirmed: two readings of AC1.\n")
+    assert "--question" in escalate(root, diagnosis, "needs-input", expect=2)["error"]
+    escalate(root, diagnosis, "needs-input", "--question", "Is AC1 about reads or writes?", expect=0)
+    assert status(plans, "S1", "contract") == "blocked"
+    report = run(root, "report", expect=0)
+    assert report["needs_input"] == [{"unit": "S1/contract", "question": "Is AC1 about reads or writes?"}]
+    assert "S1/contract" not in report["needs_replan"]
+    assert report["next_runnable"] == ["S2/main"]         # dependants of S1/contract are not
+    units = [u["unit"] for u in run(root, "prepare", expect=0)["units"]]
+    assert units == ["S2/main"]
+
+
+def test_accepts_a_lesson_recorded_from_a_diagnosis_once(repo, forge_log):
+    root, _, diagnosis = exhausted(repo, forge_log)
+    lesson = ["--lesson-paths", "app/types.py", "app/schema/**", "--lesson",
+              "Create app/types.py before anything imports it."]
+    data = escalate(root, diagnosis, "replan", *lesson, expect=0)
+    assert data["lesson"]["recorded"] is True
+    escalate(root, diagnosis, "needs-input", "--question", "q?", *lesson, expect=0)
+    saved = yaml.safe_load((root / ".agents" / "plan-constraints.yaml").read_text())["constraints"]
+    assert len(saved) == 1
+    assert saved[0]["source"] == "S1/contract" and saved[0]["paths"] == ["app/types.py", "app/schema/**"]
+    import datetime
+    assert saved[0]["date"] == datetime.date.today().isoformat()
+
+
+@pytest.mark.parametrize("args", [["--lesson", "text only"], ["--lesson-paths", "app/x.py"],
+                                  ["--lesson-paths", " ", "--lesson", "text"]])
+def test_rejects_an_incomplete_lesson_before_posting_anything(repo, forge_log, args):
+    root, _, diagnosis = exhausted(repo, forge_log)
+    assert escalate(root, diagnosis, "replan", *args, expect=2)["error"]
+    assert not forge_log.exists()
+    assert not (root / ".agents" / "plan-constraints.yaml").exists()
