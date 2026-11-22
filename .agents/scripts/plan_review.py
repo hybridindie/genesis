@@ -70,10 +70,17 @@ class Parser(argparse.ArgumentParser):
         raise ReviewError(f"usage: {message}")
 
 
+def read(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        raise ReviewError(f"cannot read {path}: {e}") from e
+
+
 def rubrics(plans: list[Path]) -> str:
     kinds: set[str] = set()
     for p in plans:
-        kinds.update(KIND.findall(p.read_text(encoding="utf-8")))
+        kinds.update(KIND.findall(read(p)))
     if not kinds:
         kinds = {"epic", "story"}
     parts = []
@@ -81,7 +88,7 @@ def rubrics(plans: list[Path]) -> str:
         path = EVALS / f"{kind}-rubric.md"
         if not path.is_file():
             raise ReviewError(f"rubric not found: {path}")
-        parts.append(f"## {kind.capitalize()} rubric\n\n{path.read_text(encoding='utf-8')}")
+        parts.append(f"## {kind.capitalize()} rubric\n\n{read(path)}")
     return "\n\n".join(parts)
 
 
@@ -92,7 +99,8 @@ def run_opencode(prompt: str, model: str, files: list[Path], timeout: float) -> 
         cmd += ["--file", str(f)]
     try:
         proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE, text=True, start_new_session=True)
+                                stderr=subprocess.PIPE, encoding="utf-8", errors="replace",
+                                start_new_session=True)
     except OSError as e:
         raise ReviewError(f"cannot run opencode: {e}") from e
     try:
@@ -142,10 +150,10 @@ def parse_verdict(text: str) -> tuple[str, list]:
         raise ReviewError(f"no verdict JSON in the answer: {text.strip()[:300]!r}")
     verdict = found.get("verdict")
     findings = found.get("findings", [])
-    if verdict not in VERDICTS:
+    if not isinstance(verdict, str) or verdict not in VERDICTS:
         raise ReviewError(f"unknown verdict {verdict!r}")
-    if not isinstance(findings, list):
-        raise ReviewError("findings is not a list")
+    if not isinstance(findings, list) or not all(isinstance(f, str) for f in findings):
+        raise ReviewError("findings is not a list of strings")
     if verdict != "ready" and not findings:
         raise ReviewError(f"verdict {verdict} with no findings")
     return verdict, findings
