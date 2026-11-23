@@ -8,7 +8,7 @@
   dispatch.py load (--epic REF | --story REF... | --files FILE...) [--base REF]
   dispatch.py prepare [--max N] [--plan] [--allow-dirty] [--baseline-timeout S]
   dispatch.py check UNIT [--timeout SEC]
-  dispatch.py retry UNIT --note TEXT
+  dispatch.py retry UNIT --note TEXT [--review-findings FILE]
   dispatch.py merge UNIT [--human]
   dispatch.py block UNIT --note TEXT
   dispatch.py learn --unit UNIT --paths GLOB... --constraint TEXT
@@ -508,8 +508,8 @@ MAX_ATTEMPTS = 3
 
 RETURN_BRIEF = """
 
-## Attempt {attempt} of {max}: returned after a failed check
-Your previous attempt failed these checks:
+## Attempt {attempt} of {max}: returned after {cause}
+{intro}
 
 {findings}
 
@@ -535,6 +535,25 @@ def forget(st: State, unit: str) -> None:
         st.data["replan"].remove(unit)
 
 
+RETURN_CAUSES = {
+    "check": ("a failed check", "Your previous attempt failed these checks:"),
+    "review": ("a diff review", "Your previous attempt passed its check, but the diff review found these problems:"),
+}
+
+
+def read_review(path: str) -> list[str]:
+    """A diff review's findings: one per non-empty line, list bullets dropped."""
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise DispatchError(f"cannot read the review findings {path}: {exc}") from exc
+    findings = [re.sub(r"^[-*](\s+|$)", "", line.strip()) for line in text.splitlines()]
+    findings = [f for f in findings if f]
+    if not findings:
+        raise DispatchError(f"the review findings {path} are empty")
+    return findings
+
+
 def cmd_retry(st: State, args) -> dict:
     sid, track = split_unit(args.unit)
     t = track_of(st.story(sid), track)
@@ -544,9 +563,13 @@ def cmd_retry(st: State, args) -> dict:
         raise DispatchError(f"{args.unit} has no worktree to return to")
     last = st.data.get("checks", {}).get(args.unit)
     if not last or last.get("returned"):
-        raise DispatchError(f"{args.unit} has no new failed check to return; run dispatch.py check first")
-    if last["ok"]:
-        raise DispatchError(f"{args.unit} passed its last check; merge it instead")
+        raise DispatchError(f"{args.unit} has no new check to return; run dispatch.py check first")
+    review = read_review(args.review_findings) if args.review_findings else []
+    if last["ok"] and not review:
+        raise DispatchError(f"{args.unit} passed its last check; merge it instead "
+                            "(or return a diff review's findings with --review-findings FILE)")
+    source = "review" if last["ok"] else "check"  # a failed check stays a check retry
+    findings = last["findings"] + review
     attempts = st.data.setdefault("attempts", {})
     attempt = attempts.get(args.unit, 1) + 1
     if attempt > MAX_ATTEMPTS + 1:  # past the one informed attempt `escalate` grants
@@ -554,25 +577,28 @@ def cmd_retry(st: State, args) -> dict:
                             f"attempt {attempt}: escalate it with --outcome replan or needs-input")
     if attempt > MAX_ATTEMPTS:
         note = (f"replan: failed {MAX_ATTEMPTS} attempts, so the plan that produced it needs fixing "
-                f"(story-decomposer); last findings: {'; '.join(last['findings'])}")
+                f"(story-decomposer); last findings: {'; '.join(findings)}")
         st.set_status(sid, track, "blocked", note)
         last["returned"] = True
-        record(st, args.unit, "replan", note=note)
+        if review:  # a diff review rejected this passing work, so escalate may discard it
+            last["review"] = review
+        record(st, args.unit, "replan", note=note, source=source)
         replan = st.data.setdefault("replan", [])
         if args.unit not in replan:
             replan.append(args.unit)
         st.save()
         return {"ok": False, "unit": args.unit, "replan": True, "note": note}
     attempts[args.unit] = attempt
-    record(st, args.unit, "retry", note=args.note)
+    record(st, args.unit, "retry", note=args.note, source=source, findings=findings)
     last["returned"] = True  # the next retry needs a new check of the new attempt
     st.data.setdefault("retries", {})[args.unit] = {
-        "head": last["head"], "changed": last["changed"], "findings": last["findings"], "note": args.note}
+        "head": last["head"], "changed": last["changed"], "findings": findings, "note": args.note}
     original = (st.work / "briefs" / f"{sid}-{track}.md").read_text(encoding="utf-8")
     brief = st.work / "briefs" / f"{sid}-{track}-attempt{attempt}.md"
     brief.write_text(original + RETURN_BRIEF.format(
         attempt=attempt, max=MAX_ATTEMPTS, note=args.note, tail=last["verify_tail"] or "(not run)",
-        findings="\n".join(f"- {f}" for f in last["findings"])), encoding="utf-8")
+        cause=RETURN_CAUSES[source][0], intro=RETURN_CAUSES[source][1],
+        findings="\n".join(f"- {f}" for f in findings)), encoding="utf-8")
     st.set_status(sid, track, "running", f"attempt {attempt}/{MAX_ATTEMPTS}: {args.note}")
     st.save()
     return {"ok": True, "unit": args.unit, "attempt": attempt, "max_attempts": MAX_ATTEMPTS,
@@ -606,10 +632,22 @@ def cmd_learn(st: State, args) -> dict:
     return add_lesson(st, args.unit, args.paths, args.constraint)
 
 
+def rejections(st: State, unit: str) -> str:
+    """How a unit's attempts ran out, from its history: failed checks, diff
+    review rejections of passing work, or both."""
+    sources = {e.get("source", "check") for e in st.data.get("history", {}).get(unit, [])
+               if e["event"] in ("retry", "replan")}
+    last = st.data.get("checks", {}).get(unit)
+    if last and not last["ok"]:
+        sources.add("check")
+    phrases = {"check": "failed their check", "review": "were rejected by diff review"}
+    return " or ".join(phrases[s] for s in ("check", "review") if s in sources) or phrases["check"]
+
+
 ESCALATED_BRIEF = """
 
 ## Attempt {attempt}: one informed attempt after {max} failed
-The first {max} attempts failed their check. The lead diagnosed why; read the
+The first {max} attempts {failed}. The lead diagnosed why; read the
 diagnosis before you change anything, and act on its cause rather than on the
 symptoms. Your worktree was reset to the story branch, so start from there.
 This is the last attempt: if the diagnosis is wrong or the fix needs paths
@@ -674,7 +712,7 @@ def cmd_escalate(st: State, args) -> dict:
     branch = story_branch(story)
     tbranch = f"{branch}--{track}"
     last = st.data.get("checks", {}).get(unit)
-    if args.outcome == "attempt" and last and last["ok"]:
+    if args.outcome == "attempt" and last and last["ok"] and not last.get("review"):
         raise DispatchError(f"{unit} passed its last check; merge it instead")
     if args.outcome == "attempt" and tree.is_dir() and clean_tree(tree):
         raise DispatchError(f"{tree} has uncommitted changes; commit or remove them before it is reset")
@@ -689,6 +727,7 @@ def cmd_escalate(st: State, args) -> dict:
     replan = st.data.setdefault("replan", [])
 
     if args.outcome == "attempt":
+        failed = rejections(st, unit)  # before the reset drops the last check
         attempt = MAX_ATTEMPTS + 1
         if tree.is_dir():
             git("checkout", "-f", "-B", tbranch, branch, cwd=tree)
@@ -705,7 +744,8 @@ def cmd_escalate(st: State, args) -> dict:
         text = original.read_text(encoding="utf-8") if original.is_file() else ""
         brief = briefs / f"{sid}-{track}-attempt{attempt}.md"
         briefs.mkdir(parents=True, exist_ok=True)
-        brief.write_text(text + ESCALATED_BRIEF.format(attempt=attempt, max=MAX_ATTEMPTS, diagnosis=diagnosis),
+        brief.write_text(text + ESCALATED_BRIEF.format(attempt=attempt, max=MAX_ATTEMPTS, failed=failed,
+                                                           diagnosis=diagnosis),
                          encoding="utf-8")
         st.set_status(sid, track, "running", f"attempt {attempt}: informed by a diagnosis")
         result.update(attempt=attempt, brief=str(brief), worktree=str(tree))
@@ -878,6 +918,8 @@ def main() -> int:
                    help="seconds for the one-time verify run that detects a check that cannot fail")
     p = sub.add_parser("retry", help="return a failed unit with its evidence (max 3 attempts)")
     p.add_argument("unit"); p.add_argument("--note", required=True)
+    p.add_argument("--review-findings", metavar="FILE",
+                   help="a diff review's findings, one per line: returns the unit even if its check passed")
     p = sub.add_parser("check"); p.add_argument("unit"); p.add_argument("--timeout", type=int, default=900)
     p = sub.add_parser("merge"); p.add_argument("unit")
     p.add_argument("--human", action="store_true", help="a person approved this irreversible-lane merge")

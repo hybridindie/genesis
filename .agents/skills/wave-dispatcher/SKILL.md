@@ -17,7 +17,7 @@ description: >
   The skill itself. OpenCode reads it here; Claude Code loads it through the
   generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 2.6.0, owner: John D
+  version: 2.7.0, owner: John D
   invokes: .agents/scripts/dispatch.py,
            .agents/scripts/plan.py,
            .agents/scripts/budget.py
@@ -91,10 +91,12 @@ reviewer or diagnosis), run `python3 $b record --epic <epic> --unit <unit>
      "<what to fix>"`, then start a fresh subagent on the `brief` it prints.
      The worktree and the work that passed are kept; the brief adds the
      findings, the verify output and "fix only these". `check` flags a retry
-     that touches files the findings don't name. Known gap: `retry` refuses
-     a unit whose last check passed, so for a reviewer's findings on a
-     passing wide unit, resume that unit's subagent in its worktree with
-     them, then re-run `check` and the review.
+     that touches files the findings don't name. For a reviewer's findings
+     on a passing wide unit, write them to a file (one per line) and run
+     `python3 $d retry <unit> --note "<what to fix>" --review-findings
+     <file>`: it counts the attempt like any retry (same cap, same
+     escalation) and puts the findings in the brief the same way; then
+     `check` and review the new attempt.
    - After the third failure (`retry` blocks it, `report` → `needs_replan`),
      do not stop or ask anyone: climb `.agents/doctrine/escalation.md`.
      Start a fresh read-only subagent (no edits, commits or `dispatch.py`)
