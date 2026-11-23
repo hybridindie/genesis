@@ -3,7 +3,8 @@
 Watch a pull request until CI and the automated review settle.
 
 Exits:
-  0   settled — CI finished and the review state is known (see output)
+  0   settled — CI finished and the review state is known (see output);
+      an empty check list is pending, never settled
   10  CI failed
   20  changes requested
   30  blocked (draft, conflicts, behind base, or approval required)
@@ -172,21 +173,25 @@ def evaluate(pr, checks, bots):
     if decision == "CHANGES_REQUESTED":
         return 20, "changes_requested", "review requested changes"
 
-    if checks is None:
-        # `gh pr checks` reports nothing both when CI has not registered yet and
-        # when no CI exists. The PR's own payload separates the first case; a
-        # recent head commit covers the seconds before the rollup appears.
+    if not checks or not checks["total"]:
+        # `gh pr checks` reports nothing both while CI registers and when no run
+        # was triggered at all — e.g. after a retarget, since `pull_request` does
+        # not fire on a base edit. Either way an empty list is pending, never
+        # settled: a PR with no checks must not look mergeable.
         if pr.get("statusCheckRollup"):
             return None, "waiting", "checks are registering"
         commit_time = last_commit_time(pr)
         if commit_time and (datetime.now(timezone.utc) - commit_time).total_seconds() < CHECKS_GRACE_SECONDS:
             return None, "waiting", "checks are registering"
+        return None, "waiting", (
+            "no checks reported — if the base was retargeted, "
+            "close and reopen the PR to trigger CI"
+        )
 
-    if checks is not None:
-        if checks["fail"] or checks["cancel"]:
-            return 10, "ci_failed", "one or more checks failed"
-        if checks["pending"]:
-            return None, "waiting", "checks still running"
+    if checks["fail"] or checks["cancel"]:
+        return 10, "ci_failed", "one or more checks failed"
+    if checks["pending"]:
+        return None, "waiting", "checks still running"
 
     if merge_state in ("DIRTY", "BEHIND"):
         return 30, "blocked", f"merge state is {merge_state.lower()}"

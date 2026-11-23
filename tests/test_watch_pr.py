@@ -78,3 +78,15 @@ def test_failing_checks_win_over_the_review():
     pr = {"state": "OPEN", "reviews": [], "comments": [], "commits": []}
     code, status, _ = watch.evaluate(pr, {"pass": 0, "pending": 0, "fail": 1, "cancel": 0, "skipping": 0, "total": 1}, ())
     assert code == 10 and status == "ci_failed"
+
+
+def test_an_empty_check_list_is_pending_not_settled():
+    # A retargeted PR has no checks: `pull_request` does not fire on a base edit.
+    # Settling would let it merge untested, however old its head commit is.
+    pr = {"state": "OPEN", "reviews": [], "comments": [], "commits": [{"committedDate": "2026-01-01T11:00:00Z"}]}
+    empty = {"pass": 0, "pending": 0, "fail": 0, "cancel": 0, "skipping": 0, "total": 0}
+    code, status, message = watch.evaluate(pr, empty, ())
+    assert code is None and status == "waiting"
+    assert "reopen" in message
+    code, status, _ = watch.evaluate(pr, None, ())
+    assert code is None and status == "waiting"
