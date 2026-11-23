@@ -337,6 +337,13 @@ def test_accepts_integrate_syncing_the_base_and_listing_track_merges(repo):
     assert list(data["merged"]) == ["contract", "A", "B"] and data["ship"] == "story"
 
 
+def test_rejects_syncing_a_bad_ref_as_an_error_not_a_conflict(repo):
+    root, _ = prepared(repo)
+    complete_s1(root)
+    data = run(root, "integrate", "S1", "--sync", "no-such-ref", expect=2)
+    assert "conflict" not in json.dumps(data).lower()
+
+
 def test_rejects_syncing_a_dependent_story_before_its_upstream_ships(repo):
     root, _ = prepared(repo)
     complete_s1(root)

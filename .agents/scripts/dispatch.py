@@ -877,8 +877,12 @@ def cmd_integrate(st: State, args) -> dict:
             git("merge", "--no-ff", "--no-edit", "-m", f"merge: {args.sync} into {base['branch']}", args.sync,
                 cwd=integ)
         except DispatchError:
+            conflicts = git("diff", "--name-only", "--diff-filter=U", cwd=integ, check=False).splitlines()
             git("merge", "--abort", cwd=integ, check=False)
-            return {"ok": False, **base, "findings": [f"merging {args.sync} conflicts; resolve it on the story branch"]}
+            if not conflicts:
+                raise  # a bad ref or an environment failure (identity, hooks, locks): not a conflict
+            return {"ok": False, **base, "findings": [
+                f"merging {args.sync} conflicts in {', '.join(conflicts)}; resolve it on the story branch"]}
     results, findings = [], []
     commands = [c for c in [(story.get("integration") or {}).get("verify"), story.get("verify")]
                 if plan.is_command(c)]
