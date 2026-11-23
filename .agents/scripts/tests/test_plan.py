@@ -616,6 +616,38 @@ def test_check_passes_and_syncs_a_good_set(tmp_path):
     assert "| S3 |" in (tmp_path / "epic.md").read_text()  # generated story table
 
 
+def constraint_epic():
+    return epic([
+        estory("S1", ["infra/**"], acs=[], constraint="Reuse the existing cron container"),
+        estory("S2", ["backend/**"], acs=["AC1", "AC2", "AC3"], depends_on=["S1"]),
+    ])
+
+
+def test_accepts_a_story_traced_to_a_constraint_instead_of_acs():
+    s = story("S1", ["infra/**"], [track("main", ["infra/**"])], acs=[],
+              constraint="Reuse the existing cron container")
+    assert errors_story(s) == []
+
+
+def test_rejects_a_story_with_neither_acs_nor_a_constraint():
+    s = story("S1", ["infra/**"], [track("main", ["infra/**"])], acs=[])
+    assert any("missing acs" in x for x in errors_story(s))
+
+
+def test_scaffold_copies_the_constraint_of_a_constraint_traced_story():
+    s1 = scaffolded(constraint_epic())["S1"]
+    assert s1["constraint"] == "Reuse the existing cron container" and s1["acs"] == []
+
+
+def test_check_passes_a_scaffolded_constraint_traced_story(tmp_path):
+    e = constraint_epic()
+    paths = [write(tmp_path, "epic.md", full_epic_md(e))]
+    for sid, body in plan.scaffold(epic_md(e), TEMPLATE).items():
+        paths.append(write(tmp_path, f"story-{sid}.md", body))
+    ok, lines = plan.check(paths)
+    assert ok, lines
+
+
 def test_check_fails_on_a_plan_error_and_writes_nothing(tmp_path):
     e = three_story_epic()
     e["stories"][1]["owns"] = ["backend/**"]
