@@ -119,6 +119,18 @@ Issue → red → green → `/preflight` → PR → review → merge. Details in
 
 <!-- SKILL_LIST -->
 
+### Plan and run work
+
+Larger work runs as a plan: `/epic-composer` drafts an Epic issue,
+`/story-decomposer` and `/task-decomposer` split it into stories and parallel
+tracks (an `agent-plan` block in each issue), `/plan-reviewer` gets a second
+model's verdict, and `/wave-dispatcher` runs the tracks in worktrees and ships
+each story with `/ship-pr`. `/factory` does all of that for every approved
+Epic that is open, then exits; an Epic an agent drafted waits for a person's
+`factory:approved` label. The scripts are in `.agents/scripts/`, the rules in
+`.agents/doctrine/` (`agent-plan-schema.md`, `escalation.md`), and lessons from
+earlier runs in `.agents/plan-constraints.yaml`.
+
 ## Project Constraints
 
 {{CUSTOM_INSTRUCTIONS}}
