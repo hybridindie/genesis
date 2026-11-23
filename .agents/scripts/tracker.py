@@ -135,8 +135,8 @@ class GitHub:
     def list(self, state: str, labels: list[str]) -> list[dict]:
         cmd = ["gh", "issue", "list", "--state", state,
                "--json", "number,title,labels,createdAt", "--limit", "1000"]
-        for name in labels:
-            cmd += ["--label", name]
+        for name in labels:  # gh filters server-side first, so send what select() matches on
+            cmd += ["--label", name.strip()]
         return [issue_row(i["number"], i["title"], [lb["name"] for lb in i["labels"]], i["createdAt"])
                 for i in json.loads(sh(*cmd))]
 

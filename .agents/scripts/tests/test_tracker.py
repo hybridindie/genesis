@@ -472,6 +472,13 @@ def test_github_list_filters_by_state_label_and_title_prefix(gh_repo):
     assert [i["number"] for i in json.loads(out.stdout)] == [7]
 
 
+def test_github_list_strips_label_names_before_gh_filters(gh_repo):
+    seed_github_issues(gh_repo)
+    gh_repo.run("list", "--label", " bug ")
+    call = [c for c in gh_repo.calls() if c[:2] == ["issue", "list"]][-1]
+    assert call[call.index("--label") + 1] == "bug"
+
+
 def test_list_rejects_an_unknown_state(gh_repo):
     out = gh_repo.run("list", "--state", "merged")
     assert out.returncode == 2
