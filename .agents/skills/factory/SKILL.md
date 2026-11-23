@@ -1,11 +1,11 @@
 ---
 name: factory
 description: >
-  Run the software factory in this session: poll the tracker every 5 minutes for an
-  approved Epic, label it factory:running, then decompose it into stories, gate the plan
+  Run the software factory in this session: take each approved Epic that is open now,
+  oldest first, label it factory:running, then decompose it into stories, gate the plan
   with plan-reviewer, decompose tasks, dispatch and ship the waves, with a per-Epic token
   budget and the escalation ladder on every loop. Trigger phrases: "start the factory",
-  "run the factory", "watch for epics", "work the backlog unattended", "factory mode".
+  "run the factory", "work the backlog unattended", "ship the approved epics", "factory mode".
   Use when the user wants approved Epics picked up and shipped without prompting.
 ---
 
@@ -15,7 +15,7 @@ description: >
   The skill itself. OpenCode reads it here; Claude Code loads it through the
   generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 1.3.0, owner: John D
+  version: 2.0.0, owner: John D
   invokes: .agents/scripts/tracker.py,
            .agents/scripts/budget.py,
            .agents/scripts/plan.py,
@@ -25,12 +25,13 @@ description: >
   doctrine: .agents/doctrine/escalation.md
 -->
 
-Pick up approved Epics and carry each one to shipped PRs, one Epic at a time.
+Carry every approved Epic that is open now to shipped PRs, one at a time, then
+exit. The factory never waits for new Epics: with none to work, it says so and
+stops.
 The scripts own every mechanical step and every label; you run the subagents,
 read their reports, and decide the rung when a loop runs out. The factory runs
-**in this session**, never as a separate background job or a scheduled
-cloud agent, so a person can watch every round and step in; only the idle
-wait between polls is handed to the harness (step 2).
+**in this session**, never as a background job or a scheduled cloud agent,
+so a person can watch every round and step in.
 
 ## Inputs
 
@@ -48,8 +49,7 @@ From the repository root; `t=".agents/scripts/tracker.py"`,
 `b=".agents/scripts/budget.py"`, `d=".agents/scripts/dispatch.py"`.
 **Labels** are only ever set with `python3 $t label <ref> --add/--remove`.
 
-1. **Poll** (every 300 seconds). List open Epics, oldest first, on either
-   forge: `python3 $t list --state open --title-prefix "Epic:"`. Keep those
+1. **List** open Epics, oldest first, on either forge: `python3 $t list --state open --title-prefix "Epic:"`. Keep those
    with no run label (`factory:running`, `factory:shipped`,
    `factory:over-budget`, `factory:needs-input`).
 2. **Approval gate.** For each candidate, `python3 $t labels <epic>` and
@@ -59,13 +59,10 @@ From the repository root; `t=".agents/scripts/tracker.py"`,
    is not drafted, or it has `factory:approved` or `factory:auto-approve`. A drafted Epic without one is skipped; say in the
    session `#N waits for a person's factory:approved`. Never add an approval
    label yourself (`tracker.py` refuses it). Take the oldest approved Epic;
-   none → print the poll status line, wait, and poll again.
-   **Never wait with a foreground `sleep`** (Claude Code blocks it). Claude
-   Code: a self-paced `/loop` (ScheduleWakeup, 300-second delay), or a Monitor
-   until-loop that ends when `tracker.py list` shows a new Epic. OpenCode: its
-   scheduled re-run, or a background wait it is notified of.
+   none → print the exit line (Output) and **stop**. Never wait, poll on a
+   timer, or schedule a re-run for an Epic that doesn't exist yet.
 3. **Start**, without asking: `python3 $t label <epic> --add factory:running`.
-   One Epic at a time: do not poll for another until this one stops.
+   One Epic at a time: take the next only when this one stops.
 4. **Budget gate** before every round, including the first:
    `python3 $b status --epic N [--limit L]` →
    - `ok` → go on.
@@ -105,8 +102,9 @@ From the repository root; `t=".agents/scripts/tracker.py"`,
     the Epic with `python3 $t comment <epic> --body "<summary>"` (Output).
 12. **Finish.** When every story is integrated and its PR merged:
     `python3 $t label <epic> --add factory:shipped --remove factory:running`,
-    then go back to step 1. If only escalated units remain, leave
-    `factory:running`, say what waits on a person, and keep polling.
+    then go back to step 1 for the next approved Epic. If only escalated
+    units remain, leave `factory:running`, say what waits on a person, and go
+    back to step 1; that Epic is skipped until a person answers.
 
 ## LLM Judgment
 
@@ -140,13 +138,15 @@ The round comment on the Epic:
 - Escalated: <units — rung, and the question for needs-input>
 ```
 
-A poll with nothing to start prints one line:
-`factory: idle — waiting: #N (needs factory:approved), …`.
+When nothing is left to start, print one line and exit:
+`factory: done — shipped: #N, … · waiting on a person: #N (needs factory:approved), …`
+(`none` where a list is empty).
 
 ## Stop Conditions
 
 - Stop starting units at `pause`; the person decides what comes next.
 - Stop the Epic when plan review exits 2 or 3, or its ladder ends with a person.
+- Stop when no approved Epic is left to start (step 2); never wait for one.
 - Stop when the person says stop; leave labels as they are for the next run.
 - Never apply `factory:approved` or `factory:auto-approve`, never push to or
   merge into the default branch outside ship-pr's gates, never force-push.

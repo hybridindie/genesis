@@ -2,7 +2,7 @@
 
 ## Input
 
-> The factory polls. One open issue has a title starting with `Epic:`: #140,
+> A person types `/factory`. One open issue has a title starting with `Epic:`: #140,
 > with no labels at all. Its body starts with
 > `<!-- factory:drafted — an agent drafted this Epic. ... -->`, because
 > epic-composer's `tracker.py create --label factory:drafted` opened the issue

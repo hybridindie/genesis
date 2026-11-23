@@ -59,12 +59,12 @@ quality passes (`epic-rubric`, `story-rubric`) advise; they do not gate.
 ## The factory
 
 `/factory` runs the pipeline from story-decomposer onwards without prompting,
-in the session that started it. Every 5 minutes it polls for open `Epic:`
-issues and takes the oldest approved one (no `factory:drafted`, or a person's
-`factory:approved` / `factory:auto-approve`), one Epic at a time:
+in the session that started it. It works every approved `Epic:` issue that is
+open when it starts (no `factory:drafted`, or a person's `factory:approved` /
+`factory:auto-approve`), oldest first and one at a time, then exits:
 
 ```
-poll ─► factory:running ─► budget gate ─► stories ─► plan review ─► tasks
+list ─► factory:running ─► budget gate ─► stories ─► plan review ─► tasks
          ─► waves (budget gate before each round) ─► factory:shipped
 ```
 

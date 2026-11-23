@@ -166,9 +166,9 @@ the usage guide is [`prompts-skills.md`](prompts-skills.md).
 ### The factory
 
 Start it by typing `/factory` (or "start the factory") in a session. It runs in
-that session, in the foreground, so you can watch each round and step in. Every
-5 minutes it polls for open `Epic:` issues and takes the oldest approved one,
-one Epic at a time: story-decomposer → plan-reviewer → task-decomposer →
+that session, in the foreground, so you can watch each round and step in. It
+works every approved `Epic:` issue that is open when it starts, oldest first,
+one at a time, then exits; it never waits for new Epics: story-decomposer → plan-reviewer → task-decomposer →
 wave-dispatcher with ship-pr. The full behaviour is in
 [`.agents/skills/factory/SKILL.md`](.agents/skills/factory/SKILL.md).
 

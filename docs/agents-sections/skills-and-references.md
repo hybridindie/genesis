@@ -13,7 +13,7 @@ On-demand section — read when invoking a skill or checking its references.
 | task-decomposer | `.agents/skills/task-decomposer/SKILL.md` | Break one story into a parallel task checklist for delegation |
 | plan-reviewer | `.agents/skills/plan-reviewer/SKILL.md` | Gate a drafted plan: `plan.py check`, then a second model's verdict via `plan_review.py`, ≤ 3 needs-work rounds |
 | wave-dispatcher | `.agents/skills/wave-dispatcher/SKILL.md` | Run planned stories with parallel subagents in worktrees, driven by `dispatch.py` |
-| factory | `.agents/skills/factory/SKILL.md` | Poll for approved Epics and carry each one to shipped PRs, with a token budget and the escalation ladder |
+| factory | `.agents/skills/factory/SKILL.md` | Carry every approved open Epic to shipped PRs, then exit, with a token budget and the escalation ladder |
 | bootstrap-harness | `.agents/skills/bootstrap-harness/SKILL.md` | Install/tailor a project harness (also `install-harness` and `install.sh`) |
 | ship-pr | `templates/_shared/skills/ship-pr/SKILL.md` | Open a PR, watch CI and review, address threads, merge on green CI and addressed threads (also ships to every project) |
 
