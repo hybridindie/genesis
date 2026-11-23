@@ -431,9 +431,11 @@ def validate_story(story: dict) -> list[str]:
     errs = []
     if story.get("version") != 1:
         errs.append(f"story {sid}: version must be 1")
-    for field in ("story", "acs", "owns", "tracks"):
+    for field in ("story", "owns", "tracks"):
         if not story.get(field):
             errs.append(f"story {sid}: missing {field}")
+    if not story.get("acs") and not story.get("constraint"):
+        errs.append(f"story {sid}: missing acs (set acs, or constraint: <reason>)")
     if not is_command(story.get("verify")):
         errs.append(f"story {sid}: missing verify (an exact command, not a placeholder)")
     errs += validate_lanes(f"story {sid}", story)
