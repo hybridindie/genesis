@@ -3,14 +3,16 @@
 Watch a pull request until CI and the automated review settle.
 
 Exits:
-  0   settled — CI finished and the review state is known (see output);
-      an empty check list is pending when the repo has workflow files
+  0   settled — CI finished and the review state is known (see output)
   10  CI failed
   20  changes requested
   30  blocked (draft, conflicts, behind base, or approval required)
   40  timeout
   50  merged or closed
   2   setup error (no gh, no PR, auth)
+
+Note: an empty check list is pending in a repo with workflow files, and
+settles only in a repo without them.
 
 Uses only the gh CLI and the standard library. Notifies through Herdr when
 HERDR_ENV=1, otherwise it prints the result; the caller redirects stdout to a

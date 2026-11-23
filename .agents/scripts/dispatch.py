@@ -541,13 +541,17 @@ RETURN_CAUSES = {
 }
 
 
+LIST_MARKER = re.compile(r"^(?:[-*]\s+\[[ xX]\]|[-*]|\d+[.)])(?:\s+|$)")
+
+
 def read_review(path: str) -> list[str]:
-    """A diff review's findings: one per non-empty line, list bullets dropped."""
+    """A diff review's findings: one per non-empty line, with one list marker
+    dropped: a `-` or `*` bullet, an ordered `1.` or `1)`, or a `- [ ]` checkbox."""
     try:
         text = Path(path).read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
         raise DispatchError(f"cannot read the review findings {path}: {exc}") from exc
-    findings = [re.sub(r"^[-*](\s+|$)", "", line.strip()) for line in text.splitlines()]
+    findings = [LIST_MARKER.sub("", line.strip()) for line in text.splitlines()]
     findings = [f for f in findings if f]
     if not findings:
         raise DispatchError(f"the review findings {path} are empty")
@@ -576,7 +580,9 @@ def cmd_retry(st: State, args) -> dict:
         raise DispatchError(f"{args.unit} has used its informed attempt {MAX_ATTEMPTS + 1}; there is no "
                             f"attempt {attempt}: escalate it with --outcome replan or needs-input")
     if attempt > MAX_ATTEMPTS:
-        note = (f"replan: failed {MAX_ATTEMPTS} attempts, so the plan that produced it needs fixing "
+        outcome = (f"{MAX_ATTEMPTS} attempts were rejected by diff review" if source == "review"
+                   else f"failed {MAX_ATTEMPTS} attempts")
+        note = (f"replan: {outcome}, so the plan that produced it needs fixing "
                 f"(story-decomposer); last findings: {'; '.join(findings)}")
         st.set_status(sid, track, "blocked", note)
         last["returned"] = True
