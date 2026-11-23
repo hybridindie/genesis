@@ -855,3 +855,77 @@ def test_rejects_an_informed_attempt_that_would_discard_passing_work(repo, forge
     assert "merge it instead" in escalate(root, diagnosis, "attempt", expect=2)["error"]
     assert sh("git", "rev-parse", "HEAD", cwd=tree) == head  # the passing work is kept
     assert not forge_log.exists()
+
+
+# ── review findings (#128): a passing unit's diff review goes back through retry ──
+
+def passing_contract(repo):
+    root, plans = prepared(repo)
+    work_in(root, "S1", "contract", **{"app/types.py": "T = 1\n"})
+    assert run(root, "check", "S1/contract", expect=0)["ok"]
+    review = root.parent / "review.md"
+    review.write_text("- app/types.py: T should be a TypedDict, not an int\n\n* the docstring is missing\n")
+    return root, plans, review
+
+
+def review_retry(root, review, note="apply the review", expect=None):
+    return run(root, "retry", "S1/contract", "--note", note, "--review-findings", str(review), expect=expect)
+
+
+def test_accepts_a_retry_of_a_passing_unit_with_review_findings(repo):
+    root, plans, review = passing_contract(repo)
+    data = review_retry(root, review, expect=0)
+    assert data["attempt"] == 2 and data["max_attempts"] == 3
+    brief = Path(data["brief"]).read_text()
+    assert "Attempt 2 of 3" in brief and "review" in brief.lower()
+    assert "- app/types.py: T should be a TypedDict, not an int\n- the docstring is missing\n" in brief
+    assert "Fix only these findings" in brief and "apply the review" in brief
+    assert status(plans, "S1", "contract") == "running"
+
+
+def test_accepts_a_review_retry_recorded_in_history_with_its_source(repo):
+    root, _, review = passing_contract(repo)
+    review_retry(root, review, expect=0)
+    work_in(root, "S1", "contract", "fix", **{"app/types.py": "from typing import TypedDict\n"})
+    events = run(root, "check", "S1/contract", expect=0)["history"]
+    retry = next(e for e in events if e["event"] == "retry")
+    assert retry["source"] == "review" and retry["attempt"] == 2
+    assert retry["findings"] == ["app/types.py: T should be a TypedDict, not an int",
+                                 "the docstring is missing"]
+
+
+def test_rejects_a_passing_unit_retried_without_review_findings(repo):
+    root, _, _ = passing_contract(repo)
+    assert "merge it instead" in run(root, "retry", "S1/contract", "--note", "x", expect=2)["error"]
+
+
+def test_rejects_empty_or_missing_review_findings(repo):
+    root, _, review = passing_contract(repo)
+    review.write_text("  \n- \n")
+    assert "review" in review_retry(root, review, expect=2)["error"]
+    assert "review" in review_retry(root, root.parent / "nope.md", expect=2)["error"]
+    assert history(root, "S1/contract")["attempts"] == 1             # a refusal counts nothing
+
+
+def test_rejects_a_review_retry_that_widens_its_scope(repo):
+    root, _, review = passing_contract(repo)
+    review_retry(root, review, expect=0)
+    work_in(root, "S1", "contract", "fix", **{"app/types.py": "T = {}\n", "app/extra.py": "y = 2\n"})
+    data = run(root, "check", "S1/contract", expect=1)
+    assert any("widened" in f and "app/extra.py" in f for f in data["findings"])
+
+
+def test_accepts_review_retries_sharing_the_attempt_cap_and_escalation(repo, forge_log):
+    root, plans = repo
+    (plans / "story-S1.md").write_text(body(dict(S1, issue="#11")))
+    root, plans, review = passing_contract(repo)
+    for attempt in (2, 3):
+        assert review_retry(root, review, expect=0)["attempt"] == attempt
+        work_in(root, "S1", "contract", f"try {attempt}", **{"app/types.py": f"T = {attempt}\n"})
+        run(root, "check", "S1/contract", expect=0)
+    data = review_retry(root, review, expect=1)
+    assert data["replan"] and status(plans, "S1", "contract") == "blocked"
+    assert "S1/contract" in run(root, "report", expect=0)["needs_replan"]
+    diagnosis = root.parent / "d.md"
+    diagnosis.write_text("Cause: the contract was specified as an int.\n")
+    assert escalate(root, diagnosis, "attempt", expect=0)["attempt"] == 4
