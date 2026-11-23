@@ -38,9 +38,12 @@ HARNESS_DIRS = {"claude": ".claude/skills", "opencode": ".config/opencode/skills
 
 def load_pipeline(root: Path):
     """genesis's scripts/pipeline.py: the one list of skills and files that ship."""
-    spec = importlib.util.spec_from_file_location("pipeline", root / "scripts" / "pipeline.py")
-    module = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
-    spec.loader.exec_module(module)  # type: ignore[union-attr]
+    path = root / "scripts" / "pipeline.py"
+    spec = importlib.util.spec_from_file_location("pipeline", path) if path.is_file() else None
+    if spec is None or spec.loader is None:
+        sys.exit(f"stage_skills: {path} is missing; is {root} a genesis checkout?")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
     return module
 
 
