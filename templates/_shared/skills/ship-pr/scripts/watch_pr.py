@@ -22,6 +22,7 @@ log for background runs.
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -165,9 +166,39 @@ def latest_bot_activity(pr, bots):
     for comment in pr.get("comments") or []:
         login = (comment.get("author") or {}).get("login") or ""
         if is_reviewer(login, bots):
+            # A reviewer that edits one summary comment in place each round
+            # (OpenCodeReview) is only newer than the commit by its edit time.
             times.append(parse_time(comment.get("createdAt")))
+            times.append(parse_time(comment.get("updatedAt")))
     known = [t for t in times if t is not None]
     return max(known) if known else None
+
+
+def with_edit_times(pr):
+    """Add each comment's REST `updated_at` as `updatedAt` (genesis#142).
+
+    `gh pr view --json comments` carries no edit time. If the REST read fails,
+    the comments keep only `createdAt` and the watch behaves as before."""
+    match = re.match(r"https?://[^/]+/([^/]+)/([^/]+)/pull/(\d+)", pr.get("url") or "")
+    if not match:
+        return pr
+    owner, repo, number = match.groups()
+    p = gh([
+        "api", f"repos/{owner}/{repo}/issues/{number}/comments", "--paginate",
+        "--jq", r'.[] | [.html_url, .updated_at] | @tsv',
+    ])
+    if not p or p.returncode != 0:
+        return pr
+    edited = {}
+    for line in p.stdout.splitlines():
+        url, _, updated = line.partition("\t")
+        if url and updated:
+            edited[url] = updated
+    for comment in pr.get("comments") or []:
+        updated = edited.get(comment.get("url"))
+        if updated:
+            comment["updatedAt"] = updated
+    return pr
 
 
 def last_commit_time(pr):
@@ -317,6 +348,7 @@ def main():
         if not pr:
             print("ERROR: could not read the pull request (auth or network?)", file=sys.stderr)
             return 2
+        pr = with_edit_times(pr)
         detected = bot_names(pr)
         if detected != bots:
             # Re-detect until a reviewer shows up: a cluster-side reviewer that

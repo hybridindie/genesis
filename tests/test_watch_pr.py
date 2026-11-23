@@ -129,3 +129,66 @@ def test_a_conflicted_pr_with_no_checks_is_blocked_not_waiting(tmp_path, monkeyp
     monkeypatch.chdir(tmp_path)
     code, status, _ = watch.evaluate(dict(OLD_HEAD, mergeStateStatus=state), EMPTY, ())
     assert code == 30 and status == "blocked"
+
+
+# genesis#142: OpenCodeReview edits its one summary comment in place on each
+# later round, so a comment counts from its latest edit, not its creation.
+GREEN = {"pass": 1, "pending": 0, "fail": 0, "cancel": 0, "skipping": 0, "total": 1}
+SUMMARY_URL = "https://github.com/o/r/pull/7#issuecomment-1"
+
+
+def _summary_pr(updated_at=None):
+    comment = {
+        "author": {"login": "jds-code-reviewer"},
+        "createdAt": "2026-01-01T10:00:00Z",
+        "url": SUMMARY_URL,
+    }
+    if updated_at:
+        comment["updatedAt"] = updated_at
+    return {
+        "state": "OPEN",
+        "url": "https://github.com/o/r/pull/7",
+        "reviews": [],
+        "comments": [comment],
+        "commits": [{"committedDate": "2026-01-01T11:00:00Z"}],
+    }
+
+
+def test_a_summary_edited_after_the_commit_settles():
+    code, status, _ = watch.evaluate(_summary_pr("2026-01-01T12:00:00Z"), GREEN, ("ocr",))
+    assert code == 0 and status == "settled"
+
+
+def test_a_summary_edited_before_the_commit_still_waits():
+    code, status, _ = watch.evaluate(_summary_pr("2026-01-01T10:30:00Z"), GREEN, ("ocr",))
+    assert code is None and status == "waiting"
+
+
+def test_edit_times_come_from_the_rest_comments(monkeypatch):
+    calls = []
+
+    def fake_gh(args, timeout=60):
+        calls.append(args)
+        out = f"{SUMMARY_URL}\t2026-01-01T12:00:00Z\nhttps://github.com/o/r/pull/7#issuecomment-2\t2026-01-01T09:00:00Z\n"
+        return watch.subprocess.CompletedProcess(args, 0, out, "")
+
+    monkeypatch.setattr(watch, "gh", fake_gh)
+    pr = watch.with_edit_times(_summary_pr())
+    assert calls and calls[0][:2] == ["api", "repos/o/r/issues/7/comments"]
+    assert pr["comments"][0]["updatedAt"] == "2026-01-01T12:00:00Z"
+    code, status, _ = watch.evaluate(pr, GREEN, ("ocr",))
+    assert code == 0 and status == "settled"
+
+
+@pytest.mark.parametrize("result", [None, "fail"])
+def test_unreadable_edit_times_fall_back_to_creation(monkeypatch, result):
+    def fake_gh(args, timeout=60):
+        if result is None:
+            return None
+        return watch.subprocess.CompletedProcess(args, 1, "", "HTTP 502")
+
+    monkeypatch.setattr(watch, "gh", fake_gh)
+    pr = watch.with_edit_times(_summary_pr())
+    assert "updatedAt" not in pr["comments"][0]
+    code, status, _ = watch.evaluate(pr, GREEN, ("ocr",))
+    assert code is None and status == "waiting"
