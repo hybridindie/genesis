@@ -120,6 +120,13 @@ def test_rejects_bad_input_with_exit_2_and_json(repo, args):
     assert not (repo / ".git" / "agent-plan" / "budget.json").exists()
 
 
+@pytest.mark.parametrize("epic", ["²", "③", "#²", "٧"])
+def test_rejects_non_decimal_or_non_ascii_digits_as_not_an_epic_number(repo, epic):
+    code, out = run("status", "--epic", epic, cwd=repo)
+    assert code == 2 and out["ok"] is False
+    assert "not an Epic number" in out["error"]
+
+
 def test_rejects_outside_a_git_repository(tmp_path):
     code, out = run("status", "--epic", "7", cwd=tmp_path)
     assert code == 2 and out["ok"] is False

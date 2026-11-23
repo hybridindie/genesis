@@ -24,6 +24,7 @@ import datetime
 import fcntl
 import json
 import os
+import re
 import subprocess
 import tempfile
 from contextlib import contextmanager
@@ -147,7 +148,9 @@ def cmd_reset(args) -> dict:
 
 def epic_number(value: str) -> int:
     text = value.strip().removeprefix("#")
-    if not text.isdigit() or int(text) <= 0:
+    # ASCII digits only: isdigit() passes "²" (which int() rejects) and
+    # isdecimal() passes "٧" (which int() reads as 7).
+    if not re.fullmatch(r"[0-9]+", text) or int(text) <= 0:
         raise argparse.ArgumentTypeError(f"not an Epic number: {value!r}")
     return int(text)
 
