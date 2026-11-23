@@ -55,6 +55,7 @@ SIZES = ("S", "M", "L")
 STORY_TYPES = ("user", "spike", "technical", "bug")
 TRACK_KINDS = ("contract", "track")
 LANES = ("contained", "wide", "irreversible")
+SHIP_MODES = ("story", "per-track")  # one PR for the story, or one stacked PR per track
 # Paths where a bad merge can't simply be reverted: schema and data
 # migrations, and anything that deploys or changes infrastructure. A plan can
 # add its own with `lanes: {irreversible: [...]}`.
@@ -441,6 +442,10 @@ def validate_story(story: dict) -> list[str]:
     errs += validate_lanes(f"story {sid}", story)
     errs += validate_consumes(f"story {sid}", story, {})
     tracks = as_list(story.get("tracks"))
+    if story.get("ship", "story") not in SHIP_MODES:
+        errs.append(f"story {sid}: ship must be one of {', '.join(SHIP_MODES)}")
+    elif story.get("ship") == "per-track" and len(tracks) < 2:
+        errs.append(f"story {sid}: ship: per-track needs more than one track")
     tids = [str(t.get("id")) for t in tracks]
     dupes = {i for i in tids if tids.count(i) > 1}
     if dupes:
@@ -460,7 +465,7 @@ def validate_story(story: dict) -> list[str]:
         if not is_command(t.get("verify")):
             errs.append(f"{where}: missing verify (an exact command, not a placeholder)")
         if "verify_baseline" in t and t["verify_baseline"] != "pass":
-            errs.append(f"{where}: verify_baseline may only be `pass` (a refactor that stays green)")
+            errs.append(f"{where}: verify_baseline may only be `pass` (a refactor or pure-prose change that stays green)")
         if t.get("status", "todo") not in STATUSES:
             errs.append(f"{where}: status must be one of {', '.join(STATUSES)}")
         for d in deps[tid]:

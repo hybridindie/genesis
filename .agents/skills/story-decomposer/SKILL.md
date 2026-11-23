@@ -16,7 +16,7 @@ description: >
   The skill itself. OpenCode reads it here; Claude Code loads it through the
   generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 6.3.0, owner: John D
+  version: 6.4.0, owner: John D
   invokes: .agents/skills/task-decomposer/SKILL.md,
            .agents/templates/epic/story-shell.md,
            .agents/scripts/plan.py,
@@ -71,7 +71,15 @@ whole brief a subagent gets, so anything it needs to know goes in it.
    - tracks that can run together own disjoint paths (tests go with the code
      they test), each with an exact `verify` and, when the story context
      mentions work it must not do, its own `context`;
-   - add `integration` (`merge_order`, `verify`).
+   - add `integration` (`merge_order`, `verify`);
+   - a track whose only tests are behavioural-eval markdown (a skill or
+     doctrine change) gets a verify that fails before the work — a `grep -q`
+     for the new behaviour in the file, or a lint rule — or, for pure prose,
+     `verify_baseline: pass`.
+   **Size the story to one PR:** estimate the integrated diff, tests
+   included, against the PR budget (≤ 400 lines, ≤ 25 files). Over it, split
+   the story in the Epic plan, or set `ship: per-track` so each track ships
+   as its own stacked PR. Tracks that each fit can still sum past it.
 5. **Check the set.** `python3 .agents/scripts/plan.py check epic.md story-*.md`
    validates every plan against the Epic, regenerates the tables, checks the
    prose and prints the track waves. Fix the plan on `FAIL`, never the checker.

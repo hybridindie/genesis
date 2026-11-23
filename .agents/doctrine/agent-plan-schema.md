@@ -1,7 +1,7 @@
 <!--
   agent-plan-schema.md — the machine-readable plan carried by Epic and story issues
   Referenced by: epic-composer, story-decomposer, task-decomposer, wave-dispatcher
-  version: 1.6.0, owner: John D
+  version: 1.7.0, owner: John D
   Single source of truth for the `agent-plan` block. `.agents/scripts/plan.py`
   enforces it; skills write it; the dispatcher schedules from it.
 -->
@@ -80,6 +80,7 @@ depends_on: []              # story ids (same as the Epic's)
 owns: [backend/export/**, tests/export/**]
 must_not_touch: [frontend/**]
 verify: uv run pytest tests/export -q        # story-level end-to-end check
+# ship: per-track           # optional: one stacked PR per track (see "Size a story to one PR")
 context: >-                 # what a subagent with no other context must know
   The export pipeline is synchronous today; this adds a job API.
 tracks:                     # one track = one subagent in one worktree
@@ -140,6 +141,25 @@ change.
   as a weak check: its brief asks for a failing test first, and `check`
   rejects a diff that adds or changes no test. A refactor that should stay
   green before and after declares `verify_baseline: pass`.
+  A **skill-only track** (a skill body, doctrine or other prose, whose only
+  tests are behavioural-eval markdown) needs a check that fails until the new
+  behaviour is written: a content assertion such as
+  `grep -q 'integrate <story> --sync' .agents/skills/x/SKILL.md`, or a lint
+  rule. Behavioural cases are checked for format only, so they cannot go red.
+  A pure-prose change with nothing to assert (a rewording) declares
+  `verify_baseline: pass` instead.
+- **Size a story to one PR.** The integrated story branch is one PR, held to
+  the PR budget (≤ 400 changed lines and ≤ 25 files, tests included; see the
+  workflow rule and ship-pr's `pr_size.py`). Tracks that each fit can still
+  sum past it. Split such a story, or set `ship: per-track` on it (two or
+  more tracks): the dispatcher then opens one stacked PR per track in
+  `merge_order`. The dispatcher also splits a story that measures over budget
+  when it ships.
+- **Dependants ship after their upstreams.** A story branch starts from its
+  upstreams' work, so its PR would carry their diff too. `dispatch.py
+  integrate <story> --sync origin/main` refuses until every `depends_on`
+  story is in `origin/main`, then merges it in, so the PR shows only the
+  story's own work.
 - **Merge lanes follow blast radius, not confidence.** Each track gets a lane
   from what it owns, and the lane decides how its merge is gated:
 

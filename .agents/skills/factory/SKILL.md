@@ -15,7 +15,7 @@ description: >
   The skill itself. OpenCode reads it here; Claude Code loads it through the
   generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 1.2.0, owner: John D
+  version: 1.3.0, owner: John D
   invokes: .agents/scripts/tracker.py,
            .agents/scripts/budget.py,
            .agents/scripts/plan.py,
@@ -86,7 +86,9 @@ From the repository root; `t=".agents/scripts/tracker.py"`,
 7. **Tasks.** Run `/task-decomposer` on each story whose tracks need tasks.
 8. **Waves.** Run `/wave-dispatcher --ship` on the Epic, a round at a time
    (`python3 $d prepare --max <n>`, subagents, `check`, `merge`), with step 4
-   before each `prepare`.
+   before each `prepare`. Ship upstream stories first: a dependant's PR opens
+   only after theirs merge (`integrate --sync origin/main`), split per track
+   when it measures over the PR budget.
 9. **Record spend.** After every subagent finishes (decomposers, reviewers,
    track agents, ship-pr), record the tokens it reported:
    `python3 $b record --epic N --unit <unit> --tokens <T>` (unit: the track,

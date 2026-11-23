@@ -17,7 +17,7 @@ description: >
   The skill itself. OpenCode reads it here; Claude Code loads it through the
   generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 2.7.0, owner: John D
+  version: 2.8.0, owner: John D
   invokes: .agents/scripts/dispatch.py,
            .agents/scripts/plan.py,
            .agents/scripts/budget.py
@@ -32,9 +32,8 @@ the scope and verify checks, merge order, conflicts, status written back to the
 issues — and prints JSON. You do the two things a script cannot: run the
 subagents, and judge whether each one's work does what its brief asked.
 
-Worktrees are what make this safe: parallel subagents never share a working
-tree, so their work only meets in a merge that `dispatch.py merge` runs after
-the checks pass.
+Worktrees make this safe: parallel subagents never share a working tree, so
+their work meets only in a `dispatch.py merge` after the checks pass.
 
 ## Inputs
 
@@ -83,9 +82,8 @@ reviewer or diagnosis), run `python3 $b record --epic <epic> --unit <unit>
      said, if the diff touched a migration or deploy path):
      - `contained`: `python3 $d merge <unit>`; the checks are the gate.
      - `wide`: merge once the reviewer subagent's review passes.
-     - `irreversible`: never merge it yourself. Report it for a person's
-       approval (`report` → `awaiting_human`); after they approve,
-       `python3 $d merge <unit> --human`.
+     - `irreversible`: never merge it yourself; report it for a person's
+       approval (`awaiting_human`), then `python3 $d merge <unit> --human`.
      `merge` enforces `merge_order`, and on a conflict aborts and blocks.
    - Fixable inside the track's paths → `python3 $d retry <unit> --note
      "<what to fix>"`, then start a fresh subagent on the `brief` it prints.
@@ -119,11 +117,17 @@ reviewer or diagnosis), run `python3 $b record --epic <epic> --unit <unit>
 6. **Integrate finished stories.** For each story in
    `python3 $d report` → `stories_ready_to_integrate`:
    `python3 $d integrate <story> --push` (runs the integration and story
-   verify commands, pushes on success). With `--ship`, run ship-pr on the
-   branch; it merges only on green CI with every thread addressed.
-7. **Report** from `python3 $d report`. Each unit's `history` gives its
-   attempts, failed checks, blocks and rollbacks (restarts and merge
-   conflicts) across every run, including ones already merged.
+   verify commands, pushes on success). With `--ship`, ship a story only
+   once every story in its `upstreams` has merged: `git fetch origin`, then
+   `integrate <story> --sync origin/main --push` (refuses while an upstream
+   is unmerged; merges main in so the PR shows only this story). Measure it
+   from its integration worktree with ship-pr's `pr_size.py --base
+   origin/main`. Over budget, or `ship: per-track`, open stacked PRs: one
+   branch `<story branch>-<track>` per track at its `merged` sha, in
+   `merge_order`, each PR based on the previous one. Run ship-pr on each PR;
+   it merges only on green CI with every thread addressed.
+7. **Report** from `python3 $d report`; each unit's `history` gives its
+   attempts, failed checks, blocks and rollbacks across every run.
 
 ## LLM Judgment
 
@@ -134,9 +138,6 @@ Use judgment only for:
   ownership problem), and writing that note;
 - choosing the escalation outcome the diagnosis supports — a suspected cause
   always goes to `needs-input`.
-
-The wide-lane diff review and the diagnosis are each a fresh subagent's
-judgment, not yours: you act on what they report.
 
 Do not edit a subagent's code, change ownership, or run the git steps
 `dispatch.py` owns by hand — report the failure; the plan gets fixed by
@@ -160,8 +161,6 @@ Awaiting a human (irreversible lane): <units or none>
 Needs input (escalated): <unit: question, or none>
 Budget: <used>/<limit> (<percent>%, <state>)
 ```
-
-With `--plan`: the units that would start, their `would_run` commands and briefs.
 
 ## Stop Conditions
 
