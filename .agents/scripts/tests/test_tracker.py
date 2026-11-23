@@ -126,6 +126,18 @@ if args[:2] == ["issue", "view"]:
         print(json.dumps({{"author": {{"login": issue["author"]}}}}))
     else:
         print(json.dumps({{field: issue.get(field, "")}}))
+elif args[:2] == ["issue", "list"]:
+    want = flag("--state")[0] if flag("--state") else "open"
+    rows = [{{"number": int(k), "title": v.get("title", ""), "state": v.get("state", "open"),
+             "labels": [{{"name": n}} for n in v["labels"]], "createdAt": v.get("createdAt", "")}}
+            for k, v in state["issues"].items()]
+    rows = [r for r in rows if want == "all" or r.pop("state") == want]
+    for r in rows:
+        r.pop("state", None)
+    for name in flag("--label"):
+        rows = [r for r in rows if name in [lb["name"] for lb in r["labels"]]]
+    rows.sort(key=lambda r: r["createdAt"], reverse=True)  # gh lists newest first
+    print(json.dumps(rows))
 elif args[:2] == ["issue", "create"]:
     n = str(max(int(k) for k in state["issues"]) + 1)
     state["issues"][n] = {{"labels": [], "author": "octocat", "body": sys.stdin.read(), "title": flag("--title")[0]}}
@@ -419,3 +431,121 @@ def test_protected_label_is_refused_before_any_gitea_call(gitea, monkeypatch, ca
     assert code == 2
     assert "person" in out.err
     assert gitea.requests == []
+
+
+# --- list ---------------------------------------------------------------------
+
+def seed_github_issues(gh_repo):
+    state = gh_repo.state()
+    state["issues"] = {
+        "7": {"title": "Epic: old", "labels": ["bug"], "author": "a", "createdAt": "2026-01-01T00:00:00Z"},
+        "9": {"title": "Epic: new", "labels": [], "author": "a", "createdAt": "2026-03-01T00:00:00Z"},
+        "8": {"title": "Fix a typo", "labels": ["bug"], "author": "a", "createdAt": "2026-02-01T00:00:00Z"},
+        "6": {"title": "Epic: done", "labels": [], "author": "a", "state": "closed",
+              "createdAt": "2025-12-01T00:00:00Z"},
+    }
+    Path(gh_repo.state_path).write_text(json.dumps(state))
+
+
+def test_github_list_prints_open_issues_oldest_first(gh_repo):
+    seed_github_issues(gh_repo)
+    out = gh_repo.run("list")
+    assert out.returncode == 0, out.stderr
+    assert json.loads(out.stdout) == [
+        {"number": 7, "title": "Epic: old", "labels": ["bug"], "created_at": "2026-01-01T00:00:00Z"},
+        {"number": 8, "title": "Fix a typo", "labels": ["bug"], "created_at": "2026-02-01T00:00:00Z"},
+        {"number": 9, "title": "Epic: new", "labels": [], "created_at": "2026-03-01T00:00:00Z"},
+    ]
+    call = gh_repo.calls()[0]
+    assert call[:2] == ["issue", "list"]
+    assert call[call.index("--json") + 1] == "number,title,labels,createdAt"
+    assert call[call.index("--limit") + 1] == "1000"
+
+
+def test_github_list_filters_by_state_label_and_title_prefix(gh_repo):
+    seed_github_issues(gh_repo)
+    out = gh_repo.run("list", "--state", "all", "--title-prefix", "Epic:")
+    assert out.returncode == 0, out.stderr
+    assert [i["number"] for i in json.loads(out.stdout)] == [6, 7, 9]
+    out = gh_repo.run("list", "--label", "bug", "--title-prefix", "Epic:")
+    assert out.returncode == 0, out.stderr
+    assert [i["number"] for i in json.loads(out.stdout)] == [7]
+
+
+def test_github_list_strips_label_names_before_gh_filters(gh_repo):
+    seed_github_issues(gh_repo)
+    gh_repo.run("list", "--label", " bug ")
+    call = [c for c in gh_repo.calls() if c[:2] == ["issue", "list"]][-1]
+    assert call[call.index("--label") + 1] == "bug"
+
+
+def test_list_rejects_an_unknown_state(gh_repo):
+    out = gh_repo.run("list", "--state", "merged")
+    assert out.returncode == 2
+    assert gh_repo.calls() == []
+
+
+class FakeGiteaIssues:
+    """Answers urlopen for Gitea's issue list, 2 per page; records every request."""
+
+    def __init__(self, issues):
+        self.issues = issues
+        self.requests = []
+
+    def __call__(self, req, timeout=None):
+        url = req.full_url
+        self.requests.append((req.get_method(), url))
+        route, _, query = url.split("/api/v1/repos/o/r", 1)[1].partition("?")
+        assert route == "/issues", url
+        q = dict(part.split("=", 1) for part in query.split("&"))
+        assert q["type"] == "issues"
+        rows = [i for i in self.issues if q["state"] == "all" or i["state"] == q["state"]]
+        rows.sort(key=lambda i: i["created_at"], reverse=True)  # Gitea lists newest first
+        limit, page = int(q["limit"]), int(q["page"])
+        payload = json.dumps(rows[(page - 1) * limit:page * limit]).encode()
+
+        class Resp:
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+            def read(self): return payload
+        return Resp()
+
+
+def gitea_issue(n, title, labels, created, state="open"):
+    return {"number": n, "title": title, "state": state, "created_at": created,
+            "labels": [{"id": i, "name": name} for i, name in enumerate(labels)], "user": {"login": "x"}}
+
+
+def test_gitea_list_pages_through_every_issue_oldest_first(monkeypatch, capsys):
+    monkeypatch.setenv("GITEA_TOKEN", "t")
+    fake = FakeGiteaIssues([
+        gitea_issue(3, "Epic: c", [], "2026-03-01T00:00:00Z"),
+        gitea_issue(1, "Epic: a", ["factory:running"], "2026-01-01T00:00:00Z"),
+        gitea_issue(2, "Chore", [], "2026-02-01T00:00:00Z"),
+        gitea_issue(4, "Epic: closed", [], "2025-12-01T00:00:00Z", state="closed"),
+    ])
+    monkeypatch.setattr(tracker.urllib.request, "urlopen", fake)
+    monkeypatch.setattr(tracker, "forge", lambda: tracker.Gitea("https://git.example.com", "o", "r"))
+    monkeypatch.setattr(tracker.Gitea, "PAGE", 2)
+    code, out = run_main(monkeypatch, capsys, "list", "--title-prefix", "Epic:")
+    assert code == 0
+    assert json.loads(out.out) == [
+        {"number": 1, "title": "Epic: a", "labels": ["factory:running"], "created_at": "2026-01-01T00:00:00Z"},
+        {"number": 3, "title": "Epic: c", "labels": [], "created_at": "2026-03-01T00:00:00Z"},
+    ]
+    assert len(fake.requests) == 3  # two full pages, then an empty one
+    assert all("state=open" in url for _, url in fake.requests)
+
+
+def test_gitea_list_filters_by_label_and_state(monkeypatch, capsys):
+    monkeypatch.setenv("GITEA_TOKEN", "t")
+    fake = FakeGiteaIssues([
+        gitea_issue(1, "Epic: a", ["bug"], "2026-01-01T00:00:00Z"),
+        gitea_issue(4, "Epic: b", ["bug"], "2025-12-01T00:00:00Z", state="closed"),
+        gitea_issue(2, "Epic: c", [], "2026-02-01T00:00:00Z", state="closed"),
+    ])
+    monkeypatch.setattr(tracker.urllib.request, "urlopen", fake)
+    monkeypatch.setattr(tracker, "forge", lambda: tracker.Gitea("https://git.example.com", "o", "r"))
+    code, out = run_main(monkeypatch, capsys, "list", "--state", "closed", "--label", "bug")
+    assert code == 0
+    assert [i["number"] for i in json.loads(out.out)] == [4]

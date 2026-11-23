@@ -15,7 +15,7 @@ description: >
   The skill itself. OpenCode reads it here; Claude Code loads it through the
   generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 1.1.0, owner: John D
+  version: 1.2.0, owner: John D
   invokes: .agents/scripts/tracker.py,
            .agents/scripts/budget.py,
            .agents/scripts/plan.py,
@@ -28,8 +28,9 @@ description: >
 Pick up approved Epics and carry each one to shipped PRs, one Epic at a time.
 The scripts own every mechanical step and every label; you run the subagents,
 read their reports, and decide the rung when a loop runs out. The factory runs
-**in this foreground session**, never as a background job or a scheduled
-agent, so a person can watch every round and step in.
+**in this session**, never as a separate background job or a scheduled
+cloud agent, so a person can watch every round and step in; only the idle
+wait between polls is handed to the harness (step 2).
 
 ## Inputs
 
@@ -47,12 +48,10 @@ From the repository root; `t=".agents/scripts/tracker.py"`,
 `b=".agents/scripts/budget.py"`, `d=".agents/scripts/dispatch.py"`.
 **Labels** are only ever set with `python3 $t label <ref> --add/--remove`.
 
-1. **Poll** (every 300 seconds, in the foreground). List open Epics:
-   `gh issue list --state open --json number,title,labels,createdAt --limit 200`
-   (Gitea: `GET /repos/{owner}/{repo}/issues?state=open&type=issues`). Keep
-   issues whose title starts with `Epic:` and that carry no run label
-   (`factory:running`, `factory:shipped`, `factory:over-budget`,
-   `factory:needs-input`). Oldest `createdAt` first.
+1. **Poll** (every 300 seconds). List open Epics, oldest first, on either
+   forge: `python3 $t list --state open --title-prefix "Epic:"`. Keep those
+   with no run label (`factory:running`, `factory:shipped`,
+   `factory:over-budget`, `factory:needs-input`).
 2. **Approval gate.** For each candidate, `python3 $t labels <epic>` and
    `python3 $t get <epic>`. It is drafted when it has the `factory:drafted`
    label **or** its body contains `<!-- factory:drafted` (the Epic shell's
@@ -60,8 +59,11 @@ From the repository root; `t=".agents/scripts/tracker.py"`,
    is not drafted, or it has `factory:approved` or `factory:auto-approve`. A drafted Epic without one is skipped; say in the
    session `#N waits for a person's factory:approved`. Never add an approval
    label yourself (`tracker.py` refuses it). Take the oldest approved Epic;
-   none → print the poll status line, wait 300 seconds (`sleep 300`, or the
-   harness's own foreground wait) and poll again.
+   none → print the poll status line, wait, and poll again.
+   **Never wait with a foreground `sleep`** (Claude Code blocks it). Claude
+   Code: a self-paced `/loop` (ScheduleWakeup, 300-second delay), or a Monitor
+   until-loop that ends when `tracker.py list` shows a new Epic. OpenCode: its
+   scheduled re-run, or a background wait it is notified of.
 3. **Start**, without asking: `python3 $t label <epic> --add factory:running`.
    One Epic at a time: do not poll for another until this one stops.
 4. **Budget gate** before every round, including the first:

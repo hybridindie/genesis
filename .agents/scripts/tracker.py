@@ -10,6 +10,8 @@
   tracker.py label  REF [--add NAME...] [--remove NAME...]
                                                add/remove labels (missing ones are created)
   tracker.py author REF                        print the login that opened the issue
+  tracker.py list [--state open|closed|all] [--label NAME...] [--title-prefix TEXT]
+                                               print issues as JSON, oldest first
 
 REF is `#13`, `13`, or a full issue URL. The forge comes from the `origin`
 remote: github.com uses the `gh` CLI (already authenticated); anything else is
@@ -116,7 +118,28 @@ def read(path: str) -> str:
         sys.exit(f"tracker: cannot read {path}: {exc}")
 
 
+def issue_row(number_: int, title: str, labels: list[str], created_at: str) -> dict:
+    return {"number": number_, "title": title, "labels": labels, "created_at": created_at}
+
+
+def select(rows: list[dict], labels: list[str], title_prefix: str | None) -> list[dict]:
+    """Keep rows carrying every label (case-insensitive) and the title prefix; oldest first."""
+    want = {canonical(n) for n in labels if n.strip()}
+    rows = [r for r in rows
+            if want <= {canonical(n) for n in r["labels"]}
+            and (not title_prefix or r["title"].startswith(title_prefix))]
+    return sorted(rows, key=lambda r: (r["created_at"], r["number"]))
+
+
 class GitHub:
+    def list(self, state: str, labels: list[str]) -> list[dict]:
+        cmd = ["gh", "issue", "list", "--state", state,
+               "--json", "number,title,labels,createdAt", "--limit", "1000"]
+        for name in labels:  # gh filters server-side first, so send what select() matches on
+            cmd += ["--label", name.strip()]
+        return [issue_row(i["number"], i["title"], [lb["name"] for lb in i["labels"]], i["createdAt"])
+                for i in json.loads(sh(*cmd))]
+
     def get(self, n: str) -> str:
         return json.loads(sh("gh", "issue", "view", n, "--json", "body"))["body"]
 
@@ -163,6 +186,8 @@ class GitHub:
 
 
 class Gitea:
+    PAGE = 50
+
     def __init__(self, base: str, owner: str, repo: str):
         base = os.environ.get("GITEA_URL") or base
         self.api = f"{base.rstrip('/')}/api/v1/repos/{owner}/{repo}"
@@ -185,6 +210,16 @@ class Gitea:
                      + (f": {detail}" if detail else ""))
         except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
             sys.exit(f"tracker: Gitea {method} {path} -> {exc}")
+
+    def list(self, state: str, labels: list[str]) -> list[dict]:
+        rows: list[dict] = []
+        for page in range(1, 1000):
+            batch = self.call("GET", f"/issues?state={state}&type=issues&limit={self.PAGE}&page={page}") or []
+            if not batch:  # a short page is not the end: the server may cap `limit`
+                break
+            rows += [issue_row(i["number"], i["title"], [lb["name"] for lb in i.get("labels") or []],
+                               i["created_at"]) for i in batch]
+        return rows
 
     def get(self, n: str) -> str:
         return self.call("GET", f"/issues/{n}").get("body") or ""
@@ -251,6 +286,9 @@ def main() -> int:
     p.add_argument("--add", nargs="+", action="extend", default=[], metavar="NAME")
     p.add_argument("--remove", nargs="+", action="extend", default=[], metavar="NAME")
     p = sub.add_parser("author"); p.add_argument("ref")
+    p = sub.add_parser("list"); p.add_argument("--state", choices=("open", "closed", "all"), default="open")
+    p.add_argument("--label", nargs="+", action="extend", default=[], metavar="NAME")
+    p.add_argument("--title-prefix", metavar="TEXT")
     args = ap.parse_args()
     if args.cmd == "create" and args.label:  # refuse before an issue exists
         try:
@@ -297,6 +335,8 @@ def main() -> int:
         print(f"labelled #{number(args.ref)}")
     elif args.cmd == "author":
         print(f.author(number(args.ref)))
+    elif args.cmd == "list":
+        print(json.dumps(select(f.list(args.state, args.label), args.label, args.title_prefix), indent=2))
     return 0
 
 
