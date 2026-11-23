@@ -547,7 +547,7 @@ def read_review(path: str) -> list[str]:
         text = Path(path).read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
         raise DispatchError(f"cannot read the review findings {path}: {exc}") from exc
-    findings = [line.strip().lstrip("-*").strip() for line in text.splitlines()]
+    findings = [re.sub(r"^[-*](\s+|$)", "", line.strip()) for line in text.splitlines()]
     findings = [f for f in findings if f]
     if not findings:
         raise DispatchError(f"the review findings {path} are empty")
@@ -568,7 +568,7 @@ def cmd_retry(st: State, args) -> dict:
     if last["ok"] and not review:
         raise DispatchError(f"{args.unit} passed its last check; merge it instead "
                             "(or return a diff review's findings with --review-findings FILE)")
-    source = "review" if review else "check"
+    source = "review" if last["ok"] else "check"  # a failed check stays a check retry
     findings = last["findings"] + review
     attempts = st.data.setdefault("attempts", {})
     attempt = attempts.get(args.unit, 1) + 1
@@ -582,7 +582,7 @@ def cmd_retry(st: State, args) -> dict:
         last["returned"] = True
         if review:  # a diff review rejected this passing work, so escalate may discard it
             last["review"] = review
-        record(st, args.unit, "replan", note=note)
+        record(st, args.unit, "replan", note=note, source=source)
         replan = st.data.setdefault("replan", [])
         if args.unit not in replan:
             replan.append(args.unit)
@@ -632,10 +632,22 @@ def cmd_learn(st: State, args) -> dict:
     return add_lesson(st, args.unit, args.paths, args.constraint)
 
 
+def rejections(st: State, unit: str) -> str:
+    """How a unit's attempts ran out, from its history: failed checks, diff
+    review rejections of passing work, or both."""
+    sources = {e.get("source", "check") for e in st.data.get("history", {}).get(unit, [])
+               if e["event"] in ("retry", "replan")}
+    last = st.data.get("checks", {}).get(unit)
+    if last and not last["ok"]:
+        sources.add("check")
+    phrases = {"check": "failed their check", "review": "were rejected by diff review"}
+    return " or ".join(phrases[s] for s in ("check", "review") if s in sources) or phrases["check"]
+
+
 ESCALATED_BRIEF = """
 
 ## Attempt {attempt}: one informed attempt after {max} failed
-The first {max} attempts failed their check. The lead diagnosed why; read the
+The first {max} attempts {failed}. The lead diagnosed why; read the
 diagnosis before you change anything, and act on its cause rather than on the
 symptoms. Your worktree was reset to the story branch, so start from there.
 This is the last attempt: if the diagnosis is wrong or the fix needs paths
@@ -715,6 +727,7 @@ def cmd_escalate(st: State, args) -> dict:
     replan = st.data.setdefault("replan", [])
 
     if args.outcome == "attempt":
+        failed = rejections(st, unit)  # before the reset drops the last check
         attempt = MAX_ATTEMPTS + 1
         if tree.is_dir():
             git("checkout", "-f", "-B", tbranch, branch, cwd=tree)
@@ -731,7 +744,8 @@ def cmd_escalate(st: State, args) -> dict:
         text = original.read_text(encoding="utf-8") if original.is_file() else ""
         brief = briefs / f"{sid}-{track}-attempt{attempt}.md"
         briefs.mkdir(parents=True, exist_ok=True)
-        brief.write_text(text + ESCALATED_BRIEF.format(attempt=attempt, max=MAX_ATTEMPTS, diagnosis=diagnosis),
+        brief.write_text(text + ESCALATED_BRIEF.format(attempt=attempt, max=MAX_ATTEMPTS, failed=failed,
+                                                           diagnosis=diagnosis),
                          encoding="utf-8")
         st.set_status(sid, track, "running", f"attempt {attempt}: informed by a diagnosis")
         result.update(attempt=attempt, brief=str(brief), worktree=str(tree))

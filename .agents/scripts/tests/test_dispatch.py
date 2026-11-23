@@ -929,3 +929,46 @@ def test_accepts_review_retries_sharing_the_attempt_cap_and_escalation(repo, for
     diagnosis = root.parent / "d.md"
     diagnosis.write_text("Cause: the contract was specified as an int.\n")
     assert escalate(root, diagnosis, "attempt", expect=0)["attempt"] == 4
+
+
+def test_accepts_review_findings_on_a_failed_check_as_a_check_retry(repo):
+    root, _ = failing_contract(repo)
+    review = root.parent / "review.md"
+    review.write_text("- name the type T\n")
+    data = review_retry(root, review, expect=0)
+    brief = Path(data["brief"]).read_text()
+    assert "returned after a failed check" in brief and "passed its check" not in brief
+    assert "- verify failed" in brief and "- name the type T" in brief
+    work_in(root, "S1", "contract", "fix", **{"app/types.py": "T = 1\n"})
+    retry = next(e for e in run(root, "check", "S1/contract", expect=0)["history"] if e["event"] == "retry")
+    assert retry["source"] == "check"
+
+
+def test_accepts_review_findings_stripping_one_bullet_only(repo):
+    root, _, review = passing_contract(repo)
+    review.write_text("- **Bold:** keep the emphasis\n--note is required\n* - nested\n")
+    review_retry(root, review, expect=0)
+    work_in(root, "S1", "contract", "fix", **{"app/types.py": "T = 2\n"})
+    retry = next(e for e in run(root, "check", "S1/contract", expect=0)["history"] if e["event"] == "retry")
+    assert retry["findings"] == ["**Bold:** keep the emphasis", "--note is required", "- nested"]
+
+
+def test_accepts_an_escalated_brief_naming_diff_review_rejections(repo, forge_log):
+    root, plans = repo
+    (plans / "story-S1.md").write_text(body(dict(S1, issue="#11")))
+    root, plans, review = passing_contract(repo)
+    for attempt in (2, 3):
+        review_retry(root, review, expect=0)
+        work_in(root, "S1", "contract", f"try {attempt}", **{"app/types.py": f"T = {attempt}\n"})
+        run(root, "check", "S1/contract", expect=0)
+    review_retry(root, review, expect=1)
+    diagnosis = root.parent / "d.md"
+    diagnosis.write_text("Cause: the contract was specified as an int.\n")
+    brief = Path(escalate(root, diagnosis, "attempt", expect=0)["brief"]).read_text()
+    assert "rejected by diff review" in brief and "failed their check" not in brief
+
+
+def test_accepts_an_escalated_brief_naming_failed_checks(repo, forge_log):
+    root, _, diagnosis = exhausted(repo, forge_log)
+    brief = Path(escalate(root, diagnosis, "attempt", expect=0)["brief"]).read_text()
+    assert "failed their check" in brief and "diff review" not in brief
