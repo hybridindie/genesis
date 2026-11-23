@@ -3,7 +3,8 @@
 Watch a pull request until CI and the automated review settle.
 
 Exits:
-  0   settled — CI finished and the review state is known (see output)
+  0   settled — CI finished and the review state is known (see output);
+      an empty check list is pending when the repo has workflow files
   10  CI failed
   20  changes requested
   30  blocked (draft, conflicts, behind base, or approval required)
@@ -41,6 +42,9 @@ KNOWN_REVIEWERS = (
 # Bots that comment constantly but never review; waiting on them would stall.
 IGNORED_BOTS = ("dependabot", "renovate", "github-actions", "codecov", "snyk", "copilot")
 CHECKS_GRACE_SECONDS = 180
+# A repo defines CI when either forge's workflow directory holds a file. A
+# project rendered with --no-ci has none, so an empty check list there is final.
+WORKFLOW_DIRS = (".github/workflows", ".gitea/workflows")
 FIELDS = (
     "number,url,state,isDraft,mergeStateStatus,reviewDecision,"
     "statusCheckRollup,reviews,comments,commits,labels"
@@ -108,6 +112,19 @@ def matches_bot(login, bots):
     )
 
 
+def repo_has_ci():
+    """Workflow files at the repository root (the repo `gh` targets), wherever we run from."""
+    try:
+        top = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True,
+                             text=True, timeout=10).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        top = ""
+    root = Path(top) if top else Path.cwd()
+    return any(
+        p.is_file() for d in WORKFLOW_DIRS if (root / d).is_dir() for p in (root / d).iterdir()
+    )
+
+
 def check_buckets(pr_number):
     data = gh_json(["pr", "checks", str(pr_number), "--json", "bucket,name,state,link"])
     if data is None:
@@ -172,21 +189,30 @@ def evaluate(pr, checks, bots):
     if decision == "CHANGES_REQUESTED":
         return 20, "changes_requested", "review requested changes"
 
-    if checks is None:
-        # `gh pr checks` reports nothing both when CI has not registered yet and
-        # when no CI exists. The PR's own payload separates the first case; a
-        # recent head commit covers the seconds before the rollup appears.
+    no_ci = False
+    if not checks or not checks["total"]:
+        # `gh pr checks` reports nothing both while CI registers and when no run
+        # was triggered at all — e.g. after a retarget, since `pull_request` does
+        # not fire on a base edit. In a repo that defines CI an empty list is
+        # pending, never settled: a PR with no checks must not look mergeable.
+        # Without workflow files it is final once the grace period ends.
         if pr.get("statusCheckRollup"):
             return None, "waiting", "checks are registering"
         commit_time = last_commit_time(pr)
         if commit_time and (datetime.now(timezone.utc) - commit_time).total_seconds() < CHECKS_GRACE_SECONDS:
             return None, "waiting", "checks are registering"
-
-    if checks is not None:
-        if checks["fail"] or checks["cancel"]:
-            return 10, "ci_failed", "one or more checks failed"
-        if checks["pending"]:
-            return None, "waiting", "checks still running"
+        if merge_state in ("DIRTY", "BEHIND"):  # a reopen won't fix conflicts
+            return 30, "blocked", f"merge state is {merge_state.lower()}"
+        if repo_has_ci():
+            return None, "waiting", (
+                "no checks reported — if the base was retargeted, "
+                "close and reopen the PR to trigger CI"
+            )
+        no_ci = True
+    elif checks["fail"] or checks["cancel"]:
+        return 10, "ci_failed", "one or more checks failed"
+    elif checks["pending"]:
+        return None, "waiting", "checks still running"
 
     if merge_state in ("DIRTY", "BEHIND"):
         return 30, "blocked", f"merge state is {merge_state.lower()}"
@@ -196,6 +222,8 @@ def evaluate(pr, checks, bots):
         commit_time = last_commit_time(pr)
         if bot_time is None or (commit_time and bot_time < commit_time):
             return None, "waiting", "waiting for the automated review"
+        if no_ci:
+            return 0, "settled", "review landed; repo has no CI (no workflow files)"
         if decision == "APPROVED":
             return 0, "settled", "review approved and CI green"
         if decision == "REVIEW_REQUIRED" and merge_state == "BLOCKED":
@@ -203,6 +231,8 @@ def evaluate(pr, checks, bots):
         return 0, "settled", "review landed and CI green"
 
     # No automated reviewer configured: stop when checks are done and report the state.
+    if no_ci:
+        return 0, "settled", "repo has no CI (no workflow files); review status reported"
     if decision == "APPROVED":
         return 0, "settled", "review approved and CI green"
     return 0, "settled", "checks finished; review status reported"

@@ -12,7 +12,7 @@ user-invocable: true
 
 <!--
   contract: .claude/rules/doctrine/skill-execution.md
-  version: 3.2.0, owner: John D
+  version: 3.3.0, owner: John D
   invokes: ship-pr/scripts/watch_pr.py, ship-pr/scripts/pr_size.py
 -->
 
@@ -86,7 +86,11 @@ CI is green and every review thread is addressed. `--no-merge` stops short.
    Ambiguous → leave open and list for the human. Answer the summary's
    additional findings in one PR comment, one line each (fixed in <sha>, or
    why not); a file it didn't review is a reason to split the PR.
-8. **Reply and resolve.**
+   **Convergence.** A re-review re-reads whole files, so new nits on unchanged
+   code are expected. From review cycle 3 on, only findings marked Important
+   (`Important —`) block the merge: reply to each Nit with a link to **one**
+   follow-up issue that collects them all, then resolve its thread.
+8. **Reply and resolve** — resolve only what was handled or rebutted:
    ```bash
    gh api graphql -f query='
    mutation($thread: ID!, $body: String!) {
@@ -94,25 +98,22 @@ CI is green and every review thread is addressed. `--no-merge` stops short.
        comment { id }
      }
    }' -F thread="$THREAD" -F body="$BODY"
-   ```
-   Resolve only what was handled or rebutted:
-   ```bash
    gh api graphql -f query='
    mutation($thread: ID!) {
      resolveReviewThread(input: {threadId: $thread}) { thread { isResolved } }
    }' -F thread="$THREAD"
    ```
-9. **Loop cap, then escalate.** Repeat watch/fix at most three cycles. After
-   the third failed cycle, do not run a fourth of the same fix, and do not stop
-   at a bare report — climb the escalation ladder
+9. **Loop cap, then escalate.** Repeat watch/fix at most three cycles. A cycle
+   fails on failing CI or an Important finding, never on nits alone (step 7).
+   After the third failed cycle, do not run a fourth of the same fix, and do
+   not stop at a bare report — climb the escalation ladder
    (`.agents/doctrine/escalation.md`, where present):
    1. **Diagnose.** Write a short diagnosis and post it as a PR comment: the
       failing check or thread quoted, what each cycle changed and why it did
       not hold, one cause marked *confirmed* (reproduced, predicted, or read
       from the source) or *suspected*, and the evidence.
    2. **One informed attempt**, only if the cause is confirmed and the fix lies
-      inside this PR: make the change the diagnosis names, then watch once more.
-      At most once.
+      inside this PR: make the change it names and watch once more — only once.
    3. **A person.** If the cause is suspected, needs a decision only a person
       can make, or the informed attempt also fails, stop and hand the PR over
       with one specific question and the diagnosis. Never loop again.
@@ -130,6 +131,12 @@ CI is green and every review thread is addressed. `--no-merge` stops short.
    done
    gh pr merge "$PR" --merge --delete-branch
    ```
+   `pull_request` skips base edits: if the repo defines CI (any file in
+   `.github/workflows/` or `.gitea/workflows/`) and a retargeted PR `$N` has no
+   checks on the new base, close and reopen it, then watch until they run.
+   ```bash
+   [[ $(gh pr checks "$N" --json name -q length 2>/dev/null) -gt 0 ]] || { gh pr close "$N" && gh pr reopen "$N"; }
+   ```
    If branch protection needs a human approval, stop and report it. Do not use
    `--admin` or bypass hooks.
 
@@ -140,8 +147,7 @@ Use judgment only for:
 - classifying a review comment as defect, misread, or separate concern;
 - writing the reply/rebuttal;
 - deciding whether an ambiguous thread needs the human;
-- writing the diagnosis after three failed cycles, and whether its cause is
-  confirmed.
+- writing the diagnosis after three failed cycles, and judging its cause.
 
 Do not invent CI results or resolve a thread you did not handle.
 
@@ -158,19 +164,17 @@ Escalation: <diagnosis link + attempt or question, or none>
 ## Stop Conditions
 
 - Stop if the worktree is dirty, the branch is unpushed, or preflight fails.
-- Stop before opening a PR that is over the size budget unless the caller
-  accepts it.
+- Stop before opening an over-budget PR unless the caller accepts it.
 - Stop if the watcher times out or the PR is blocked on a human approval.
 - After three failed review cycles, diagnose; then take at most one informed
   attempt, and otherwise stop with one question for a person (step 9).
-- Never merge with a failing or pending check, a missing review, or an open
-  thread; never with `--no-merge`.
+- Never merge with a failing or pending check, empty checks where CI exists,
+  a missing review, or an open thread; never with `--no-merge`.
 
 ## Token Budget
 
-- Default: read PR metadata, checks, and unresolved threads; open the diff for a
-  thread only when needed. Read the full thread when a truncated body would make
-  the triage a guess.
+- Read PR metadata, checks and unresolved threads; open the diff or the full
+  thread only when a truncated body would make the triage a guess.
 - Do not re-fetch the same threads after a push; watch once, then fetch.
 - Target ≤ 250 words; use a compact table if there are more than five threads.
 - Do not dump full review threads or CI logs.
