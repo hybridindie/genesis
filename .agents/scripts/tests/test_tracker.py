@@ -126,6 +126,10 @@ if args[:2] == ["issue", "view"]:
         print(json.dumps({{"author": {{"login": issue["author"]}}}}))
     else:
         print(json.dumps({{field: issue.get(field, "")}}))
+elif args[:2] == ["issue", "create"]:
+    n = str(max(int(k) for k in state["issues"]) + 1)
+    state["issues"][n] = {{"labels": [], "author": "octocat", "body": sys.stdin.read(), "title": flag("--title")[0]}}
+    print(f"https://github.com/o/r/issues/{{n}}")
 elif args[:2] == ["label", "list"]:
     print(json.dumps([{{"name": n}} for n in state["repo_labels"]]))
 elif args[:2] == ["label", "create"]:
@@ -235,6 +239,24 @@ def test_github_label_remove_sends_case_differing_duplicates_once(gh_repo):
     assert gh_repo.state()["issues"]["7"]["labels"] == []
     edit = [c for c in gh_repo.calls() if c[:2] == ["issue", "edit"]][-1]
     assert edit.count("--remove-label") == 1
+
+
+def test_github_create_with_a_label_opens_the_issue_labelled(gh_repo, tmp_path):
+    body = tmp_path / "epic.md"
+    body.write_text("Epic body\n")
+    out = gh_repo.run("create", "--title", "Epic: x", "--body-file", str(body), "--label", "factory:drafted")
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.strip() == "#8"
+    assert gh_repo.state()["issues"]["8"]["labels"] == ["factory:drafted"]
+
+
+def test_create_refuses_an_approval_label_before_opening_anything(gh_repo, tmp_path):
+    body = tmp_path / "epic.md"
+    body.write_text("Epic body\n")
+    out = gh_repo.run("create", "--title", "Epic: x", "--body-file", str(body), "--label", "Factory:Approved")
+    assert out.returncode == 2
+    assert "person" in out.stderr
+    assert gh_repo.calls() == []
 
 
 def test_github_author_prints_the_opener_login(gh_repo):

@@ -15,7 +15,7 @@ description: >
   The skill itself. OpenCode reads it here; Claude Code loads it through the
   generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 1.0.0, owner: John D
+  version: 1.1.0, owner: John D
   invokes: .agents/scripts/tracker.py,
            .agents/scripts/budget.py,
            .agents/scripts/plan.py,
@@ -53,9 +53,11 @@ From the repository root; `t=".agents/scripts/tracker.py"`,
    issues whose title starts with `Epic:` and that carry no run label
    (`factory:running`, `factory:shipped`, `factory:over-budget`,
    `factory:needs-input`). Oldest `createdAt` first.
-2. **Approval gate.** For each candidate, `python3 $t labels <epic>`. It is
-   approved when it has no `factory:drafted`, or it has `factory:approved` or
-   `factory:auto-approve`. A drafted Epic without one is skipped; say in the
+2. **Approval gate.** For each candidate, `python3 $t labels <epic>` and
+   `python3 $t get <epic>`. It is drafted when it has the `factory:drafted`
+   label **or** its body contains `<!-- factory:drafted` (the Epic shell's
+   marker, which survives a label that never landed). It is approved when it
+   is not drafted, or it has `factory:approved` or `factory:auto-approve`. A drafted Epic without one is skipped; say in the
    session `#N waits for a person's factory:approved`. Never add an approval
    label yourself (`tracker.py` refuses it). Take the oldest approved Epic;
    none → print the poll status line, wait 300 seconds (`sleep 300`, or the

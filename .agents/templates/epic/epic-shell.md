@@ -1,8 +1,9 @@
 <!--
   epic-shell.md — Epic issue body (paste under the issue title `Epic: <outcome>`)
   Referenced by: .agents/skills/epic-composer/SKILL.md
-  version: 5.0.0, owner: John D
+  version: 5.1.0, owner: John D
 -->
+<!-- factory:drafted — an agent drafted this Epic. The factory starts it only after a person adds the factory:approved label. Leave this line in. -->
 
 **Why**
 
