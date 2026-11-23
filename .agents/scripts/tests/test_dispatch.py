@@ -953,6 +953,35 @@ def test_accepts_review_findings_stripping_one_bullet_only(repo):
     assert retry["findings"] == ["**Bold:** keep the emphasis", "--note is required", "- nested"]
 
 
+def test_accepts_review_findings_stripping_ordered_and_checkbox_markers(repo):
+    root, _, review = passing_contract(repo)
+    review.write_text("1. first finding\n2) **second** finding\n- [ ] open item\n- [x] --flag stays\n"
+                      "* [X] upper-case check\n10. ten\n1.5 is a version, not a marker\n")
+    review_retry(root, review, expect=0)
+    work_in(root, "S1", "contract", "fix", **{"app/types.py": "T = 2\n"})
+    retry = next(e for e in run(root, "check", "S1/contract", expect=0)["history"] if e["event"] == "retry")
+    assert retry["findings"] == ["first finding", "**second** finding", "open item", "--flag stays",
+                                 "upper-case check", "ten", "1.5 is a version, not a marker"]
+
+
+def test_accepts_a_replan_note_naming_diff_review_rejections(repo, forge_log):
+    root, plans = repo
+    (plans / "story-S1.md").write_text(body(dict(S1, issue="#11")))
+    root, plans, review = passing_contract(repo)
+    for attempt in (2, 3):
+        review_retry(root, review, expect=0)
+        work_in(root, "S1", "contract", f"try {attempt}", **{"app/types.py": f"T = {attempt}\n"})
+        run(root, "check", "S1/contract", expect=0)
+    note = review_retry(root, review, expect=1)["note"]
+    assert "were rejected by diff review" in note and "failed" not in note
+
+
+def test_accepts_a_replan_note_naming_failed_attempts(repo, forge_log):
+    root, _, _ = exhausted(repo, forge_log)
+    note = run(root, "retry", "S1/contract", "--note", "again", expect=1)["note"]
+    assert "failed 3 attempts" in note and "diff review" not in note
+
+
 def test_accepts_an_escalated_brief_naming_diff_review_rejections(repo, forge_log):
     root, plans = repo
     (plans / "story-S1.md").write_text(body(dict(S1, issue="#11")))
