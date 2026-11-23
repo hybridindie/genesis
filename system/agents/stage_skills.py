@@ -3,7 +3,9 @@
 
   stage_skills.py <genesis-root> <stage-dir> <home> [--shared-harness claude|opencode]
 
-Writes three trees under <stage-dir>, which install.sh copies into place:
+Stages the plan-and-dispatch pipeline that genesis's scripts/pipeline.py
+lists (the same skills and files every rendered project gets). Writes three
+trees under <stage-dir>, which install.sh copies into place:
 
   agents/    .agents/{doctrine,templates,evals,scripts} -> <home>/.agents/
   claude/    full skills for ~/.claude/skills/<name>/
@@ -23,22 +25,23 @@ executable.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import re
 import shutil
 import sys
 from pathlib import Path
 
-SKILLS = ("epic-composer", "epic-interview", "epic-acceptance-linter",
-          "story-decomposer", "task-decomposer", "wave-dispatcher")
-SHARED = ("doctrine", "templates", "evals", "scripts")
-SKIP = {"__pycache__", "fixtures", "cases", "tests"}
 REPO_SKILLS = re.compile(r"(?<![\w./~-])\.agents/skills/")
 REPO_PATH = re.compile(r"(?<![\w./~-])\.agents/")
 HARNESS_DIRS = {"claude": ".claude/skills", "opencode": ".config/opencode/skills"}
 
 
-def wanted(path: Path, root: Path) -> bool:
-    return path.is_file() and not (SKIP & set(path.relative_to(root).parts)) and path.suffix != ".pyc"
+def load_pipeline(root: Path):
+    """genesis's scripts/pipeline.py: the one list of skills and files that ship."""
+    spec = importlib.util.spec_from_file_location("pipeline", root / "scripts" / "pipeline.py")
+    module = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
+    spec.loader.exec_module(module)  # type: ignore[union-attr]
+    return module
 
 
 def rewrite(text: str, home: str, skills_dir: str) -> str:
@@ -65,19 +68,17 @@ def main() -> int:
     src = root / ".agents"
     if stage.exists():
         shutil.rmtree(stage)
-    for tree in SHARED:
-        for f in sorted((src / tree).rglob("*")):
-            if wanted(f, src):
-                copy(f, stage / "agents" / f.relative_to(src), home, HARNESS_DIRS[args.shared_harness])
-    for name in SKILLS:
+    pipeline = load_pipeline(root)
+    for rel in pipeline.shared_files(root):
+        copy(src / rel, stage / "agents" / rel, home, HARNESS_DIRS[args.shared_harness])
+    for name in pipeline.skills(root):
         skill = src / "skills" / name
         if not (skill / "SKILL.md").is_file():
             print(f"error: {skill}/SKILL.md is missing", file=sys.stderr)
             return 1
         for harness, skills_dir in HARNESS_DIRS.items():
-            for f in sorted(skill.rglob("*")):
-                if wanted(f, skill):
-                    copy(f, stage / harness / name / f.relative_to(skill), home, skills_dir)
+            for rel in pipeline.skill_files(root, name):
+                copy(skill / rel, stage / harness / name / rel, home, skills_dir)
     return 0
 
 

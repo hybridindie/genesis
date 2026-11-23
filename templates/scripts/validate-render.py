@@ -9,8 +9,8 @@ import sys
 from pathlib import Path
 
 
-def run(cmd: list[str], label: str) -> list[str]:
-    result = subprocess.run(cmd, text=True, capture_output=True)
+def run(cmd: list[str], label: str, cwd: Path | None = None) -> list[str]:
+    result = subprocess.run(cmd, text=True, capture_output=True, cwd=cwd)
     if result.returncode != 0:
         detail = (result.stdout + result.stderr).strip()
         return [f"{label}: FAIL\n{detail}"]
@@ -36,6 +36,8 @@ def main() -> int:
         ".claude/hooks/check-project-drift.py",
         ".githooks/pre-commit",
         ".githooks/pre-push",
+        ".agents/scripts/plan.py",
+        ".agents/scripts/dispatch.py",
     ]
     for rel in required:
         if not (target / rel).exists():
@@ -49,6 +51,10 @@ def main() -> int:
         ["python3", str(genesis / "templates/scripts/check-harness-sync.py"), str(genesis / "templates"), str(target)],
         "harness sync",
     )
+    # The pipeline's entry points start in the project (they fetch PyYAML via uv if needed).
+    for script in ("plan.py", "dispatch.py"):
+        if (target / ".agents/scripts" / script).is_file():
+            errors += run(["python3", f".agents/scripts/{script}", "--help"], f"pipeline {script}", target)
     for hook in sorted((target / ".claude/hooks").glob("*.sh")):
         errors += run(["bash", "-n", str(hook)], f"hook syntax {hook.name}")
 
