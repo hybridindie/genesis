@@ -249,7 +249,7 @@ install_agents() {
   fi
 }
 
-install_skills() { # epic/story/task skills + wave-dispatcher, available in every repo
+install_skills() { # the plan-and-dispatch pipeline (scripts/pipeline.py), available in every repo
   # Shared doctrine/templates/scripts go to ~/.agents once; each installed
   # harness gets its own full copy of the skills (both only if both are present).
   say "== skills"

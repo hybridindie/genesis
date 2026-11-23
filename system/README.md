@@ -34,8 +34,9 @@ timestamped backup), `--diff` (show changes, write nothing), `--all` (install
 agent/editor configs even when the tool is absent), `--no-tools` (skip the
 tooling report), `--skip shell,agents,skills,git,herdr,zed,bin,brewfile`.
 
-The `skills` component installs the epic pipeline (epic-composer through
-wave-dispatcher) for every repo on the machine: shared doctrine, templates and
+The `skills` component installs the plan-and-dispatch pipeline (epic-composer
+through wave-dispatcher, plan-reviewer and factory; the list comes from
+`scripts/pipeline.py`) for every repo on the machine: shared doctrine, templates and
 scripts into `~/.agents/`, and a full copy of each skill into
 `~/.claude/skills/` and/or `~/.config/opencode/skills/` — only for the
 harnesses that are installed (`--all` forces both).
