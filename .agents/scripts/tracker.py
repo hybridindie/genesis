@@ -283,9 +283,9 @@ def main() -> int:
         print(f"updated #{number(args.ref)}")
     elif args.cmd == "create":
         n = f.create(args.title, read(args.body_file))
+        print("#" + n, flush=True)  # the issue exists now, even if labelling fails next
         if args.label:
             f.label(n, args.label, [])
-        print("#" + n)
     elif args.cmd == "comment":
         f.comment(number(args.ref), args.body)
         print(f"commented on #{number(args.ref)}")
