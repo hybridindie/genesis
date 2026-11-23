@@ -227,6 +227,22 @@ def test_rejects_an_unknown_verify_baseline():
     assert any("verify_baseline" in x for x in plan.validate_story(s))
 
 
+def test_accepts_a_multi_track_story_that_ships_per_track():
+    s = story("S1", ["a/**"], [track("A", ["a/x.py"]), track("B", ["a/y.py"])],
+              integration={"merge_order": ["A", "B"], "verify": "true"}, ship="per-track")
+    assert not [x for x in plan.validate_story(s) if "ship" in x]
+
+
+def test_rejects_an_unknown_ship_mode():
+    s = story("S1", ["a/**"], [track("main", ["a/**"])], ship="stacked")
+    assert any("ship" in x for x in plan.validate_story(s))
+
+
+def test_rejects_shipping_a_single_track_story_per_track():
+    s = story("S1", ["a/**"], [track("main", ["a/**"])], ship="per-track")
+    assert any("ship: per-track" in x for x in plan.validate_story(s))
+
+
 def test_rejects_ownership_of_the_whole_repo_alongside_parallel_work():
     e = three_story_epic()
     e["stories"][0]["owns"] = ["**"]

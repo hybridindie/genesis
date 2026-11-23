@@ -15,7 +15,7 @@ description: >
   The skill itself. OpenCode reads it here; Claude Code loads it through the
   generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 4.2.0, owner: John D
+  version: 4.3.0, owner: John D
   invokes: .agents/scripts/plan.py,
            .agents/scripts/tracker.py,
            .agents/evals/story-rubric.md
@@ -52,7 +52,10 @@ that track's subagent brief.
    - `depends_on` — earlier task ids it needs;
    - `verify` — the narrowest exact command that proves this task;
    - `acs` — the story ACs it serves.
-   Put a test with the code it tests, in the same track.
+   Put a test with the code it tests, in the same track. A task whose only
+   test is behavioural-eval markdown (a skill or doctrine change) verifies
+   with a check that fails before the work, such as `grep -q '<new rule>'
+   <skill file>`; a pure-prose track declares `verify_baseline: pass`.
 4. **Cover every AC.** Each story AC has at least one task; each task serves an
    AC or is a stated prerequisite of one.
 5. **Check and read a brief.**

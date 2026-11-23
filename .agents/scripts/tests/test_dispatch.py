@@ -328,6 +328,26 @@ def test_accepts_integrating_a_finished_story(repo):
     assert [c["passed"] for c in data["checks"]] == [True, True]
 
 
+def test_accepts_integrate_syncing_the_base_and_listing_track_merges(repo):
+    root, _ = prepared(repo)
+    complete_s1(root)
+    commit(root, "elsewhere", **{"NEWS.md": "n\n"})  # main moved on
+    data = run(root, "integrate", "S1", "--sync", "main", expect=0)
+    assert (root.parent / "proj-tracks" / "S1-integration" / "NEWS.md").is_file()
+    assert list(data["merged"]) == ["contract", "A", "B"] and data["ship"] == "story"
+
+
+def test_rejects_syncing_a_dependent_story_before_its_upstream_ships(repo):
+    root, _ = prepared(repo)
+    complete_s1(root)
+    run(root, "prepare", expect=0)
+    finish(root, "S3/main", **{"ui/v.test.js": "v\n"})
+    data = run(root, "integrate", "S3", "--sync", "main", expect=1)
+    assert data["upstreams"] == ["S1"] and "S1" in data["findings"][0]
+    sh("git", "merge", "-q", "--no-ff", "--no-edit", "feat/s1-api", cwd=root)  # S1's PR merges
+    assert run(root, "integrate", "S3", "--sync", "main", expect=0)["ok"]
+
+
 def test_accepts_report_with_counts_and_next_units(repo):
     root, _ = prepared(repo)
     data = run(root, "report", expect=0)

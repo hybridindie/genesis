@@ -14,7 +14,7 @@
   dispatch.py learn --unit UNIT --paths GLOB... --constraint TEXT
   dispatch.py escalate UNIT --diagnosis FILE --outcome attempt|replan|needs-input
                        [--question TEXT] [--lesson-paths GLOB... --lesson TEXT]
-  dispatch.py integrate STORY [--push]
+  dispatch.py integrate STORY [--sync REF] [--push]
   dispatch.py report
 
 UNIT is `<story>/<track>` (e.g. S1/A). Every command prints JSON on stdout and
@@ -841,6 +841,19 @@ def cmd_merge(st: State, args) -> dict:
     return {"ok": True, "unit": args.unit, "merged": sha, "story_branch": branch, "lane": lane}
 
 
+def shipped(story: dict, ref: str) -> bool:
+    """Whether an upstream story's work is already in `ref`: its branch is gone
+    (merged and deleted), merged into `ref`, or its owned paths match `ref`
+    (squashed, or shipped as stacked per-track PRs)."""
+    branch = story_branch(story)
+    if not ok("show-ref", "--verify", "--quiet", f"refs/heads/{branch}"):
+        return True
+    if ok("merge-base", "--is-ancestor", branch, ref):
+        return True
+    specs = [f":(glob){p}" for p in plan.as_list(story.get("owns"))]
+    return bool(specs) and ok("diff", "--quiet", ref, branch, "--", *specs)
+
+
 def cmd_integrate(st: State, args) -> dict:
     story = st.story(args.story)
     pending = [str(x.get("id")) for x in plan.as_list(story.get("tracks")) if x.get("status") != "done"]
@@ -853,6 +866,19 @@ def cmd_integrate(st: State, args) -> dict:
         return {"ok": False, "story": args.story,
                 "findings": [f"uncommitted changes in {integ}: {', '.join(dirty[:10])}; "
                              "commit or remove them first"]}
+    upstreams = [str(u) for u in plan.as_list(story.get("depends_on"))]
+    base = {"story": args.story, "branch": story_branch(story), "upstreams": upstreams}
+    if args.sync:  # before a PR: the upstreams must have shipped, then the PR shows only this story
+        waiting = [u for u in upstreams if u in by_id and not shipped(by_id[u], args.sync)]
+        if waiting:
+            return {"ok": False, **base, "findings": [
+                f"upstream stories not merged into {args.sync} yet: {', '.join(waiting)}; ship them first"]}
+        try:
+            git("merge", "--no-ff", "--no-edit", "-m", f"merge: {args.sync} into {base['branch']}", args.sync,
+                cwd=integ)
+        except DispatchError:
+            git("merge", "--abort", cwd=integ, check=False)
+            return {"ok": False, **base, "findings": [f"merging {args.sync} conflicts; resolve it on the story branch"]}
     results, findings = [], []
     commands = [c for c in [(story.get("integration") or {}).get("verify"), story.get("verify")]
                 if plan.is_command(c)]
@@ -868,8 +894,12 @@ def cmd_integrate(st: State, args) -> dict:
     if not findings and args.push and git("remote", check=False):
         git("push", "-u", "origin", story_branch(story), cwd=integ)
         pushed = True
-    return {"ok": not findings, "story": args.story, "branch": story_branch(story), "checks": results,
-            "findings": findings, "pushed": pushed}
+    order = plan.as_list((story.get("integration") or {}).get("merge_order")) or [
+        t.get("id") for t in plan.as_list(story.get("tracks"))]
+    merged = {str(t): next((e.get("sha") for e in reversed(st.data.get("history", {}).get(f"{args.story}/{t}", []))
+                            if e["event"] == "merge"), None) for t in order}
+    return {"ok": not findings, **base, "ship": story.get("ship", "story"), "merged": merged,
+            "checks": results, "findings": findings, "pushed": pushed}
 
 
 def cmd_report(st: State, args) -> dict:  # noqa: ARG001
@@ -934,6 +964,7 @@ def main() -> int:
     p.add_argument("--lesson-paths", nargs="+", help="globs the lesson applies to")
     p.add_argument("--lesson", help="a confirmed cause, recorded as a planning constraint")
     p = sub.add_parser("integrate"); p.add_argument("story"); p.add_argument("--push", action="store_true")
+    p.add_argument("--sync", metavar="REF", help="merge REF (e.g. origin/main) in first; refuses until upstreams are in it")
     p.add_argument("--timeout", type=int, default=1800)
     sub.add_parser("report")
     args = ap.parse_args()
