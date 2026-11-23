@@ -108,3 +108,24 @@ def test_an_empty_check_list_settles_when_the_repo_has_no_ci(tmp_path, monkeypat
     code, status, message = watch.evaluate(OLD_HEAD, None, ())
     assert code == 0 and status == "settled"
     assert "no CI" in message
+
+
+def test_ci_is_found_from_a_subdirectory_of_the_repo(tmp_path, monkeypatch):
+    # gh resolves the repo from any subdirectory; the workflow scan must too.
+    import subprocess
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    (tmp_path / ".github/workflows").mkdir(parents=True)
+    (tmp_path / ".github/workflows/ci.yml").write_text("on: pull_request\n")
+    (tmp_path / "src").mkdir()
+    monkeypatch.chdir(tmp_path / "src")
+    code, status, _ = watch.evaluate(OLD_HEAD, EMPTY, ())
+    assert code is None and status == "waiting"
+
+
+@pytest.mark.parametrize("state", ["DIRTY", "BEHIND"])
+def test_a_conflicted_pr_with_no_checks_is_blocked_not_waiting(tmp_path, monkeypatch, state):
+    (tmp_path / ".github/workflows").mkdir(parents=True)
+    (tmp_path / ".github/workflows/ci.yml").write_text("on: pull_request\n")
+    monkeypatch.chdir(tmp_path)
+    code, status, _ = watch.evaluate(dict(OLD_HEAD, mergeStateStatus=state), EMPTY, ())
+    assert code == 30 and status == "blocked"

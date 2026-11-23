@@ -113,8 +113,15 @@ def matches_bot(login, bots):
 
 
 def repo_has_ci():
+    """Workflow files at the repository root (the repo `gh` targets), wherever we run from."""
+    try:
+        top = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True,
+                             text=True, timeout=10).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        top = ""
+    root = Path(top) if top else Path.cwd()
     return any(
-        p.is_file() for d in WORKFLOW_DIRS if Path(d).is_dir() for p in Path(d).iterdir()
+        p.is_file() for d in WORKFLOW_DIRS if (root / d).is_dir() for p in (root / d).iterdir()
     )
 
 
@@ -194,6 +201,8 @@ def evaluate(pr, checks, bots):
         commit_time = last_commit_time(pr)
         if commit_time and (datetime.now(timezone.utc) - commit_time).total_seconds() < CHECKS_GRACE_SECONDS:
             return None, "waiting", "checks are registering"
+        if merge_state in ("DIRTY", "BEHIND"):  # a reopen won't fix conflicts
+            return 30, "blocked", f"merge state is {merge_state.lower()}"
         if repo_has_ci():
             return None, "waiting", (
                 "no checks reported — if the base was retargeted, "
