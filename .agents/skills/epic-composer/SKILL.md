@@ -17,7 +17,7 @@ description: >
   The skill itself. OpenCode reads it here; Claude Code loads it through the
   generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 6.2.0, owner: John D
+  version: 6.3.0, owner: John D
   invokes: .agents/skills/epic-interview/SKILL.md,
            .agents/skills/epic-acceptance-linter/SKILL.md,
            .agents/templates/epic/epic-shell.md,
@@ -88,8 +88,12 @@ read, so it has to be right, not just plausible.
     about to be decomposed, apply `.agents/evals/epic-rubric.md` and append its
     report. It advises; it never blocks the output.
 11. **Publish when asked.** `tracker.py create --title "Epic: <outcome>"
-    --body-file "$epic"`, then set `epic:` in the block to the returned number
-    and `tracker.py put` the re-synced body. Without a request, return the body.
+    --body-file "$epic" --label factory:drafted`, then set `epic:` in the block
+    to the returned number and `tracker.py put` the re-synced body. Without a
+    request, return the body. Every Epic you draft keeps the shell's
+    `factory:drafted` marker and label: the factory starts it only once a
+    person adds `factory:approved`. Never remove either, and never add an
+    approval label (`tracker.py` refuses it).
 
 ## LLM Judgment
 

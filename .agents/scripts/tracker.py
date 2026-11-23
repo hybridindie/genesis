@@ -3,7 +3,8 @@
 
   tracker.py get    REF [-o FILE]              print (or save) the issue body
   tracker.py put    REF FILE                   replace the issue body with FILE
-  tracker.py create --title T --body-file F    open an issue; prints its number
+  tracker.py create --title T --body-file F [--label NAME...]
+                                               open an issue, labelled; prints its number
   tracker.py comment REF --body TEXT           add a comment
   tracker.py labels REF                        print the issue's label names, one per line
   tracker.py label  REF [--add NAME...] [--remove NAME...]
@@ -243,6 +244,7 @@ def main() -> int:
     p = sub.add_parser("get"); p.add_argument("ref"); p.add_argument("-o", "--output")
     p = sub.add_parser("put"); p.add_argument("ref"); p.add_argument("file")
     p = sub.add_parser("create"); p.add_argument("--title", required=True); p.add_argument("--body-file", required=True)
+    p.add_argument("--label", nargs="+", action="extend", default=[], metavar="NAME")
     p = sub.add_parser("comment"); p.add_argument("ref"); p.add_argument("--body", required=True)
     p = sub.add_parser("labels"); p.add_argument("ref")
     p = sub.add_parser("label"); p.add_argument("ref")
@@ -250,6 +252,12 @@ def main() -> int:
     p.add_argument("--remove", nargs="+", action="extend", default=[], metavar="NAME")
     p = sub.add_parser("author"); p.add_argument("ref")
     args = ap.parse_args()
+    if args.cmd == "create" and args.label:  # refuse before an issue exists
+        try:
+            check_labels(args.label, [])
+        except LabelRefused as exc:
+            print(f"tracker: {exc}", file=sys.stderr)
+            return 2
     if args.cmd == "label":  # validate before touching the forge, so a refusal changes nothing
         if not args.add and not args.remove:
             print("tracker: label needs --add or --remove", file=sys.stderr)
@@ -274,7 +282,10 @@ def main() -> int:
         f.put(number(args.ref), read(args.file))
         print(f"updated #{number(args.ref)}")
     elif args.cmd == "create":
-        print("#" + f.create(args.title, read(args.body_file)))
+        n = f.create(args.title, read(args.body_file))
+        print("#" + n, flush=True)  # the issue exists now, even if labelling fails next
+        if args.label:
+            f.label(n, args.label, [])
     elif args.cmd == "comment":
         f.comment(number(args.ref), args.body)
         print(f"commented on #{number(args.ref)}")
