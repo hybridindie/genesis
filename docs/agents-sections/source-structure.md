@@ -13,7 +13,8 @@ system/                       ← machine layer (SYSTEM.md, system/README.md)
 install.sh                    ← curl | bash entry: fetch genesis, render into cwd
 new-project.sh                ← create a repo + render the harness
 
-.agents/                      ← epic scoping skills (see architecture.md)
+.agents/                      ← plan-and-dispatch pipeline, rendered into every
+                                 project except bootstrap-harness (architecture.md)
   skills/ doctrine/ templates/ evals/
   scripts/
     plan.py                   ← validate agent-plan blocks, render tables, briefs
@@ -27,6 +28,7 @@ new-project.sh                ← create a repo + render the harness
 scripts/
   lint-skills.py              ← enforce the deterministic skill contract
   sync-skill-wrappers.py      ← generate the .claude/skills pointers
+  pipeline.py                 ← which .agents/ skills and files ship (render, install)
   changed-skills.py           ← which skills a diff touches (behavioural evals)
 tests/                        ← render, hook, script and eval tests
   evals/                      ← fixture plans and behavioural cases per skill

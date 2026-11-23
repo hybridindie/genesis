@@ -10,8 +10,10 @@ Checks:
   1. The manifest is present and valid, and its stacks/packs match the rule files.
   2. `AGENTS.md` indexes every rule exactly once, and every rule has read_when.
   3. The Commands and Skills sections match the directories on disk.
-  4. The Claude/OpenCode mirrors have the same commands and agents, and every
-     .agents/skills skill has its .claude/skills pointer.
+  4. The Claude/OpenCode mirrors have the same commands and agents, every
+     .agents/skills skill has its .claude/skills pointer, and every pipeline
+     file a skill names (`.agents/scripts/plan.py`, doctrine, templates,
+     rubrics) exists.
   5. `CLAUDE.md` stays a thin import of `AGENTS.md`.
   6. The Python version in `AGENTS.md` and `pyproject.toml` matches the manifest.
   7. No rendered placeholder survived.
@@ -24,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -231,6 +234,20 @@ class Drift:
             for extra in sorted(right - left):
                 self.fail(f"DRIFT: .opencode/agents has no Claude counterpart: {extra}")
 
+    # Files a skill names under these .agents/ folders ship with the harness
+    # (the plan-and-dispatch pipeline); `.agents/plan-constraints.yaml` is the
+    # project's own and only exists once a lesson is recorded.
+    PIPELINE_REF = re.compile(r"(?<![\w/~-])\.agents/(?:scripts|doctrine|templates|evals)/[\w./-]*\w\.(?:py|md)")
+
+    def pipeline(self) -> None:
+        for skill in sorted((self.root / ".agents" / "skills").glob("*/SKILL.md")):
+            for rel in sorted(set(self.PIPELINE_REF.findall(skill.read_text(encoding="utf-8")))):
+                self.check((self.root / rel).is_file(),
+                           f"DRIFT: {skill.relative_to(self.root)} uses {rel}, which is missing")
+        for script in sorted((self.root / ".agents" / "scripts").glob("*.py")):
+            self.check(os.access(script, os.X_OK),
+                       f"DRIFT: {script.relative_to(self.root)} is not executable")
+
     # ── Context files ──────────────────────────────────────────────────
 
     def context_files(self) -> None:
@@ -419,6 +436,7 @@ class Drift:
         self.rule_index()
         self.map_lists()
         self.mirrors()
+        self.pipeline()
         self.context_files()
         self.placeholders()
         self.hooks()

@@ -114,6 +114,10 @@ render           → core + stacks + packs, placeholders, generated rule index
   only written when the project has no CI yet.
 - `/ship-pr`: open, watch and triage a PR, then merge with a merge commit once
   it is green.
+- The plan-and-dispatch pipeline from genesis's `.agents/` (epic/story/task
+  skills, plan-reviewer, wave-dispatcher, factory, with their scripts,
+  doctrine, templates and rubrics), at the same paths. Scripts need `python3`,
+  plus `uv` or PyYAML. `.agents/plan-constraints.yaml` stays yours.
 
 ## Enforcement, not only advice
 

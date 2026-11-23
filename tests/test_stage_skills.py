@@ -44,6 +44,22 @@ def test_scripts_keep_their_executable_bit(tmp_path):
         assert os.access(out / "agents/scripts" / name, os.X_OK), f"staged {name} lost its exec bit"
 
 
+def test_every_pipeline_skill_is_staged_but_not_the_installer(tmp_path):
+    out = stage(tmp_path)
+    expected = {p.name for p in (ROOT / ".agents/skills").iterdir() if p.is_dir()} - {"bootstrap-harness"}
+    assert {"plan-reviewer", "factory"} <= expected
+    for harness in ("claude", "opencode"):
+        assert {p.name for p in (out / harness).iterdir()} == expected
+
+
 def test_tests_fixtures_and_eval_cases_are_not_installed(tmp_path):
     out = stage(tmp_path)
     assert not list(out.rglob("tests")) and not list(out.rglob("fixtures")) and not list(out.rglob("cases"))
+
+
+def test_a_root_without_genesis_scripts_fails_with_a_clear_message(tmp_path):
+    proc = subprocess.run([sys.executable, str(STAGE), str(tmp_path), str(tmp_path / "out"), "/home/u"],
+                          capture_output=True, text=True)
+    assert proc.returncode != 0
+    assert "Traceback" not in proc.stderr
+    assert "pipeline.py" in proc.stderr

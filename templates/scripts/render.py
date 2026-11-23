@@ -289,6 +289,10 @@ class Writer:
         executable = mode is not None or os.access(src, os.X_OK)
         self.write(data, rel, (mode or 0o755) if executable else None)
 
+    def copy(self, src: Path, rel: str) -> None:
+        """Write `src` byte for byte, never templated (pipeline scripts contain `{{`)."""
+        self.write(src.read_bytes(), rel, 0o755 if os.access(src, os.X_OK) else None)
+
     def pointer(self, skill_dir: Path, name: str) -> None:
         """The generated `.claude/skills/<name>/SKILL.md` that loads `.agents/skills/<name>`."""
         rendered = render_text((skill_dir / "SKILL.md").read_text(encoding="utf-8"), self.v, self.flags)
@@ -375,8 +379,10 @@ def load_script(name: str, directory: Path = SCRIPT_DIR) -> Any:
 
 # Harness content the renderer owns; anything else (CI, git hooks, docs) is never removed.
 # `.opencode/skills/` stays listed so copies from older renders are removed.
+# `.agents/plan-constraints.yaml` is the project's own file: no prefix covers it.
 OWNED_PREFIXES = (".claude/rules/", ".claude/agents/", ".claude/commands/", ".claude/skills/",
-                  ".agents/skills/", ".opencode/agents/", ".opencode/commands/", ".opencode/skills/",
+                  ".agents/skills/", ".agents/scripts/", ".agents/doctrine/", ".agents/templates/",
+                  ".agents/evals/", ".opencode/agents/", ".opencode/commands/", ".opencode/skills/",
                   ".opencodereview/")
 
 
@@ -440,6 +446,8 @@ def render(plan: dict[str, Any], args: argparse.Namespace) -> tuple[list[str], l
                 # natively); Claude Code gets a generated pointer.
                 w.tree(skill, f".agents/skills/{skill.name}")
                 w.pointer(skill, skill.name)
+
+    render_pipeline(w)
 
     w.tree(TEMPLATES / "claude-code" / ".claude", ".claude")
     if (out / "opencode.json").is_file() and not (out / ".opencode" / "opencode.json").exists():
@@ -519,6 +527,24 @@ def render(plan: dict[str, Any], args: argparse.Namespace) -> tuple[list[str], l
     if leftovers:
         sys.exit("ERROR: unresolved conditional blocks in: " + ", ".join(leftovers))
     return w.written, w.kept + w.deleted
+
+
+def render_pipeline(w: Writer) -> None:
+    """The plan-and-dispatch pipeline from genesis's own `.agents/`, in the same
+    layout, so its skills' repo-relative paths (`.agents/scripts/plan.py`) hold.
+    Skills render like any other; scripts, doctrine, templates and rubrics are
+    copied byte for byte."""
+    pipeline = load_script("pipeline", GENESIS / "scripts")
+    src = GENESIS / ".agents"
+    for name in pipeline.skills(GENESIS):
+        rel_dir = f".agents/skills/{name}"
+        if any(r.startswith(rel_dir + "/") for r in w.written + w.kept + w.deleted):
+            sys.exit(f"ERROR: skill {name} is both a template skill and a pipeline skill")
+        for rel in pipeline.skill_files(GENESIS, name):
+            w.file(src / "skills" / name / rel, f"{rel_dir}/{rel}")
+        w.pointer(src / "skills" / name, name)
+    for rel in pipeline.shared_files(GENESIS):
+        w.copy(src / rel, f".agents/{rel}")
 
 
 def render_ci(plan: dict[str, Any], args: argparse.Namespace, w: Writer) -> None:

@@ -209,6 +209,8 @@ jobs:
             python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$f"
           done
           for h in "$RENDER"/.claude/hooks/*.sh; do bash -n "$h"; done
+          (cd "$RENDER" && python3 .agents/scripts/dispatch.py --help >/dev/null \
+            && python3 .agents/scripts/plan.py --help >/dev/null)
 
       - name: Check OpenCode mirrors
         run: |

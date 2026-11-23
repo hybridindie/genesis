@@ -12,6 +12,8 @@ Checks:
   5. Agent version claims match AGENTS.md canonical versions
   6. Coverage tier requirements are present
   7. No-skipped-tests policy is present in both harnesses
+  8. The plan-and-dispatch pipeline (scripts/pipeline.py) is rendered whole,
+     with its scripts identical to genesis's and executable
 
 Usage:
   python3 templates/scripts/check-harness-sync.py [templates_dir] [output_dir]
@@ -20,6 +22,8 @@ Exits 0 if clean, non-zero with grouped FAIL lines if drift detected.
 """
 
 import argparse
+import importlib.util
+import os
 import re
 import sys
 from pathlib import Path
@@ -256,6 +260,38 @@ class HarnessSyncChecker:
                     self.errors.append(
                         f"FAIL: {skill.relative_to(self.output_dir)} runs {rel}, which the render does not contain")
 
+    def check_pipeline(self) -> None:
+        """Every pipeline skill, pointer and shared file genesis ships is rendered;
+        scripts are byte-identical to their source and executable."""
+        if not self.output_dir:
+            return
+        genesis = self.templates_dir.resolve().parent
+        source = genesis / "scripts" / "pipeline.py"
+        if not source.is_file():
+            self.errors.append(f"FAIL: {source} missing; cannot check the pipeline")
+            return
+        spec = importlib.util.spec_from_file_location("pipeline", source)
+        pipeline = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
+        spec.loader.exec_module(pipeline)  # type: ignore[union-attr]
+        expected = [f".agents/skills/{name}/{rel}" for name in pipeline.skills(genesis)
+                    for rel in pipeline.skill_files(genesis, name)]
+        expected += [f".claude/skills/{name}/SKILL.md" for name in pipeline.skills(genesis)]
+        expected += [f".agents/{rel}" for rel in pipeline.shared_files(genesis)]
+        for rel in expected:
+            if not (self.output_dir / rel).is_file():
+                self.errors.append(f"FAIL: pipeline file not rendered: {rel}")
+        for rel in pipeline.shared_files(genesis):
+            dst = self.output_dir / ".agents" / rel
+            if not rel.startswith("scripts/") or not dst.is_file():
+                continue
+            if dst.read_bytes() != (genesis / ".agents" / rel).read_bytes():
+                self.errors.append(f"FAIL: .agents/{rel} differs from genesis's copy (scripts are never templated)")
+            if not os.access(dst, os.X_OK):
+                self.errors.append(f"FAIL: .agents/{rel} is not executable")
+        for name in pipeline.GENESIS_ONLY:
+            if (self.output_dir / ".agents" / "skills" / name).exists():
+                self.errors.append(f"FAIL: genesis-only skill {name} was rendered")
+
     def run(self) -> int:
         self.check_article_sources()
         self.check_rendered_rules()
@@ -265,6 +301,7 @@ class HarnessSyncChecker:
         self.check_coverage_tiers()
         self.check_no_skipped_tests()
         self.check_skill_script_paths()
+        self.check_pipeline()
 
         for w in self.warnings:
             eprint(w)
