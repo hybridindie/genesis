@@ -1,11 +1,11 @@
 ---
 name: factory
 description: >
-  Run the software factory in this session: poll the tracker every 5 minutes for an
-  approved Epic, label it factory:running, then decompose it into stories, gate the plan
+  Run the software factory in this session: take each approved Epic that is open now,
+  oldest first, label it factory:running, then decompose it into stories, gate the plan
   with plan-reviewer, decompose tasks, dispatch and ship the waves, with a per-Epic token
   budget and the escalation ladder on every loop. Trigger phrases: "start the factory",
-  "run the factory", "watch for epics", "work the backlog unattended", "factory mode".
+  "run the factory", "work the backlog unattended", "ship the approved epics", "factory mode".
   Use when the user wants approved Epics picked up and shipped without prompting.
 ---
 

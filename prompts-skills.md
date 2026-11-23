@@ -245,7 +245,7 @@ the factory in a session and leave it open:
 /factory --epic #42 --limit 2000000
 ```
 
-The first form polls every 5 minutes and works the oldest approved Epic; the
+The first form works every approved open Epic, oldest first, then exits; the
 second runs one named Epic with a 2,000,000-token budget and stops. Approve an
 agent-drafted Epic by adding `factory:approved` to it. Each round prints a
 status line such as:
