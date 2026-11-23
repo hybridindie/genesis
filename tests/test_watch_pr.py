@@ -6,6 +6,8 @@ actually posts, and cached an empty first poll, which settled before the review.
 
 from __future__ import annotations
 
+import pytest
+
 from conftest import load
 
 watch = load("templates/_shared/skills/ship-pr/scripts/watch_pr.py", "watch")
@@ -80,13 +82,29 @@ def test_failing_checks_win_over_the_review():
     assert code == 10 and status == "ci_failed"
 
 
-def test_an_empty_check_list_is_pending_not_settled():
+
+OLD_HEAD = {"state": "OPEN", "reviews": [], "comments": [], "commits": [{"committedDate": "2026-01-01T11:00:00Z"}]}
+EMPTY = {"pass": 0, "pending": 0, "fail": 0, "cancel": 0, "skipping": 0, "total": 0}
+
+
+@pytest.mark.parametrize("ci_dir", [".github/workflows", ".gitea/workflows"])
+def test_an_empty_check_list_is_pending_when_the_repo_defines_ci(tmp_path, monkeypatch, ci_dir):
     # A retargeted PR has no checks: `pull_request` does not fire on a base edit.
     # Settling would let it merge untested, however old its head commit is.
-    pr = {"state": "OPEN", "reviews": [], "comments": [], "commits": [{"committedDate": "2026-01-01T11:00:00Z"}]}
-    empty = {"pass": 0, "pending": 0, "fail": 0, "cancel": 0, "skipping": 0, "total": 0}
-    code, status, message = watch.evaluate(pr, empty, ())
+    (tmp_path / ci_dir).mkdir(parents=True)
+    (tmp_path / ci_dir / "ci.yml").write_text("on: pull_request\n")
+    monkeypatch.chdir(tmp_path)
+    code, status, message = watch.evaluate(OLD_HEAD, EMPTY, ())
     assert code is None and status == "waiting"
     assert "reopen" in message
-    code, status, _ = watch.evaluate(pr, None, ())
+    code, status, _ = watch.evaluate(OLD_HEAD, None, ())
     assert code is None and status == "waiting"
+
+
+def test_an_empty_check_list_settles_when_the_repo_has_no_ci(tmp_path, monkeypatch):
+    # A project rendered with --no-ci has no workflows; waiting would never end.
+    (tmp_path / ".github").mkdir()  # a .github dir without workflows is not CI
+    monkeypatch.chdir(tmp_path)
+    code, status, message = watch.evaluate(OLD_HEAD, None, ())
+    assert code == 0 and status == "settled"
+    assert "no CI" in message

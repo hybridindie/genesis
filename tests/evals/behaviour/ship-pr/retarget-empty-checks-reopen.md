@@ -6,6 +6,7 @@
 > and 516 was retargeted to `main` before `feat/a` was deleted. Its threads are
 > resolved and the review has landed. `gh pr checks 516` now prints
 > "no checks reported on the 'feat/b' branch"; the head commit is two hours old.
+> The repo defines CI in `.github/workflows/ci.yml`.
 
 ## Expected properties
 
@@ -18,3 +19,5 @@
 - It merges only once those checks have run on `main` as the base and pass,
   with the other gates still holding; the report says CI was re-triggered by a
   reopen.
+- Contrast: in a repo with no workflow files (rendered with `--no-ci`), an
+  empty check list is final, and it does not wait or reopen for CI.

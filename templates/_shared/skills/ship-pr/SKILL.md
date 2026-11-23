@@ -131,9 +131,9 @@ CI is green and every review thread is addressed. `--no-merge` stops short.
    done
    gh pr merge "$PR" --merge --delete-branch
    ```
-   `pull_request` does not fire on a base edit: for each retargeted PR `$N`,
-   confirm checks ran on the new base; if the list is empty, close and reopen
-   it to run CI, then watch it (step 5). Never merge a PR with no checks.
+   `pull_request` skips base edits: if the repo defines CI (any file in
+   `.github/workflows/` or `.gitea/workflows/`) and a retargeted PR `$N` has no
+   checks on the new base, close and reopen it, then watch until they run.
    ```bash
    [[ $(gh pr checks "$N" --json name -q length 2>/dev/null) -gt 0 ]] || { gh pr close "$N" && gh pr reopen "$N"; }
    ```
@@ -168,8 +168,8 @@ Escalation: <diagnosis link + attempt or question, or none>
 - Stop if the watcher times out or the PR is blocked on a human approval.
 - After three failed review cycles, diagnose; then take at most one informed
   attempt, and otherwise stop with one question for a person (step 9).
-- Never merge with a failing, pending or empty check list, a missing review,
-  or an open thread; never with `--no-merge`.
+- Never merge with a failing or pending check, empty checks where CI exists,
+  a missing review, or an open thread; never with `--no-merge`.
 
 ## Token Budget
 
