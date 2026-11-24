@@ -57,11 +57,18 @@ def test_review_marker_is_rendered_and_valid(tmp_path):
     marker = tmp_path / ".opencodereview" / "rule.json"
     assert marker.is_file()
     data = json.loads(marker.read_text())
-    paths = {rule["path"] for rule in data["rules"]}
+    # Patterns may use brace groups; expand them the way OpenCodeReview does.
+    def expand(pattern):
+        start, end = pattern.find("{"), pattern.find("}", pattern.find("{"))
+        if start < 0 or end < 0:
+            return [pattern]
+        return [pattern[:start] + o + pattern[end + 1:] for o in pattern[start + 1:end].split(",")]
+
+    paths = {p for rule in data["rules"] for p in expand(rule["path"])}
     assert "**/.claude/**" in paths and "**/.opencode/**" in paths
     # OpenCodeReview skips tests and Markdown by default: tests and the agent-facing instructions are
     # put back, other docs stay out.
-    include = set(data["include"])
+    include = {p for pattern in data["include"] for p in expand(pattern)}
     assert {"tests/**", "**/test_*.py", "AGENTS.md", "**/.claude/**/*.md"} <= include
     assert not any(p.startswith("docs") or p in {"**/*.md", "*.md"} for p in include)
 
