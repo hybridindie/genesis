@@ -59,6 +59,11 @@ def test_review_marker_is_rendered_and_valid(tmp_path):
     data = json.loads(marker.read_text())
     paths = {rule["path"] for rule in data["rules"]}
     assert "**/.claude/**" in paths and "**/.opencode/**" in paths
+    # OpenCodeReview skips tests and Markdown by default: tests and the agent-facing instructions are
+    # put back, other docs stay out.
+    include = set(data["include"])
+    assert {"tests/**", "**/test_*.py", "AGENTS.md", "**/.claude/**/*.md"} <= include
+    assert not any(p.startswith("docs") or p in {"**/*.md", "*.md"} for p in include)
 
 
 def test_root_opencode_config_keeps_the_rest_of_the_directory(tmp_path):
