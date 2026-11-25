@@ -231,7 +231,13 @@ def run_shell(command: str, cwd: Path, timeout: int) -> tuple[bool, str]:
     return proc.returncode == 0, tail
 
 
-TEST_FILE = re.compile(r"(^|/)(tests?|__tests__|spec)/|(^|/)test_[^/]*$|_test\.[^/]+$|\.(test|spec)\.[^/]+$")
+# A test path: a `test`/`tests`/`__tests__`/`spec` directory, optionally with a
+# `name_`/`name-` prefix (Rust crates keep in-tree tests in `src/contract_tests/`);
+# a `test_*` file; or a `*_test(s).*`, `*-test(s).*`, `*.test.*` or `*.spec.*` file.
+TEST_FILE = re.compile(
+    r"(^|/)([\w.-]*[_-])?(tests?|__tests__|spec)/|(^|/)test_[^/]*$"
+    r"|[_-]tests?\.[^/]+$|\.(test|spec)\.[^/]+$"
+)
 
 HUMAN_BRIEF = """
 

@@ -1028,3 +1028,32 @@ def test_accepts_an_escalated_brief_naming_failed_checks(repo, forge_log):
     root, _, diagnosis = exhausted(repo, forge_log)
     brief = Path(escalate(root, diagnosis, "attempt", expect=0)["brief"]).read_text()
     assert "failed their check" in brief and "diff review" not in brief
+
+
+# ── TEST_FILE: which paths count as tests for the weak check ───────────────
+def _test_file_pattern():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("dispatch_under_test", DISPATCH)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)  # type: ignore[union-attr]
+    return module.TEST_FILE
+
+
+@pytest.mark.parametrize("path", [
+    "tests/a.py", "src/test/a.rs", "web/__tests__/a.ts", "spec/a_spec.rb",
+    "test_routes.py", "pkg/foo_test.go", "web/x.spec.ts", "web/x.test.ts",
+    # A directory or file with a `_tests`/`-tests` suffix, as Rust crates name
+    # in-tree test modules (`src/contract_tests/`, `src/lib_tests.rs`).
+    "native/ap_core/src/contract_tests/features.rs", "src/unit-tests/a.c",
+    "src/lib_tests.rs", "src/e2e_test/a.py",
+])
+def test_accepts_test_paths(path):
+    assert _test_file_pattern().search(path), path
+
+
+@pytest.mark.parametrize("path", [
+    "src/latest/a.py", "src/attest.rs", "docs/testing.md", "src/contest/a.rs",
+    "src/protests.rs", "src/features.rs",
+])
+def test_rejects_non_test_paths(path):
+    assert not _test_file_pattern().search(path), path
