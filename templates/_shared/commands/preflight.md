@@ -1,5 +1,5 @@
 ---
-description: Run the local equivalent of CI (lint, types, tests, harness gates) before pushing
+description: "Run the local equivalent of CI (lint{{#HAS_TYPE_CHECKER}}, types{{/HAS_TYPE_CHECKER}}, tests, harness gates) before pushing"
 ---
 
 Run the project's CI-equivalent checks locally and report the result. Run each
@@ -13,7 +13,7 @@ check even if an earlier one fails, except where noted.
    `python3 .claude/hooks/check-secrets.py --all --quiet`.
 {{#STACK_PYTHON}}
 - **Python**{{#PY_IN_SUBDIR}} (in `{{BACKEND_PATH}}/`){{/PY_IN_SUBDIR}} —
-   `{{LINT_BACKEND_CMD}}`, `{{TYPE_BACKEND_CMD}}`, then
+   `{{LINT_BACKEND_CMD}}`{{#HAS_TYPE_CHECKER}}, `{{TYPE_BACKEND_CMD}}`{{/HAS_TYPE_CHECKER}}, then
    `{{TEST_BACKEND_CMD}} -x -q{{#STACK_AGENT}} -m "not slow and not integration"{{/STACK_AGENT}}`.
 {{#STACK_MCP}}
    MCP smoke: import the server module and list its tools; confirm the core

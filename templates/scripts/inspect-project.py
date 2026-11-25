@@ -140,8 +140,12 @@ def python_version(root: Path, py_root: Path, data: dict[str, Any]) -> str:
     return "3.12"
 
 
-def detect_type_checker(root: Path, deps: set[str], tool: dict[str, Any]) -> str:
-    """The checker CI or pre-commit actually runs wins; then what is configured."""
+def detect_type_checker(root: Path, deps: set[str], tool: dict[str, Any]) -> str | None:
+    """The checker CI or pre-commit actually runs wins; then what is configured.
+
+    None when the project has no type checker: a rendered command that runs a
+    tool the project does not install is a broken gate.
+    """
     gates = ""
     for pattern in (".github/workflows/*.y*ml", ".gitea/workflows/*.y*ml", ".pre-commit-config.yaml", "Makefile"):
         for f in root.glob(pattern):
@@ -150,7 +154,7 @@ def detect_type_checker(root: Path, deps: set[str], tool: dict[str, Any]) -> str
     if len(ran) == 1:
         return ran[0]
     has = [c for c in ("mypy", "pyright") if c in deps or c in tool]
-    return has[0] if len(has) == 1 else "mypy"
+    return has[0] if has else None
 
 
 def python_info(root: Path, py_root: Path) -> dict[str, Any]:
@@ -178,7 +182,9 @@ def python_info(root: Path, py_root: Path) -> dict[str, Any]:
 
     type_checker = detect_type_checker(root, deps, tool)
     target = "src/" if (py_root / "src").is_dir() else "."
-    type_cmd = f"{run}pyright" if type_checker == "pyright" else f"{run}mypy {target}"
+    type_cmd = None
+    if type_checker:
+        type_cmd = f"{run}pyright" if type_checker == "pyright" else f"{run}mypy {target}"
 
     db = None
     if (root / "supabase").is_dir():  # the client library alone doesn't mean Supabase migrations

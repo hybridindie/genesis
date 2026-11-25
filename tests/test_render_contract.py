@@ -73,6 +73,41 @@ def test_review_marker_is_rendered_and_valid(tmp_path):
     assert not any(p.startswith("docs") or p in {"**/*.md", "*.md"} for p in include)
 
 
+def _write_pyproject(root: Path, dev: str = "") -> None:
+    body = (
+        "[project]\n"
+        'name = "no-type"\n'
+        'version = "0.1.0"\n'
+        'requires-python = ">=3.12"\n'
+    )
+    if dev:
+        body += f"\n[dependency-groups]\ndev = [{dev}]\n"
+    (root / "pyproject.toml").write_text(body)
+
+
+def test_python_without_a_type_checker_omits_the_type_step(tmp_path):
+    _write_pyproject(tmp_path)
+    run_render(tmp_path, "--auto-detect")
+    agents = (tmp_path / "AGENTS.md").read_text()
+    preflight = (tmp_path / ".claude" / "commands" / "preflight.md").read_text()
+    manifest = json.loads((tmp_path / ".claude" / "harness.json").read_text())
+    assert "mypy" not in agents and "pyright" not in agents
+    assert "mypy" not in preflight and "pyright" not in preflight
+    assert "`, then" in preflight
+    assert manifest["python"]["type_checker"] is None
+
+
+def test_python_with_mypy_keeps_the_type_step(tmp_path):
+    _write_pyproject(tmp_path, dev='"mypy>=1.13"')
+    run_render(tmp_path, "--auto-detect")
+    agents = (tmp_path / "AGENTS.md").read_text()
+    preflight = (tmp_path / ".claude" / "commands" / "preflight.md").read_text()
+    manifest = json.loads((tmp_path / ".claude" / "harness.json").read_text())
+    assert "mypy" in agents
+    assert "mypy ." in preflight and "`, then" in preflight
+    assert manifest["python"]["type_checker"] == "mypy"
+
+
 def test_root_opencode_config_keeps_the_rest_of_the_directory(tmp_path):
     (tmp_path / "opencode.json").write_text(
         json.dumps({"instructions": ["AGENTS.md", "my-workflows.md"]})

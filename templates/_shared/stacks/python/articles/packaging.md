@@ -24,7 +24,8 @@ paths:
 - `uv run <tool>` in docs and CI, never bare `python`.
 - Optional extras for heavy/optional features (`[project.optional-dependencies]`).
 - Build a wheel in CI and install it into a clean environment for a smoke test.
-- Keep dev tools (ruff, mypy, pytest) in a `dev` group.
+- Keep dev tools (ruff, pytest, and any type checker the project uses) in a
+  `dev` group.
 
 ## ANTI-PATTERNS
 
