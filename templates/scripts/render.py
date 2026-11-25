@@ -502,6 +502,24 @@ def render(plan: dict[str, Any], args: argparse.Namespace) -> tuple[list[str], l
         "ci_platform": plan["ci_platform"],
         "ci_runs_on": plan["ci_runs_on"],
     }
+    # A tailored repo may cover a stack under a different rule path
+    # (`{"api-design": "backend/api-design.md"}`, read by
+    # check-project-drift.py). Carry it through: the manifest is rebuilt here,
+    # so without this a re-render silently un-tailors the repo and the drift
+    # check starts warning about a rule that is present.
+    harness_path = out / ".claude" / "harness.json"
+    if harness_path.is_file():
+        try:
+            previous = json.loads(harness_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            previous = {}
+        aliases = previous.get("rule_aliases")
+        if isinstance(aliases, dict) and aliases:
+            manifest["rule_aliases"] = {
+                str(key): value
+                for key, value in aliases.items()
+                if isinstance(value, str) and value
+            }
     # Hash of each harness file as rendered (sha256sum format, so secret
     # scanners don't read path/hash pairs as key assignments). A file that
     # still matches is safe to replace on the next render; anything else is a
