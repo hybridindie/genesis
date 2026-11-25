@@ -1,8 +1,9 @@
 ---
 name: ship-pr
 description: >
-  Open or update a pull request, watch CI and the automated review, address the review
-  threads, and merge once CI is green and every thread is addressed. Trigger phrases: "open a
+  Open or update a pull request on GitHub or Gitea, watch CI and the automated review,
+  address the review threads, and merge once CI is green and every finding is addressed,
+  if the repo's merge policy allows it. Trigger phrases: "open a
   PR", "ship this PR", "watch the PR", "address the review", "merge when green", "push
   this and open a PR". Use when the current branch is ready to ship.
 ---

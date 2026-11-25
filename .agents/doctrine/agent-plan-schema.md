@@ -1,7 +1,7 @@
 <!--
   agent-plan-schema.md — the machine-readable plan carried by Epic and story issues
   Referenced by: epic-composer, story-decomposer, task-decomposer, wave-dispatcher
-  version: 1.7.0, owner: John D
+  version: 1.8.0, owner: John D
   Single source of truth for the `agent-plan` block. `.agents/scripts/plan.py`
   enforces it; skills write it; the dispatcher schedules from it.
 -->
@@ -171,7 +171,9 @@ change.
 
   `check` also escalates a unit to `irreversible` when its diff touches one of
   those paths, whatever the plan predicted. `lane:` on a track sets it
-  explicitly. Irreversible is a closed lane, not a high threshold.
+  explicitly. Irreversible is a closed lane, not a high threshold: ship-pr's
+  `merge_pr.py` reads the same globs (plus a repo's
+  `merge_policy.irreversible_paths`) and leaves such a PR for a person.
 - **Every edge names what crosses it.** A dependency means "I read your
   output", not "and then". Give each `depends_on` entry a `consumes` list of
   the upstream paths (optionally `path::Symbol`) it reads; each must lie inside

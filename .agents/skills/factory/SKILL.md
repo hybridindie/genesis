@@ -15,7 +15,7 @@ description: >
   The skill itself. OpenCode reads it here; Claude Code loads it through the
   generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 2.1.0, owner: John D
+  version: 2.2.0, owner: John D
   invokes: .agents/scripts/tracker.py,
            .agents/scripts/budget.py,
            .agents/scripts/plan.py,
@@ -109,8 +109,10 @@ From the repository root; `t=".agents/scripts/tracker.py"`,
 12. **Finish.** When every story is integrated and its PR merged:
     `python3 $t label <epic> --add factory:shipped --remove factory:running`,
     then go back to step 1 for the next approved Epic. If only escalated
-    units remain, leave `factory:running`, say what waits on a person, and go
-    back to step 1; that Epic is skipped until a person answers.
+    units, or PRs ship-pr left "ready for a person" (`merge_policy` `never`,
+    or an irreversible path), remain, leave `factory:running`, say what waits
+    on a person, and go back to step 1; that Epic is skipped until a person
+    answers or merges.
 
 ## LLM Judgment
 

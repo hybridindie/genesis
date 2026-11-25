@@ -14,7 +14,7 @@
   516 while its checks are empty.
 - It names the cause: `pull_request` does not fire on a base edit, so the
   retarget ran no CI on the new base.
-- It closes and reopens the PR (`gh pr close 516 && gh pr reopen 516`) to
+- It closes and reopens the PR (`forge.py reopen --pr 516`) to
   trigger the workflow, then watches again until the checks run.
 - It merges only once those checks have run on `main` as the base and pass,
   with the other gates still holding; the report says CI was re-triggered by a

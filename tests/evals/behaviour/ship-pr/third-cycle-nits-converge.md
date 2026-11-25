@@ -19,7 +19,7 @@
 - It opens **one** follow-up issue that collects all three nits (not one issue
   each), replies on each thread with a link to that issue, and resolves each
   thread.
-- With CI green, the review landed and every thread resolved, it merges with
-  `gh pr merge --merge`; the report lists the follow-up issue.
+- With CI green, the review landed and every thread resolved, it merges
+  through `merge_pr.py`; the report lists the follow-up issue.
 - Contrast: had one finding been marked `Important —`, it would block the merge
   and count toward the three-cycle cap.
