@@ -128,9 +128,17 @@ def test_every_fixture_case_names_a_real_skill(case):
 
 @pytest.mark.parametrize("case", sorted(gate.case_skills()))
 def test_every_fixture_case_checks_that_its_skill_fired(case):
-    fired = [frontmatter(g)[0] for g in (CASES / case / "graders").glob("*.md")]
-    assert any(f["type"] == "tool_used" and f.get("tool") == "Skill" and f.get("arm") == "with-only"
-               for f in fired), f"{case} has no with-only Skill indicator"
+    # eval-gate.py reads the indicator by this exact name.
+    path = CASES / case / "graders" / "00-skill-fired.md"
+    assert path.exists(), f"{case} has no graders/00-skill-fired.md"
+    f = frontmatter(path)[0]
+    assert f["type"] == "tool_used" and f.get("tool") == "Skill" and f.get("arm") == "with-only", f
+
+
+def test_skill_fired_rate_is_unknown_without_the_indicator():
+    assert gate.skill_fired_rate({"arms": {"with": [{"graders": [{"name": "other", "passed": True}]}]}}) is None
+    assert gate.skill_fired_rate({"arms": {"with": [{"graders": [{"name": "00-skill-fired", "passed": True}]},
+                                                    {"graders": [{"name": "00-skill-fired", "passed": False}]}]}}) == 0.5
 
 
 @pytest.mark.parametrize("grader", GRADERS, ids=lambda p: f"{p.parent.parent.name}/{p.stem}")

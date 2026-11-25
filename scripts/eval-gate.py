@@ -23,8 +23,9 @@ MLflow: when `mlflow` is importable, one run per invocation is logged to the
 git sha, models, per-case scores and deltas, and the raw result as an artifact.
 Without it the gate still runs.
 
-Exit codes: 0 pass (or nothing to run), 1 regression, 2 the eval could not run
-or its result is partial (cost ceiling, auth).
+Exit codes: 0 pass (or nothing to run), 1 a case regressed, errored, or is
+missing, 2 the eval could not run, its result is partial (cost ceiling, auth),
+or an --update-baseline was refused because runs errored.
 """
 
 from __future__ import annotations
@@ -94,11 +95,15 @@ def errored_cases(result: dict) -> dict[str, str]:
     return out
 
 
-def skill_fired_rate(case: dict) -> float:
-    """Share of with-arm runs where the case's with-only Skill indicator passed."""
+def skill_fired_rate(case: dict) -> float | None:
+    """Share of with-arm runs where the case's with-only Skill indicator passed.
+
+    None when no run carries a 00-skill-fired grader, so a renamed grader shows
+    as "-" instead of a misleading 0%.
+    """
     runs = case.get("arms", {}).get("with", [])
     fired = [g.get("passed") for r in runs for g in r.get("graders", []) if g.get("name") == "00-skill-fired"]
-    return sum(map(bool, fired)) / len(fired) if fired else 0.0
+    return sum(map(bool, fired)) / len(fired) if fired else None
 
 
 def gate(scores: dict[str, float], baseline: dict, expected: list[str],
@@ -189,7 +194,9 @@ def _log(mlflow, result: dict, verdicts: list[Verdict], params: dict, result_pat
             for key, name in (("scoreWithout", "score_without"), ("delta", "skill_lift")):
                 if key in agg_c:
                     mlflow.log_metric(f"{name}.{c['name']}", float(agg_c[key]))
-            mlflow.log_metric(f"skill_fired.{c['name']}", skill_fired_rate(c))
+            rate = skill_fired_rate(c)
+            if rate is not None:
+                mlflow.log_metric(f"skill_fired.{c['name']}", rate)
         for v in verdicts:
             mlflow.log_metric(f"score.{v.case}", v.score)
             if v.delta is not None:
@@ -208,7 +215,8 @@ def report(verdicts: list[Verdict], tolerance: float, result: dict | None = None
         c = cases.get(v.case, {})
         without = c.get("aggregates", {}).get("scoreWithout")
         without = "-" if without is None else f"{without:.2f}"
-        fired = f"{skill_fired_rate(c):.0%}" if c else "-"
+        rate = skill_fired_rate(c) if c else None
+        fired = "-" if rate is None else f"{rate:.0%}"
         print(f"{v.case:36} {v.score:6.2f} {base:>6} {delta:>7} {without:>6} {fired:>6}  {v.status}")
 
 
