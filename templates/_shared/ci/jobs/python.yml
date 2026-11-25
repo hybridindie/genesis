@@ -21,5 +21,7 @@
 {{/PY_POETRY}}
       - run: {{PY_SYNC_CMD}}
       - run: {{LINT_BACKEND_CMD}}
+{{#HAS_TYPE_CHECKER}}
       - run: {{TYPE_BACKEND_CMD}}
+{{/HAS_TYPE_CHECKER}}
       - run: {{TEST_BACKEND_CMD}} -q{{#STACK_AGENT}} -m "not slow and not integration"{{/STACK_AGENT}}

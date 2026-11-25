@@ -90,10 +90,12 @@ def test_python_without_a_type_checker_omits_the_type_step(tmp_path):
     run_render(tmp_path, "--auto-detect")
     agents = (tmp_path / "AGENTS.md").read_text()
     preflight = (tmp_path / ".claude" / "commands" / "preflight.md").read_text()
+    ci = (tmp_path / ".github" / "workflows" / "ci.yml").read_text()
     manifest = json.loads((tmp_path / ".claude" / "harness.json").read_text())
     assert "mypy" not in agents and "pyright" not in agents
     assert "mypy" not in preflight and "pyright" not in preflight
     assert "`, then" in preflight
+    assert "mypy" not in ci and "run: null" not in ci
     assert manifest["python"]["type_checker"] is None
 
 
