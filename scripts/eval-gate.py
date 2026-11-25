@@ -280,7 +280,7 @@ def main(argv: list[str] | None = None) -> int:
             print("\nWARNING: writing a baseline over regressed cases; their lower scores become the new floor"
                   " (missing cases keep whatever baseline they already have)")
         meta = {"runs": args.runs, "model": params["model"], "sha": params["git_sha"][:12],
-                "date": dt.date.today().isoformat()}
+                "claude_version": params["claude_version"], "date": dt.date.today().isoformat()}
         args.baseline.write_text(json.dumps(update_baseline(baseline, scores, meta), indent=2) + "\n")
         print(f"baseline updated: {args.baseline.relative_to(ROOT) if args.baseline.is_relative_to(ROOT) else args.baseline}")
         return 0
