@@ -21,8 +21,9 @@ CATEGORIES = {
 def is_test(path: Path) -> bool:
     name = path.name
     return (
-        "/tests/" in path.as_posix()
-        or name.endswith((".test.ts", ".test.tsx", ".test.py", ".spec.ts", ".spec.tsx"))
+        "tests" in path.parts[:-1]
+        or name.startswith("test_")
+        or name.endswith(("_test.py", ".test.ts", ".test.tsx", ".test.py", ".spec.ts", ".spec.tsx"))
     )
 
 

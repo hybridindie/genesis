@@ -260,7 +260,7 @@ def evaluate(pr, checks, bots):
         if decision == "APPROVED":
             return 0, "settled", "review approved and CI green"
         if decision == "REVIEW_REQUIRED" and merge_state == "BLOCKED":
-            return 0, "settled", "review landed; approval still required"
+            return 30, "blocked", "review landed; approval still required"
         return 0, "settled", "review landed and CI green"
 
     # No automated reviewer configured: stop when checks are done and report the state.
