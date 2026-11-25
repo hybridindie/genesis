@@ -53,6 +53,9 @@ parallelization map. Do not edit by hand.]
 - [ ] Parallel waves and shared contracts are accurate
 - [ ] Open questions resolved or assigned
 
+<details>
+<summary>agent-plan (machine-readable)</summary>
+
 ```yaml agent-plan
 version: 1
 kind: epic
@@ -71,3 +74,5 @@ stories:
     owns: ["<path/**>"]
     verify: "<command>"
 ```
+
+</details>

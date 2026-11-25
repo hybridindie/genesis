@@ -604,6 +604,12 @@ def test_scaffold_output_passes_the_prose_shape_check():
         assert va.check_story(body) == []
 
 
+def test_scaffold_keeps_the_collapsed_plan_wrapper():
+    for body in plan.scaffold(epic_md(three_story_epic()), TEMPLATE).values():
+        assert "<details>" in body and "</details>" in body
+        assert plan.extract(body)["kind"] == "story"
+
+
 # ── check ────────────────────────────────────────────────────────────────────
 
 def write(tmp_path, name, text):
@@ -621,6 +627,12 @@ def full_epic_md(e):
                           EPIC_TEMPLATE, count=1)
 
 
+def test_shells_wrap_their_single_plan_block():
+    for template in (TEMPLATE, EPIC_TEMPLATE):
+        assert template.count("```yaml agent-plan") == 1
+        assert "<details>" in template and "</details>" in template
+
+
 def test_check_passes_and_syncs_a_good_set(tmp_path):
     e = three_story_epic()
     paths = [write(tmp_path, "epic.md", full_epic_md(e))]
@@ -630,6 +642,7 @@ def test_check_passes_and_syncs_a_good_set(tmp_path):
     assert ok, lines
     assert any(line.startswith("synced") and "epic.md" in line for line in lines)
     assert "| S3 |" in (tmp_path / "epic.md").read_text()  # generated story table
+    assert "<details>" in (tmp_path / "epic.md").read_text()  # wrapper survives sync
 
 
 def constraint_epic():
