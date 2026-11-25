@@ -38,7 +38,7 @@ Each line names the rule that defines it.
 ## Stack
 
 {{#STACK_PYTHON}}
-- **Python {{PYTHON_VERSION}}** with {{PY_PKG_MANAGER}}{{#PY_IN_SUBDIR}} in `{{BACKEND_PATH}}/`{{/PY_IN_SUBDIR}}; ruff, {{PY_TYPE_CHECKER}}, pytest.
+- **Python {{PYTHON_VERSION}}** with {{PY_PKG_MANAGER}}{{#PY_IN_SUBDIR}} in `{{BACKEND_PATH}}/`{{/PY_IN_SUBDIR}}; ruff{{#HAS_TYPE_CHECKER}}, {{PY_TYPE_CHECKER}}{{/HAS_TYPE_CHECKER}}, pytest.
 {{/STACK_PYTHON}}
 {{#STACK_MCP}}
 - **MCP server** (FastMCP): typed tools/resources/prompts; server-side safety; one transport to the controlled process.
@@ -71,7 +71,9 @@ Each line names the rule that defines it.
 # Python{{#PY_IN_SUBDIR}} (from {{BACKEND_PATH}}/){{/PY_IN_SUBDIR}}
 {{PY_SYNC_CMD}}
 {{LINT_BACKEND_CMD}}
+{{#HAS_TYPE_CHECKER}}
 {{TYPE_BACKEND_CMD}}
+{{/HAS_TYPE_CHECKER}}
 {{TEST_BACKEND_CMD}}
 {{/STACK_PYTHON}}
 {{#STACK_FRONTEND}}
