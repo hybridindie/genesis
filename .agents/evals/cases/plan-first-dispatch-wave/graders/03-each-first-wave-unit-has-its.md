@@ -1,6 +1,6 @@
 ---
 type: llm
-focus: trace
+focus: { source: file, path: dispatch-plan.md }
 weight: 1
 ---
 

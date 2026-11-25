@@ -1,0 +1,4 @@
+{
+  "tolerance_note": "Per-case mean score from `claude plugin eval`. Written only by `scripts/eval-gate.py --update-baseline` after a real run; never hand-edited. Empty until the first baseline run.",
+  "cases": {}
+}

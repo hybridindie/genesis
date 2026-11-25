@@ -1,7 +1,8 @@
 ---
-type: llm
-focus: trace
+type: regex
+target: trace
+pattern: 'PASS: epic \+ 6 stories'
 weight: 1
 ---
 
-Each story file has exactly one fenced `yaml agent-plan` block, and `plan.py validate epic.md story-*.md` passes on the set
+`plan.py validate` (or `check`) printed a PASS line for epic.md plus all six stories during the run.

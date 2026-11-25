@@ -1,6 +1,6 @@
 ---
 type: llm
-focus: trace
+focus: { source: file, path: story-S1.md }
 weight: 1
 ---
 

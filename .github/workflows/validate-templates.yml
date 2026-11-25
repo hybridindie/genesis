@@ -134,7 +134,7 @@ jobs:
         run: python3 -m pytest -q tests .agents/scripts/tests
 
   skill-evals:
-    name: Skill change report
+    name: Skill evals
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
@@ -144,6 +144,33 @@ jobs:
 
       - name: Which skills changed
         run: python3 scripts/changed-skills.py --base "origin/${{ github.base_ref }}"
+
+      # Fixture evals for the changed skills, gated against .agents/evals/baseline.json.
+      # Needs the ANTHROPIC_API_KEY secret; without it (forks, or not configured) the
+      # step says so and passes, so the gate is opt-in per repository.
+      - name: Run fixture evals and gate on regressions
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          MLFLOW_DISABLE_AGENT_HINT: "1"
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::notice::ANTHROPIC_API_KEY not set: fixture evals skipped"
+            exit 0
+          fi
+          npm install -g --silent @anthropic-ai/claude-code
+          pip install -q --user mlflow pyyaml uv
+          python3 scripts/eval-gate.py --base "origin/${{ github.base_ref }}" \
+            --runs 3 --max-cost-usd 10
+
+      - name: Keep the eval record
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: skill-evals
+          path: |
+            mlflow.db
+            /tmp/eval-gate-*/aggregate-result.json
+          if-no-files-found: ignore
 
   templates:
     name: Harness / ${{ matrix.name }}
