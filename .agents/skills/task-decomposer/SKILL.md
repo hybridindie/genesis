@@ -15,7 +15,7 @@ description: >
   The skill itself. OpenCode reads it here; Claude Code loads it through the
   generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 4.3.0, owner: John D
+  version: 4.4.0, owner: John D
   invokes: .agents/scripts/plan.py,
            .agents/scripts/tracker.py,
            .agents/evals/story-rubric.md
@@ -34,6 +34,10 @@ that track's subagent brief.
 
 - Required: the story body with a valid `agent-plan` block (a file, or
   `tracker.py get <ref> -o story.md`).
+- Optional: the plan review's deferred findings (`plan_review.py`'s
+  `deferred` list, passed on by plan-reviewer or factory). They are task-level
+  by definition: settle each one in the tasks you write, or say in the Output
+  why it does not apply. Never send one back to story-decomposer.
 - Read: the doctrine files above and the files each track owns.
 - Do not read: unrelated modules or the whole repository.
 

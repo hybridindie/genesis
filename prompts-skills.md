@@ -230,7 +230,13 @@ checkpoint:
 5. **Ship** each story branch with `/ship-pr`.
 
 Between steps 2 and 3, `/plan-reviewer` gets a second model's verdict on the
-stories before anything is dispatched.
+stories before anything is dispatched. Choose that model with
+`PLAN_REVIEW_MODEL` (for example `export PLAN_REVIEW_MODEL=provider/model`): a
+cheap model that is **not** the one writing the code. Unset, it falls back to
+`opencode/big-pickle`, a free OpenCode Zen model that may be retired. Only
+blocking findings (contradictions, unverifiable criteria, ownership gaps,
+scope conflicts, an impossible dependency order) send the plan back; deferred,
+task-level ones go to task-decomposer in step 3.
 
 ### Run the factory
 

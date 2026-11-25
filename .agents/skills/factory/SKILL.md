@@ -15,7 +15,7 @@ description: >
   The skill itself. OpenCode reads it here; Claude Code loads it through the
   generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 2.0.0, owner: John D
+  version: 2.1.0, owner: John D
   invokes: .agents/scripts/tracker.py,
            .agents/scripts/budget.py,
            .agents/scripts/plan.py,
@@ -76,11 +76,17 @@ From the repository root; `t=".agents/scripts/tracker.py"`,
 5. **Stories.** Run `/story-decomposer` on the Epic.
 6. **Plan review.** Save the story bodies (`python3 $t get <story> -o <file>`)
    and follow the `plan-reviewer` skill: `python3 .agents/scripts/plan.py
-   check <files>`, then `python3 .agents/scripts/plan_review.py <files>`, keyed
-   on its exit code. `1` needs-work → findings back to story-decomposer, at
-   most 3 times; then the escalation ladder. `2` or `3` → `needs-input` on the
-   Epic: label it `factory:needs-input`, comment the question, and stop.
-7. **Tasks.** Run `/task-decomposer` on each story whose tracks need tasks.
+   check <files>`, then `python3 .agents/scripts/plan_review.py <files>`
+   (from round 2 with `--round n --prior <file>`), keyed on its exit code,
+   with the reviewer model from `PLAN_REVIEW_MODEL`, never the coding model.
+   `0` ready → keep its `deferred` findings for step 7. `1` needs-work → the
+   blocking `findings` back to story-decomposer, at most 3 times; then the
+   escalation ladder. Deferred findings never go back to story-decomposer.
+   `2` or `3` → `needs-input` on the Epic: label it `factory:needs-input`,
+   comment the question, and stop.
+7. **Tasks.** Run `/task-decomposer` on each story whose tracks need tasks,
+   or that a deferred finding names, passing that story's deferred findings
+   verbatim.
 8. **Waves.** Run `/wave-dispatcher --ship` on the Epic, a round at a time
    (`python3 $d prepare --max <n>`, subagents, `check`, `merge`), with step 4
    before each `prepare`. Ship upstream stories first: a dependant's PR opens
