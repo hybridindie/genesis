@@ -119,6 +119,18 @@ def test_opencode_config_ships_no_dead_lsp_block(tmp_path):
         assert config["permissions"]
 
 
+def test_rendered_opencode_exposes_every_skill_as_a_command(tmp_path):
+    run_render(tmp_path, "--stacks", "python")
+    skills = {p.parent.name for p in (tmp_path / ".agents" / "skills").glob("*/SKILL.md")}
+    config = json.loads((tmp_path / ".opencode" / "opencode.json").read_text())
+    commands = set(config.get("commands") or {})
+    files = {p.stem for p in (tmp_path / ".opencode" / "commands").glob("*.md")}
+    assert skills - commands - files == set(), f"no command for: {sorted(skills - commands - files)}"
+    assert "epic-composer" in commands
+    for name in skills & commands:
+        assert f"Load the {name} skill" in config["commands"][name]["template"]
+
+
 def test_root_opencode_config_keeps_the_rest_of_the_directory(tmp_path):
     (tmp_path / "opencode.json").write_text(
         json.dumps({"instructions": ["AGENTS.md", "my-workflows.md"]})
