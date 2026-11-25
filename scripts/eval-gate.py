@@ -191,7 +191,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--judge-model")
     p.add_argument("--max-cost-usd", type=float)
     p.add_argument("--tolerance", type=float, default=0.15,
-                   help="allowed drop below baseline (default 0.15: one lost grader of ~7 on 3 runs is noise)")
+                   help="allowed drop below baseline (default 0.15: about 2-3 failed checks of ~18 across 3 runs)")
     p.add_argument("--strict", action="store_true", help="fail cases that have no baseline")
     p.add_argument("--baseline", type=Path, default=BASELINE)
     p.add_argument("--update-baseline", action="store_true", help="write these scores as the new baseline")
