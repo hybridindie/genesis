@@ -276,9 +276,12 @@ def main(argv: list[str] | None = None) -> int:
         print("\nrefusing to write a baseline from errored runs")
         return 2
     if args.update_baseline:
-        if failed(verdicts):
-            print("\nWARNING: writing a baseline over regressed cases; their lower scores become the new floor"
-                  " (missing cases keep whatever baseline they already have)")
+        regressed = sorted(v.case for v in verdicts if v.status == "regressed")
+        missing = sorted(v.case for v in verdicts if v.status == "missing")
+        if regressed:
+            print(f"\nWARNING: lower scores become the new floor for: {', '.join(regressed)}")
+        if missing:
+            print(f"\nWARNING: not in the result, existing baseline kept: {', '.join(missing)}")
         meta = {"runs": args.runs, "model": params["model"], "sha": params["git_sha"][:12],
                 "claude_version": params["claude_version"], "date": dt.date.today().isoformat()}
         args.baseline.write_text(json.dumps(update_baseline(baseline, scores, meta), indent=2) + "\n")
