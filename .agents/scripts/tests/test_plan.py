@@ -724,6 +724,16 @@ def test_rejects_rewriting_stdin(tmp_path, args):
     assert not (tmp_path / "-").exists()
 
 
+def test_checks_an_epic_from_stdin_with_no_sync(tmp_path):
+    # `check - --no-sync` is documented; stdin can only be read once, so the
+    # shape pass must reuse the text load() already consumed.
+    body = full_epic_md(three_story_epic())
+    out = subprocess.run([sys.executable, str(PLAN_PY), "check", "-", "--no-sync"],
+                         cwd=tmp_path, input=body, capture_output=True, text=True)
+    assert out.returncode == 0, out.stdout + out.stderr
+    assert not (tmp_path / "-").exists()
+
+
 def test_rejects_duplicate_task_ids():
     s = story("S1", ["a/**"], [track("main", ["a/**"])],
               tasks=[task("T1", "main", ["a/x.py"]), task("T1", "main", ["a/y.py"])])

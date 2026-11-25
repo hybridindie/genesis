@@ -120,11 +120,16 @@ def extract(text: str, source: str = "input") -> dict:
     return data
 
 
-def load(paths: list[str]) -> tuple[dict | None, list[dict]]:
-    """Returns (epic plan or None, story plans)."""
+def load(paths: list[str], texts: dict[str, str] | None = None) -> tuple[dict | None, list[dict]]:
+    """Returns (epic plan or None, story plans).
+
+    `texts` holds any input already read (stdin can only be read once).
+    """
     epic, stories = None, []
+    texts = texts or {}
     for path in paths:
-        plan = extract(read_text(path), path)
+        text = texts[path] if path in texts else read_text(path)
+        plan = extract(text, path)
         plan["_source"] = path
         kind = plan.get("kind")
         if kind == "epic":
@@ -935,14 +940,15 @@ def check(paths: list[str], write: bool = True,
     """Validate the plan set, re-sync generated tables, check each body's prose
     shape, and summarize the waves. Returns (ok, report lines)."""
     lines: list[str] = []
-    epic, stories = load(paths)
+    buffered = {path: read_text(path) for path in paths if path == "-"}
+    epic, stories = load(paths, buffered)
     errs = validate_set(epic, stories)
     lines += [f"FAIL plan: {e}" for e in errs]
     va = _validate_artifact()
     for path in paths:
-        text = read_text(path)
+        text = buffered[path] if path in buffered else read_text(path)
         plan = extract(text, path)
-        if write and not errs:
+        if write and not errs and path != "-":
             new = sync(text, plan)
             if new != text:
                 Path(path).write_text(new, encoding="utf-8")
