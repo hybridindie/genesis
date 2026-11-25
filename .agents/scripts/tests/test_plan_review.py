@@ -20,7 +20,8 @@ SCRIPT = Path(__file__).resolve().parent.parent / "plan_review.py"
 # The fake speaks the `opencode run --format json` event stream: one JSON event
 # per line, text parts carrying the assistant's answer. FAKE_HEALTH and
 # FAKE_REVIEW choose its behaviour: "hang", "fail", "error-event", or the
-# answer text (FAKE_REVIEW may be several messages separated by \x1e).
+# answer text (FAKE_REVIEW may be several messages separated by \x1e). FAKE_RETRY,
+# when set, is the answer to the second review call (the JSON-only retry).
 # FAKE_GARBAGE=1 writes a line of non-UTF-8 bytes before the events.
 FAKE = r'''#!/usr/bin/env python3
 import json, os, sys, time
@@ -29,6 +30,9 @@ with open(os.environ["FAKE_LOG"], "a") as log:
     log.write(json.dumps(args) + "\n")
 review = "--file" in args
 mode = os.environ.get("FAKE_REVIEW" if review else "FAKE_HEALTH", "OK")
+with open(os.environ["FAKE_LOG"]) as log:  # FAKE_RETRY answers the second review call
+    if review and "FAKE_RETRY" in os.environ and sum('"--file"' in l for l in log) > 1:
+        mode = os.environ["FAKE_RETRY"]
 if mode == "hang":
     time.sleep(60)
 if mode == "fail":
@@ -52,9 +56,19 @@ for n, msg in enumerate(mode.split("\x1e")):
 
 STORY = "Part of #1\n\n```yaml agent-plan\nversion: 1\nkind: story\nstory: S1\n```\n"
 EPIC = "# Epic\n\n```yaml agent-plan\nversion: 1\nkind: epic\nepic: '#1'\n```\n"
-NEEDS_WORK = json.dumps({"verdict": "needs-work", "findings": [
-    "S1 owns app/** and S2 owns app/api.py: ownership overlaps",
-    "AC3 has no story"]})
+DEFAULT = "opencode/big-pickle"
+BLOCKING = ["S1 owns app/** and S2 owns app/api.py: ownership overlaps", "AC3 has no story"]
+DEFERRED = ["S2 has no task list", "S1's verify greps too loosely"]
+
+
+def answer(verdict, blocking=(), deferred=()):
+    return json.dumps({"verdict": verdict, "findings":
+                       [{"severity": "blocking", "text": t} for t in blocking]
+                       + [{"severity": "deferred", "text": t} for t in deferred]})
+
+
+NEEDS_WORK = answer("needs-work", BLOCKING)
+READY = answer("ready")
 
 
 @pytest.fixture
@@ -96,8 +110,8 @@ def test_accepts_needs_work_with_two_findings(env, tmp_path):
     code, out = run(env, plan(tmp_path), FAKE_REVIEW=NEEDS_WORK)
     assert code == 1
     assert out["verdict"] == "needs-work"
-    assert out["findings"] == json.loads(NEEDS_WORK)["findings"]
-    assert out["model"] == "nvidia/nvidia/nemotron-3-ultra-550b-a55b"
+    assert out["findings"] == BLOCKING and out["deferred"] == []
+    assert out["model"] == DEFAULT and out["round"] == 1
 
 
 def test_rejects_ready_when_health_check_fails(env, tmp_path):
@@ -128,31 +142,47 @@ def test_rejects_ready_when_review_exceeds_timeout(env, tmp_path):
 # --- verdicts ----------------------------------------------------------------
 
 def test_accepts_ready(env, tmp_path):
-    code, out = run(env, plan(tmp_path), FAKE_REVIEW='{"verdict": "ready", "findings": []}')
-    assert (code, out["verdict"], out["findings"]) == (0, "ready", [])
+    code, out = run(env, plan(tmp_path), FAKE_REVIEW=READY)
+    assert (code, out["verdict"], out["findings"], out["deferred"]) == (0, "ready", [], [])
+
+
+def test_accepts_ready_with_deferred_findings_attached(env, tmp_path):
+    code, out = run(env, plan(tmp_path), FAKE_REVIEW=answer("ready", deferred=DEFERRED))
+    assert (code, out["verdict"], out["findings"], out["deferred"]) == (0, "ready", [], DEFERRED)
+
+
+def test_accepts_ready_when_needs_work_has_only_deferred_findings(env, tmp_path):
+    # Task-level findings never hold a plan back: the verdict follows the blocking ones.
+    code, out = run(env, plan(tmp_path), FAKE_REVIEW=answer("needs-work", deferred=DEFERRED))
+    assert (code, out["verdict"], out["deferred"]) == (0, "ready", DEFERRED)
+
+
+def test_rejects_ready_with_a_blocking_finding(env, tmp_path):
+    code, out = run(env, plan(tmp_path), FAKE_REVIEW=answer("ready", BLOCKING, DEFERRED))
+    assert (code, out["verdict"]) == (1, "needs-work")
+    assert (out["findings"], out["deferred"]) == (BLOCKING, DEFERRED)
 
 
 def test_accepts_blocked(env, tmp_path):
-    code, out = run(env, plan(tmp_path),
-                    FAKE_REVIEW='{"verdict": "blocked", "findings": ["Which tracker? A human must pick."]}')
-    assert (code, out["verdict"]) == (2, "blocked")
+    question = ["Which tracker? A human must pick."]
+    code, out = run(env, plan(tmp_path), FAKE_REVIEW=answer("blocked", deferred=question))
+    assert (code, out["verdict"], out["findings"]) == (2, "blocked", question)
 
 
 def test_accepts_verdict_in_prose_and_fence(env, tmp_path):
-    answer = "Here is my review.\n\n```json\n" + NEEDS_WORK + "\n```\nHope that helps {really}."
-    code, out = run(env, plan(tmp_path), FAKE_REVIEW=answer)
+    text = "Here is my review.\n\n```json\n" + NEEDS_WORK + "\n```\nHope that helps {really}."
+    code, out = run(env, plan(tmp_path), FAKE_REVIEW=text)
     assert code == 1 and len(out["findings"]) == 2
 
 
 def test_accepts_only_the_final_assistant_message(env, tmp_path):
-    early = '{"verdict": "ready", "findings": []}'
-    code, out = run(env, plan(tmp_path), FAKE_REVIEW=early + "\x1e" + NEEDS_WORK)
+    code, out = run(env, plan(tmp_path), FAKE_REVIEW=READY + "\x1e" + NEEDS_WORK)
     assert code == 1 and out["verdict"] == "needs-work"
 
 
 # --- couldn't review -----------------------------------------------------------
 
-@pytest.mark.parametrize("answer", [
+@pytest.mark.parametrize("text", [
     "Looks good to me!",
     '{"verdict": "great", "findings": []}',
     '{"verdict": "needs-work", "findings": "fix it"}',
@@ -163,16 +193,75 @@ def test_accepts_only_the_final_assistant_message(env, tmp_path):
     '{"verdict": "needs-work", "findings": [{}]}',
     '{"verdict": "needs-work", "findings": [42]}',
     '{"verdict": "ready", "findings": [null]}',
+    '{"verdict": "needs-work", "findings": ["AC3 has no story"]}',
+    '{"verdict": "needs-work", "findings": [{"severity": "major", "text": "x"}]}',
+    '{"verdict": "needs-work", "findings": [{"severity": "blocking", "text": " "}]}',
 ])
-def test_rejects_unparseable_answer(env, tmp_path, answer):
-    code, out = run(env, plan(tmp_path), FAKE_REVIEW=answer)
+def test_rejects_unparseable_answer_after_one_retry(env, tmp_path, text):
+    code, out = run(env, plan(tmp_path), FAKE_REVIEW=text)
     assert code == 3 and out["verdict"] == "unreviewed"
+    assert "retry" in out["error"]
+    first, retry = calls(env)[1:]
+    assert retry[1].startswith(first[1]) and "JSON object only" in retry[1][len(first[1]):]
+
+
+def test_accepts_a_retry_after_a_truncated_answer(env, tmp_path):
+    cut = NEEDS_WORK[: len(NEEDS_WORK) // 2]
+    code, out = run(env, plan(tmp_path), FAKE_REVIEW=cut, FAKE_RETRY=READY)
+    assert (code, out["verdict"]) == (0, "ready")
+    assert len(calls(env)) == 3  # health, review, one retry
 
 
 @pytest.mark.parametrize("mode", ["fail", "error-event"])
 def test_rejects_failed_review_run(env, tmp_path, mode):
-    code, out = run(env, plan(tmp_path), FAKE_REVIEW=mode)
+    code, out = run(env, plan(tmp_path), FAKE_REVIEW=mode, FAKE_RETRY=READY)
     assert code == 3 and out["verdict"] == "unreviewed"
+    assert len(calls(env)) == 2  # a failed run is not an answer: no retry
+
+
+# --- rounds --------------------------------------------------------------------
+
+PRIOR = [{"finding": BLOCKING[0], "answer": "S2 now owns app/api.py only"},
+         {"finding": BLOCKING[1]}]
+
+
+def test_accepts_round_two_with_prior_findings(env, tmp_path):
+    code, out = run(env, plan(tmp_path), "--round", "2", "--prior", json.dumps(PRIOR),
+                    FAKE_REVIEW=READY)
+    assert (code, out["round"]) == (0, 2)
+    prompt = calls(env)[-1][1]
+    assert "round 2" in prompt and "only if it is blocking" in prompt
+    assert f"1. {BLOCKING[0]}\n   Answer: S2 now owns app/api.py only" in prompt
+    assert f"2. {BLOCKING[1]}\n   Answer: (none given)" in prompt
+
+
+def test_accepts_prior_from_a_file(env, tmp_path):
+    prior = tmp_path / "prior.json"
+    prior.write_text(json.dumps(PRIOR))
+    code, _ = run(env, plan(tmp_path), "--round", "3", "--prior", prior, FAKE_REVIEW=NEEDS_WORK)
+    assert code == 1 and "round 3" in calls(env)[-1][1]
+
+
+def test_accepts_round_one_without_a_follow_up(env, tmp_path):
+    run(env, plan(tmp_path), FAKE_REVIEW=NEEDS_WORK)
+    prompt = calls(env)[-1][1]
+    assert "Prior findings" not in prompt
+    assert '"blocking"' in prompt and '"deferred"' in prompt and "task-decomposer" in prompt
+
+
+@pytest.mark.parametrize("args", [
+    ["--round", "2"],
+    ["--prior", json.dumps(PRIOR)],
+    ["--round", "0", "--prior", json.dumps(PRIOR)],
+    ["--round", "2", "--prior", "[]"],
+    ["--round", "2", "--prior", '[{"answer": "done"}]'],
+    ["--round", "2", "--prior", "[not json"],
+    ["--round", "2", "--prior", "missing.json"],
+])
+def test_rejects_inconsistent_round_and_prior(env, tmp_path, args):
+    code, out = run(env, plan(tmp_path), *args, FAKE_REVIEW=READY)
+    assert code == 3 and out["verdict"] == "unreviewed"
+    assert calls(env) == []
 
 
 def test_rejects_non_utf8_plan_file(env, tmp_path):
@@ -216,7 +305,7 @@ def test_accepts_read_only_invocation(env, tmp_path):
         assert args[0] == "run"
         assert "--auto" not in args
         assert {"--archived", "--format", "json"} <= set(args)
-        assert args[args.index("--model") + 1] == "nvidia/nvidia/nemotron-3-ultra-550b-a55b"
+        assert args[args.index("--model") + 1] == DEFAULT
     assert "--file" not in health
     assert review[review.index("--file") + 1] == str(p.resolve())
     prompt = review[1]
