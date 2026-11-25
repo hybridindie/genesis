@@ -19,8 +19,8 @@ MIGRATION = ROOT / "templates/_shared/stacks/fastapi/skills/create-migration/scr
 CONTRACT = ROOT / "templates/_shared/stacks/fastapi/skills/gen-contract-test/scripts/scaffold_contract.py"
 
 
-def run(script, *args):
-    return subprocess.run([sys.executable, str(script), *args], capture_output=True, text=True)
+def run(script, *args, cwd=None):
+    return subprocess.run([sys.executable, str(script), *args], cwd=cwd, capture_output=True, text=True)
 
 
 # ── test-hygiene-scanner ──────────────────────────────────────────────────
@@ -38,6 +38,16 @@ def test_hygiene_flags_known_patterns(tmp_path):
     hits = json.loads(result.stdout)
     categories = {hit["category"] for hit in hits}
     assert {"hardcoded-dates", "asyncmock"} <= categories
+
+
+def test_hygiene_scans_pytest_files_from_a_relative_root(tmp_path):
+    # Documented usage is `scan.py tests` from the repo root: the path is
+    # relative, so matching on "/tests/" alone found nothing.
+    test_file = tmp_path / "tests" / "test_a.py"
+    test_file.parent.mkdir(parents=True)
+    test_file.write_text('created = "2026-01-15"\n')
+    result = run(HYGIENE, "tests", "--json", cwd=tmp_path)
+    assert {hit["category"] for hit in json.loads(result.stdout)} == {"hardcoded-dates"}
 
 
 def test_hygiene_ignores_non_test_files(tmp_path):

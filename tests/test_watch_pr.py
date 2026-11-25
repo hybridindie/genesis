@@ -76,6 +76,21 @@ def test_settles_when_the_review_is_newer_than_the_commit():
     assert code == 0 and status == "settled"
 
 
+def test_a_green_pr_that_still_needs_approval_is_blocked():
+    pr = {
+        "state": "OPEN",
+        "reviewDecision": "REVIEW_REQUIRED",
+        "mergeStateStatus": "BLOCKED",
+        "reviews": [{"author": {"login": "ocr-reviewer[bot]"}, "submittedAt": "2026-01-01T12:00:00Z"}],
+        "comments": [],
+        "commits": [{"committedDate": "2026-01-01T11:00:00Z"}],
+    }
+    code, status, message = watch.evaluate(
+        pr, {"pass": 1, "pending": 0, "fail": 0, "cancel": 0, "skipping": 0, "total": 1}, ("ocr",))
+    assert code == 30 and status == "blocked"
+    assert "approval" in message
+
+
 def test_failing_checks_win_over_the_review():
     pr = {"state": "OPEN", "reviews": [], "comments": [], "commits": []}
     code, status, _ = watch.evaluate(pr, {"pass": 0, "pending": 0, "fail": 1, "cancel": 0, "skipping": 0, "total": 1}, ())

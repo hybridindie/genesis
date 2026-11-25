@@ -1,15 +1,5 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "lsp": {
-    "godot": {
-      "command": [
-        "godot-lsp"
-      ],
-      "extensions": [
-        ".gd"
-      ]
-    }
-  },
   "instructions": [
     "AGENTS.md"
   ],
