@@ -9,3 +9,8 @@ node_modules/
 *.bak
 *.bak-*
 .claude/hooks/instructions-loaded.log
+
+# Eval runs (scripts/eval-gate.py, claude plugin eval)
+mlruns/
+mlflow.db*
+.agents/evals/results/

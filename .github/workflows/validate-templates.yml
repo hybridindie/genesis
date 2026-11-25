@@ -134,9 +134,13 @@ jobs:
         run: python3 -m pytest -q tests .agents/scripts/tests
 
   skill-evals:
-    name: Skill change report
+    name: Skill evals
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
+    timeout-minutes: 60
+    concurrency:  # a new push supersedes a paid eval run in flight
+      group: skill-evals-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
         with:
@@ -144,6 +148,39 @@ jobs:
 
       - name: Which skills changed
         run: python3 scripts/changed-skills.py --base "origin/${{ github.base_ref }}"
+
+      # Fixture evals for the changed skills, gated against .agents/evals/baseline.json.
+      # Needs the ANTHROPIC_API_KEY secret; without it (forks, or not configured) the
+      # step says so and passes, so the gate is opt-in per repository.
+      - name: Run fixture evals and gate on regressions
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          MLFLOW_DISABLE_AGENT_HINT: "1"
+          EVALS_BASE_REF: ${{ github.base_ref }}
+          # Pinned: judge and scoring behaviour can change between releases, so
+          # bump this only together with a re-recorded baseline.
+          CLAUDE_CODE_VERSION: "2.1.332"
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::notice::ANTHROPIC_API_KEY not set: fixture evals skipped"
+            exit 0
+          fi
+          # The eval runner refuses to grant Bash without a sandbox backend.
+          sudo apt-get update -qq && sudo apt-get install -y -qq bubblewrap socat
+          npm install -g --silent "@anthropic-ai/claude-code@$CLAUDE_CODE_VERSION"
+          pip install -q --user mlflow pyyaml uv
+          python3 scripts/eval-gate.py --base "origin/$EVALS_BASE_REF" \
+            --runs 3 --max-cost-usd 10
+
+      - name: Keep the eval record
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: skill-evals
+          path: |
+            mlflow.db
+            /tmp/eval-gate-*/aggregate-result.json
+          if-no-files-found: ignore
 
   templates:
     name: Harness / ${{ matrix.name }}

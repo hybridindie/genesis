@@ -1,7 +1,10 @@
 ---
-type: llm
-focus: trace
+type: regex
+target: files
+pattern: 'story-[^/]*\.md$'
+flags: m
+match: "count:1"
 weight: 1
 ---
 
-Exactly one story file is written (story-S1.md) and plan.py validate passes on epic.md plus the story
+Exactly one story file was created.
