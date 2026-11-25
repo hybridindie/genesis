@@ -9,7 +9,10 @@
 # The `agent-plan` block
 
 Every Epic and story issue ends with **one** fenced block that agents read
-instead of the prose:
+instead of the prose. The shells wrap it in
+`<details><summary>agent-plan (machine-readable)</summary> … </details>` so the
+rendered issue stays readable; the wrapper is presentation only. `plan.py`
+extracts the fence wherever it sits and `sync` leaves the wrapper in place:
 
 ````markdown
 ```yaml agent-plan

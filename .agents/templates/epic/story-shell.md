@@ -43,6 +43,9 @@ checklist. Do not edit by hand.]
 - [ ] Every track's verify passes and the integration check is green
 - [ ] No files outside the declared ownership changed
 
+<details>
+<summary>agent-plan (machine-readable)</summary>
+
 ```yaml agent-plan
 version: 1
 kind: story
@@ -66,3 +69,5 @@ tracks:
     owns: ["<path/**>"]
     verify: "<command>"
 ```
+
+</details>
