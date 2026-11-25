@@ -91,7 +91,7 @@ def errored_cases(result: dict) -> dict[str, str]:
         for runs in c.get("arms", {}).values():
             for run in runs:
                 if run.get("error") and c["name"] not in out:
-                    out[c["name"]] = str(run["error"]).splitlines()[0][:200]
+                    out[c["name"]] = str(run["error"]).strip().partition("\n")[0][:200] or "error"
     return out
 
 

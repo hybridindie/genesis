@@ -77,6 +77,12 @@ def test_an_errored_run_fails_even_without_a_baseline():
     assert v[0].status == "errored" and gate.failed(v)
 
 
+def test_a_blank_error_still_counts_as_an_error():
+    res = result(a=0.0)
+    res["cases"][0]["arms"] = {"with": [{"score": 0, "error": "\n"}]}
+    assert gate.errored_cases(res) == {"a": "error"}
+
+
 def test_update_baseline_keeps_other_cases(tmp_path):
     out = gate.update_baseline({"cases": {"old": {"score": 1.0}}}, {"new": 0.66666}, {"runs": 3})
     assert out["cases"] == {"new": {"score": 0.6667, "runs": 3}, "old": {"score": 1.0}}
