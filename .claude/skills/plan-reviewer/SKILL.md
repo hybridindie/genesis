@@ -2,8 +2,8 @@
 name: plan-reviewer
 description: >
   Get a second model's verdict on a drafted Epic or story plan before any work is
-  dispatched: run the deterministic plan check, then plan_review.py, and send needs-work
-  findings back to the author for at most 3 rounds. Trigger phrases: "review this
+  dispatched: run the deterministic plan check, then plan_review.py, send blocking
+  findings back to the author for at most 3 rounds and deferred ones on to task-decomposer. Trigger phrases: "review this
   plan", "second opinion on the epic", "is this story ready to dispatch", "check the
   plan with another model", "plan review". Use after epic-composer or story-decomposer
   drafts a plan and before wave-dispatcher runs it.

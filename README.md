@@ -146,6 +146,10 @@ The Epic Scoping Skills live in `.agents/` and work in both harnesses:
 /factory           run all of the above for each approved Epic, unattended
 ```
 
+Set **`PLAN_REVIEW_MODEL`** to the plan reviewer's model, a cheap one that
+differs from the coding model (the fallback, `opencode/big-pickle`, is a free
+OpenCode Zen model that may be retired).
+
 Every plan is a fenced `agent-plan` YAML block that `.agents/scripts/plan.py`
 validates. `.agents/scripts/dispatch.py` does the git work for the
 dispatcher:

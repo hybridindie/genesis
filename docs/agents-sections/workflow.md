@@ -24,7 +24,9 @@ story-decomposer ───────────► one issue per story
   ▼
 plan-reviewer ──────────────► ready | needs-work | blocked
   • plan.py check, then a second model via plan_review.py
-  • needs-work goes back to the author, ≤ 3 rounds, then escalation
+    ($PLAN_REVIEW_MODEL, never the coding model)
+  • blocking findings go back to the author, ≤ 3 rounds, then escalation
+  • deferred (task-level) findings go on to task-decomposer
 
   ▼
 task-decomposer ────────────► task checklist inside each story
