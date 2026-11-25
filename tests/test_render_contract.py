@@ -73,6 +73,15 @@ def test_review_marker_is_rendered_and_valid(tmp_path):
     assert not any(p.startswith("docs") or p in {"**/*.md", "*.md"} for p in include)
 
 
+def test_opencode_config_ships_no_dead_lsp_block(tmp_path):
+    for stacks in ("python", "godot"):
+        out = tmp_path / stacks
+        run_render(out, "--stacks", stacks)
+        config = json.loads((out / ".opencode" / "opencode.json").read_text())
+        assert "lsp" not in config
+        assert config["permissions"]
+
+
 def test_root_opencode_config_keeps_the_rest_of_the_directory(tmp_path):
     (tmp_path / "opencode.json").write_text(
         json.dumps({"instructions": ["AGENTS.md", "my-workflows.md"]})
