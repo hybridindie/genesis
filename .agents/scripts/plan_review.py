@@ -16,8 +16,10 @@ and/or `story-rubric.md`) inlined, asking for JSON
 Each finding is "blocking" (contradictions, unverifiable criteria, ownership
 gaps or overlaps, scope or decision conflicts, an impossible dependency order)
 or "deferred" (task granularity, missing task lists, task-level verify
-strictness, wording: work for task-decomposer). The verdict follows the
-blocking findings: with none left it is "ready", whatever the model said.
+strictness, wording: work for task-decomposer). For ready and needs-work the
+verdict follows the blocking findings: with none left it is "ready", whatever
+the model said. A "blocked" answer passes through, every finding a question
+for a person.
 
 From round 2 (`--round 2 --prior <json>`), the prompt carries the previous
 round's blocking findings and the author's answers, a JSON list of
