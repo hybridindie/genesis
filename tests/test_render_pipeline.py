@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import subprocess
 import sys
@@ -115,3 +116,23 @@ def test_render_passes_the_checks_and_they_catch_a_broken_pipeline(tmp_path):
     assert "escalation.md, which is missing" in result.stderr and "plan.py is not executable" in result.stderr
     result = subprocess.run(sync, capture_output=True, text=True)
     assert result.returncode == 1 and "pipeline file not rendered: .agents/doctrine/escalation.md" in result.stderr
+
+
+def test_render_preserves_rule_aliases(tmp_path):
+    """A tailored repo keeps its stack->rule alias across a re-render.
+
+    The manifest is rebuilt from scratch on every render, so an alias like
+    ``{"fastapi": "backend/api-design.md"}`` would vanish and the drift check
+    would warn about a rule that is present under a nested path.
+    """
+    run_render(tmp_path)
+    manifest = tmp_path / ".claude" / "harness.json"
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    data["rule_aliases"] = {"fastapi": "backend/api-design.md"}
+    manifest.write_text(json.dumps(data), encoding="utf-8")
+
+    run_render(tmp_path)
+
+    assert json.loads(manifest.read_text(encoding="utf-8"))["rule_aliases"] == {
+        "fastapi": "backend/api-design.md"
+    }
