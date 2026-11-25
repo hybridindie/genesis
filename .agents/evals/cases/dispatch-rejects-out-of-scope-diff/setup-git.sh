@@ -3,10 +3,12 @@
 # branch, and the track branch in its own worktree with the agent's commits.
 # The agent stayed in its files except for backend/uv.lock, which S1 does not own.
 set -eu
-# It runs `git init` and commits in the current directory, so it must only run
-# in the eval's scratch copy of the case files, never inside an existing repo.
-if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  echo "setup-git.sh: $(pwd) is already inside a git repository; run it in an empty scratch copy" >&2
+# It runs `git init` and commits in the current directory, so it must never run
+# in an existing checkout. A repository *above* this directory is fine (the eval
+# runner keeps its temp home under git): `git init` here makes a separate nested
+# repository and every later command acts on it, never on the parent.
+if [ -e .git ]; then
+  echo "setup-git.sh: $(pwd) is already a git repository; run it in an empty scratch copy" >&2
   exit 1
 fi
 repo=$(pwd)

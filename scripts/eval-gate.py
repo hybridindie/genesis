@@ -202,6 +202,11 @@ def _log(mlflow, result: dict, verdicts: list[Verdict], params: dict, result_pat
             if v.delta is not None:
                 mlflow.log_metric(f"delta.{v.case}", v.delta)
         mlflow.set_tag("gate", "fail" if failed(verdicts) else "pass")
+        # On a shared tracking server, keep CI runs and laptop runs apart.
+        mlflow.set_tag("source", "ci" if os.environ.get("CI") else "local")
+        if os.environ.get("GITHUB_RUN_ID"):
+            mlflow.set_tag("ci_run", f"{os.environ.get('GITHUB_SERVER_URL', 'https://github.com')}/"
+                                     f"{os.environ.get('GITHUB_REPOSITORY', '')}/actions/runs/{os.environ['GITHUB_RUN_ID']}")
         mlflow.log_artifact(str(result_path))
         print(f"mlflow: logged to experiment {EXPERIMENT} ({mlflow.get_tracking_uri()})")
 
