@@ -11,12 +11,11 @@ servers, expose LSP tools, or produce LSP diagnostics
 lint, type-check and compiler commands instead — `/preflight` already runs
 them.
 
-Both OpenCode configs still carry one custom entry, the Godot bridge below:
+The only custom entry lives at the machine layer, the Godot bridge below:
 
 | Surface | File |
 |---|---|
 | Machine layer | `system/agents/opencode.jsonc` → `~/.config/opencode/opencode.jsonc` |
-| Project template | `templates/opencode/.opencode/opencode.json` |
 
 ```jsonc
 "lsp": {
@@ -25,7 +24,10 @@ Both OpenCode configs still carry one custom entry, the Godot bridge below:
 ```
 
 It is inert under v2 and kept so the setting is ready if OpenCode runs servers
-again. Don't add more entries expecting diagnostics.
+again. Project templates ship no `lsp` block: a `.gd` server in a Python-only
+project describes a language it does not use. A Godot project that wants the
+bridge adds the entry to its own `.opencode/opencode.json`. Don't add more
+entries expecting diagnostics.
 
 ## Claude Code: plugins
 
