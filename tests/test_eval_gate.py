@@ -67,6 +67,16 @@ def test_a_selected_case_missing_from_the_result_fails():
     assert v[0].status == "missing" and gate.failed(v)
 
 
+def test_an_errored_run_fails_even_without_a_baseline():
+    # Seen for real: a missing sandbox refused every run, and the gate printed PASS.
+    res = result(a=0.125)
+    res["cases"][0]["arms"] = {"with": [{"score": 0.125, "error": "exit 1: Sandbox required but unavailable"}]}
+    errors = gate.errored_cases(res)
+    assert errors == {"a": "exit 1: Sandbox required but unavailable"}
+    v = gate.gate(gate.case_scores(res), {"cases": {}}, ["a"], 0.15, strict=False, errors=errors)
+    assert v[0].status == "errored" and gate.failed(v)
+
+
 def test_update_baseline_keeps_other_cases(tmp_path):
     out = gate.update_baseline({"cases": {"old": {"score": 1.0}}}, {"new": 0.66666}, {"runs": 3})
     assert out["cases"] == {"new": {"score": 0.6667, "runs": 3}, "old": {"score": 1.0}}
@@ -81,6 +91,19 @@ def test_cli_gates_an_existing_result(tmp_path, monkeypatch, capsys):
     base.write_text(json.dumps({"cases": {case: {"score": 1.0}}}))
     assert gate.main(["--result", str(res), "--baseline", str(base), "--skill", gate.case_skills()[case][0]]) == 1
     assert "regressed" in capsys.readouterr().out
+
+
+def test_cli_refuses_a_baseline_from_errored_runs(tmp_path, monkeypatch):
+    monkeypatch.setenv("EVAL_GATE_NO_MLFLOW", "1")
+    case = sorted(gate.case_skills())[0]
+    res = result(**{case: 0.0})
+    res["cases"][0]["arms"] = {"with": [{"score": 0, "error": "timed out after 900s"}]}
+    path = tmp_path / "r.json"
+    path.write_text(json.dumps(res))
+    base = tmp_path / "b.json"
+    assert gate.main(["--result", str(path), "--baseline", str(base), "--skill",
+                      gate.case_skills()[case][0], "--update-baseline"]) == 2
+    assert not base.exists()
 
 
 def test_cli_refuses_to_gate_a_partial_result(tmp_path, monkeypatch):
@@ -146,3 +169,9 @@ def test_deterministic_patterns_match_what_plan_py_prints():
                           str(ROOT / "tests/evals/epic.md"), str(ROOT / "tests/evals/story.md")],
                          capture_output=True, text=True).stdout
     assert re.search(r"PASS: epic \+ 1 stories", out), out
+
+
+def test_the_skills_are_packaged_as_a_plugin():
+    """Without the manifest, `claude plugin eval .agents` loads no skills and every case measures bare Claude."""
+    manifest = json.loads((ROOT / ".agents/.claude-plugin/plugin.json").read_text())
+    assert re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", manifest["name"])

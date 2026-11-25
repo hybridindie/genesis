@@ -87,9 +87,17 @@ mlflow ui --backend-store-uri sqlite:///mlflow.db        # compare runs
 - **Selection.** Each case's `prompt.md` carries a `skill:<name>` tag; a changed
   skill runs its tagged cases. A skill with only behavioural cases is reported.
 - **Gate.** A case fails when its score falls more than `--tolerance` (0.15)
-  below `.agents/evals/baseline.json`. Errored runs score 0, so an outage is a
-  failure, not a pass. A partial result (cost ceiling, auth) is never gated on.
-  A case with no baseline is reported; `--strict` fails it.
+  below `.agents/evals/baseline.json`, or when any of its runs errored, baseline
+  or not: a run that never started is not a score. A partial result (cost
+  ceiling, auth) is never gated on. A case with no baseline is otherwise
+  reported; `--strict` fails it.
+- **Plugin.** `.agents/.claude-plugin/plugin.json` is what makes
+  `claude plugin eval .agents` load the skills. Without it the cases run
+  against bare Claude and measure nothing about the skills. With it, every
+  case also runs a no-skills arm, so the report shows the skill's lift
+  (`w/out`, `delta`) and how often it fired (`fired`).
+- **Sandbox.** The runner refuses to grant Bash without a sandbox backend. On
+  Linux install `bubblewrap` and `socat` first; otherwise every run errors.
 - **Baseline.** Only `--update-baseline` writes it, from a real run. Change it
   in the same PR as the skill change that justifies it, so review sees both.
 - **Tracking.** With `mlflow` installed every invocation is one MLflow run in the

@@ -1,0 +1,4 @@
+{
+  "name": "genesis-epic-skills",
+  "description": "Epic Scoping Skills, packaged so claude plugin eval loads them for the fixture cases in evals/."
+}

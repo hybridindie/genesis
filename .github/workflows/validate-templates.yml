@@ -165,6 +165,8 @@ jobs:
             echo "::notice::ANTHROPIC_API_KEY not set: fixture evals skipped"
             exit 0
           fi
+          # The eval runner refuses to grant Bash without a sandbox backend.
+          sudo apt-get update -qq && sudo apt-get install -y -qq bubblewrap socat
           npm install -g --silent "@anthropic-ai/claude-code@$CLAUDE_CODE_VERSION"
           pip install -q --user mlflow pyyaml uv
           python3 scripts/eval-gate.py --base "origin/$EVALS_BASE_REF" \

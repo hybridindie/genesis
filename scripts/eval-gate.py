@@ -14,9 +14,9 @@ Case selection: each case under `.agents/evals/cases/` carries a
 `skill:<name>` tag; a changed skill selects its tagged cases.
 
 Gate: a case fails when its score drops more than --tolerance below its
-baseline. A case with no baseline is reported, not failed (--strict fails it).
-Errored runs (timeouts, API errors) score 0 inside `claude plugin eval`, so an
-outage reads as a regression rather than a pass.
+baseline, or when any of its runs errored (timeout, API error, sandbox refused
+to start), with or without a baseline: a run that never ran is not a score.
+A case with no baseline is otherwise reported, not failed (--strict fails it).
 
 MLflow: when `mlflow` is importable, one run per invocation is logged to the
 "genesis-skill-evals" experiment ($MLFLOW_TRACKING_URI, else sqlite:///mlflow.db at the repo root) with the
@@ -71,7 +71,7 @@ def select_cases(skills: list[str], mapping: dict[str, list[str]]) -> list[str]:
 class Verdict:
     def __init__(self, case: str, score: float, baseline: float | None, status: str):
         self.case, self.score, self.baseline = case, score, baseline
-        self.status = status  # pass | regressed | no-baseline | missing
+        self.status = status  # pass | regressed | no-baseline | missing | errored
 
     @property
     def delta(self) -> float | None:
@@ -83,11 +83,33 @@ def case_scores(result: dict) -> dict[str, float]:
     return {c["name"]: float(c["aggregates"]["score"]) for c in result.get("cases", [])}
 
 
+def errored_cases(result: dict) -> dict[str, str]:
+    """Case -> first run error. A run that never ran is not a score to compare."""
+    out = {}
+    for c in result.get("cases", []):
+        for runs in c.get("arms", {}).values():
+            for run in runs:
+                if run.get("error") and c["name"] not in out:
+                    out[c["name"]] = str(run["error"]).splitlines()[0][:200]
+    return out
+
+
+def skill_fired_rate(case: dict) -> float:
+    """Share of with-arm runs where the case's with-only Skill indicator passed."""
+    runs = case.get("arms", {}).get("with", [])
+    fired = [g.get("passed") for r in runs for g in r.get("graders", []) if g.get("name") == "00-skill-fired"]
+    return sum(map(bool, fired)) / len(fired) if fired else 0.0
+
+
 def gate(scores: dict[str, float], baseline: dict, expected: list[str],
-         tolerance: float, strict: bool) -> list[Verdict]:
+         tolerance: float, strict: bool, errors: dict[str, str] | None = None) -> list[Verdict]:
     base = baseline.get("cases", {})
+    errors = errors or {}
     verdicts = []
     for case in expected:
+        if case in errors:
+            verdicts.append(Verdict(case, scores.get(case, 0.0), base.get(case, {}).get("score"), "errored"))
+            continue
         if case not in scores:
             verdicts.append(Verdict(case, 0.0, base.get(case, {}).get("score"), "missing"))
             continue
@@ -102,7 +124,7 @@ def gate(scores: dict[str, float], baseline: dict, expected: list[str],
 
 
 def failed(verdicts: list[Verdict]) -> bool:
-    return any(v.status in ("regressed", "missing") for v in verdicts)
+    return any(v.status in ("regressed", "missing", "errored") for v in verdicts)
 
 
 def update_baseline(baseline: dict, scores: dict[str, float], meta: dict) -> dict:
@@ -161,6 +183,13 @@ def _log(mlflow, result: dict, verdicts: list[Verdict], params: dict, result_pat
         for key in ("costUsd", "durationSeconds"):
             if key in result:
                 mlflow.log_metric(key, float(result[key]))
+        for c in result.get("cases", []):
+            agg_c = c.get("aggregates", {})
+            # with-without ablation: the same case run without the skills loaded
+            for key, name in (("scoreWithout", "score_without"), ("delta", "skill_lift")):
+                if key in agg_c:
+                    mlflow.log_metric(f"{name}.{c['name']}", float(agg_c[key]))
+            mlflow.log_metric(f"skill_fired.{c['name']}", skill_fired_rate(c))
         for v in verdicts:
             mlflow.log_metric(f"score.{v.case}", v.score)
             if v.delta is not None:
@@ -170,12 +199,17 @@ def _log(mlflow, result: dict, verdicts: list[Verdict], params: dict, result_pat
         print(f"mlflow: logged to experiment {EXPERIMENT} ({mlflow.get_tracking_uri()})")
 
 
-def report(verdicts: list[Verdict], tolerance: float) -> None:
-    print(f"\n{'case':40} {'score':>6} {'base':>6} {'delta':>7}  status  (tolerance {tolerance})")
+def report(verdicts: list[Verdict], tolerance: float, result: dict | None = None) -> None:
+    cases = {c["name"]: c for c in (result or {}).get("cases", [])}
+    print(f"\n{'case':36} {'score':>6} {'base':>6} {'delta':>7} {'w/out':>6} {'fired':>6}  status  (tolerance {tolerance})")
     for v in verdicts:
         base = "-" if v.baseline is None else f"{v.baseline:.2f}"
         delta = "-" if v.delta is None else f"{v.delta:+.2f}"
-        print(f"{v.case:40} {v.score:6.2f} {base:>6} {delta:>7}  {v.status}")
+        c = cases.get(v.case, {})
+        without = c.get("aggregates", {}).get("scoreWithout")
+        without = "-" if without is None else f"{without:.2f}"
+        fired = f"{skill_fired_rate(c):.0%}" if c else "-"
+        print(f"{v.case:36} {v.score:6.2f} {base:>6} {delta:>7} {without:>6} {fired:>6}  {v.status}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -225,8 +259,11 @@ def main(argv: list[str] | None = None) -> int:
 
     baseline = json.loads(args.baseline.read_text(encoding="utf-8")) if args.baseline.exists() else {"cases": {}}
     scores = case_scores(result)
-    verdicts = gate(scores, baseline, cases, args.tolerance, args.strict)
-    report(verdicts, args.tolerance)
+    errors = errored_cases(result)
+    verdicts = gate(scores, baseline, cases, args.tolerance, args.strict, errors)
+    report(verdicts, args.tolerance, result)
+    for case, err in errors.items():
+        print(f"  {case}: {err}")
 
     params = {"git_sha": git("rev-parse", "HEAD"), "branch": git("rev-parse", "--abbrev-ref", "HEAD"),
               "selection": selection, "runs": args.runs, "model": args.model or "default",
@@ -235,6 +272,9 @@ def main(argv: list[str] | None = None) -> int:
     if os.environ.get("EVAL_GATE_NO_MLFLOW") != "1":
         log_mlflow(result, verdicts, params, result_path)
 
+    if args.update_baseline and errors:
+        print("\nrefusing to write a baseline from errored runs")
+        return 2
     if args.update_baseline:
         if failed(verdicts):
             print("\nWARNING: writing a baseline over regressed cases; their lower scores become the new floor"
@@ -245,7 +285,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"baseline updated: {args.baseline.relative_to(ROOT) if args.baseline.is_relative_to(ROOT) else args.baseline}")
         return 0
     if failed(verdicts):
-        print("\nFAIL: a skill regressed against its baseline")
+        print("\nFAIL: a case regressed against its baseline, errored, or is missing")
         return 1
     print("\nPASS")
     return 0
