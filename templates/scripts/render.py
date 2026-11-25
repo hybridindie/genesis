@@ -509,6 +509,7 @@ def render(plan: dict[str, Any], args: argparse.Namespace) -> tuple[list[str], l
     # so without this a re-render silently un-tailors the repo and the drift
     # check starts warning about a rule that is present.
     harness_path = out / ".claude" / "harness.json"
+    previous: dict[str, Any] = {}
     if harness_path.is_file():
         try:
             previous = json.loads(harness_path.read_text(encoding="utf-8"))
@@ -521,6 +522,12 @@ def render(plan: dict[str, Any], args: argparse.Namespace) -> tuple[list[str], l
                 for key, value in aliases.items()
                 if isinstance(value, str) and value
             }
+    # ship-pr's merge policy is the repo's own setting: keep it as written (an
+    # invalid one makes merge_pr.py refuse, never guess), and write the default
+    # once so the field is there to edit. The default lives in merge_pr.py.
+    policy = previous.get("merge_policy") if isinstance(previous, dict) else None
+    manifest["merge_policy"] = policy if policy is not None else dict(
+        load_script("merge_pr", SHARED / "skills" / "ship-pr" / "scripts").DEFAULT_POLICY)
     # Hash of each harness file as rendered (sha256sum format, so secret
     # scanners don't read path/hash pairs as key assignments). A file that
     # still matches is safe to replace on the next render; anything else is a

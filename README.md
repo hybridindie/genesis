@@ -104,7 +104,7 @@ render           → core + stacks + packs, placeholders, generated rule index
 - `.claude/{commands,agents,skills,hooks}/`, with mirrors in
   `.opencode/{commands,agents,skills}/`.
 - `.claude/harness.json`: stacks, packs, paths and tooling, which the drift
-  gate checks. A tailored repo that covers a stack under its own rule name
+  gate checks, plus ship-pr's `merge_policy`, which re-renders keep. A tailored repo that covers a stack under its own rule name
   says so with `rule_aliases` (`{"rust": "native.md"}`).
 - `.claude/harness.sums`: sha256 of each rendered file, in `sha256sum`
   format, so a re-render can tell your edits apart from its own output.
@@ -112,8 +112,12 @@ render           → core + stacks + packs, placeholders, generated rule index
   clone.
 - `.github/workflows/ci.yml` (or `.gitea/workflows/ci.yml`): one job per stack,
   only written when the project has no CI yet.
-- `/ship-pr`: open, watch and triage a PR, then merge with a merge commit once
-  it is green.
+- `/ship-pr`: open, watch and triage a PR on GitHub or Gitea (the forge comes
+  from `origin`, as for the tracker), then merge once it is green, as
+  `merge_policy` in `harness.json` allows: `merge` is `when-green` (default)
+  or `never` (stop at "ready to merge" for a person), `method` is `merge`
+  (default), `squash` or `rebase`, and a PR touching an irreversible path
+  (migrations, deploy, infra) always waits for a person.
 - The plan-and-dispatch pipeline from genesis's `.agents/` (epic/story/task
   skills, plan-reviewer, wave-dispatcher, factory, with their scripts,
   doctrine, templates and rubrics), at the same paths. Scripts need `python3`,
@@ -142,7 +146,7 @@ The Epic Scoping Skills live in `.agents/` and work in both harnesses:
 /plan-reviewer     second-model verdict on a plan before dispatch
 /task-decomposer   story → parallel tracks with disjoint file ownership
 /wave-dispatcher   run each runnable track in its own worktree, check, merge
-/ship-pr           open the PR, address the review, merge once CI is green
+/ship-pr           open the PR, address the review, merge once green (per merge_policy)
 /factory           run all of the above for each approved Epic, unattended
 ```
 

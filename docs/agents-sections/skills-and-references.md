@@ -15,7 +15,7 @@ On-demand section — read when invoking a skill or checking its references.
 | wave-dispatcher | `.agents/skills/wave-dispatcher/SKILL.md` | Run planned stories with parallel subagents in worktrees, driven by `dispatch.py` |
 | factory | `.agents/skills/factory/SKILL.md` | Carry every approved open Epic to shipped PRs, then exit, with a token budget and the escalation ladder |
 | bootstrap-harness | `.agents/skills/bootstrap-harness/SKILL.md` | Install/tailor a project harness (also `install-harness` and `install.sh`) |
-| ship-pr | `templates/_shared/skills/ship-pr/SKILL.md` | Open a PR, watch CI and review, address threads, merge on green CI and addressed threads (also ships to every project) |
+| ship-pr | `templates/_shared/skills/ship-pr/SKILL.md` | Open a PR on GitHub or Gitea, watch CI and review, address threads, merge on green CI and addressed findings as the repo's `merge_policy` allows (also ships to every project) |
 
 ## Templates and evals
 

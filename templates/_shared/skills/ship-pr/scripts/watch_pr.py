@@ -9,17 +9,20 @@ Exits:
   30  blocked (draft, conflicts, behind base, or approval required)
   40  timeout
   50  merged or closed
-  2   setup error (no gh, no PR, auth)
+  2   setup error (no gh, no PR, auth, no Gitea token)
 
 Note: an empty check list is pending in a repo with workflow files, and
 settles only in a repo without them.
 
-Uses only the gh CLI and the standard library. Notifies through Herdr when
+The forge comes from `forge.py` (the `origin` remote, as tracker.py reads it).
+GitHub uses the gh CLI; Gitea uses its REST API, mapped onto the same fields
+`gh pr view` gives, so both forges settle by one rule. Standard library only. Notifies through Herdr when
 HERDR_ENV=1, otherwise it prints the result; the caller redirects stdout to a
 log for background runs.
 """
 
 import argparse
+import importlib.util
 import json
 import os
 import re
@@ -48,6 +51,16 @@ CHECKS_GRACE_SECONDS = 180
 # A repo defines CI when either forge's workflow directory holds a file. A
 # project rendered with --no-ci has none, so an empty check list there is final.
 WORKFLOW_DIRS = (".github/workflows", ".gitea/workflows")
+
+
+def load_forge():
+    spec = importlib.util.spec_from_file_location("ship_pr_forge", Path(__file__).with_name("forge.py"))
+    module = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
+    spec.loader.exec_module(module)  # type: ignore[union-attr]
+    return module
+
+
+forge = load_forge()
 FIELDS = (
     "number,url,state,isDraft,mergeStateStatus,reviewDecision,"
     "statusCheckRollup,reviews,comments,commits,labels"
@@ -324,7 +337,13 @@ def main():
     parser.add_argument("--once", action="store_true", help="evaluate once and exit")
     args = parser.parse_args()
 
-    if not shutil.which("gh"):
+    try:
+        client = forge.connect()
+    except forge.ForgeError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+    gitea = client.kind == "gitea"
+    if not gitea and not shutil.which("gh"):
         print("ERROR: gh CLI not found", file=sys.stderr)
         return 2
 
@@ -333,7 +352,10 @@ def main():
         tail = args.pr.rstrip("/").split("/")[-1]
         pr_number = tail if tail.isdigit() else None
     if pr_number is None:
-        current = gh_json(["pr", "view", "--json", "number"])
+        try:
+            current = client.find() if gitea else gh_json(["pr", "view", "--json", "number"])
+        except forge.ForgeError:
+            current = None
         if not current:
             print("ERROR: no pull request for the current branch", file=sys.stderr)
             return 2
@@ -344,11 +366,18 @@ def main():
     interval = max(args.interval, 5)
 
     while True:
-        pr = gh_json(["pr", "view", str(pr_number), "--json", FIELDS])
-        if not pr:
-            print("ERROR: could not read the pull request (auth or network?)", file=sys.stderr)
-            return 2
-        pr = with_edit_times(pr)
+        if gitea:
+            try:
+                pr, checks = client.gh_view(pr_number)
+            except forge.ForgeError as exc:
+                print(f"ERROR: could not read the pull request: {exc}", file=sys.stderr)
+                return 2
+        else:
+            pr = gh_json(["pr", "view", str(pr_number), "--json", FIELDS])
+            if not pr:
+                print("ERROR: could not read the pull request (auth or network?)", file=sys.stderr)
+                return 2
+            pr = with_edit_times(pr)
         detected = bot_names(pr)
         if detected != bots:
             # Re-detect until a reviewer shows up: a cluster-side reviewer that
@@ -359,7 +388,8 @@ def main():
                 f"Watching PR #{pr_number} (reviewers: {', '.join(bots) or 'none detected'})",
                 flush=True,
             )
-        checks = check_buckets(pr_number)
+        if not gitea:
+            checks = check_buckets(pr_number)
         code, status, message = evaluate(pr, checks, bots)
 
         if code is None:

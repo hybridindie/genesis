@@ -40,6 +40,14 @@ class LabelRefused(ValueError):
     """A label change an agent may not make, or an ambiguous one."""
 
 
+class GiteaError(RuntimeError):
+    """A failed Gitea REST call; `status` is the HTTP code, or None when unreachable."""
+
+    def __init__(self, message: str, status: int | None = None):
+        super().__init__(message)
+        self.status = status
+
+
 def canonical(name: str) -> str:
     """How labels compare: case and every space ignored."""
     return re.sub(r"\s+", "", name).casefold()
@@ -190,14 +198,18 @@ class Gitea:
 
     def __init__(self, base: str, owner: str, repo: str):
         base = os.environ.get("GITEA_URL") or base
-        self.api = f"{base.rstrip('/')}/api/v1/repos/{owner}/{repo}"
+        self.root = f"{base.rstrip('/')}/api/v1"
+        self.api = f"{self.root}/repos/{owner}/{repo}"
         self.token = os.environ.get("GITEA_TOKEN") or os.environ.get("TEA_TOKEN")
         if not self.token:
             sys.exit("tracker: set GITEA_TOKEN (or TEA_TOKEN) for Gitea")
 
-    def call(self, method: str, path: str, payload: dict | None = None) -> dict | list:
+    def request(self, method: str, path: str, payload: dict | None = None,
+                *, repo: bool = True) -> dict | list:
+        """One REST call under the repo (or, with repo=False, the API root, e.g. `/user`).
+        Raises GiteaError, so a caller (ship-pr) can tell a 404 from an outage."""
         req = urllib.request.Request(
-            self.api + path, method=method,
+            (self.api if repo else self.root) + path, method=method,
             data=json.dumps(payload).encode() if payload is not None else None,
             headers={"Authorization": f"token {self.token}", "Content-Type": "application/json",
                      "Accept": "application/json"})
@@ -206,10 +218,16 @@ class Gitea:
                 return json.loads(resp.read() or b"{}")
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", "replace").strip()[:200]
-            sys.exit(f"tracker: Gitea {method} {path} -> {exc.code} {exc.reason}"
-                     + (f": {detail}" if detail else ""))
+            raise GiteaError(f"Gitea {method} {path} -> {exc.code} {exc.reason}"
+                             + (f": {detail}" if detail else ""), exc.code) from None
         except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
-            sys.exit(f"tracker: Gitea {method} {path} -> {exc}")
+            raise GiteaError(f"Gitea {method} {path} -> {exc}") from None
+
+    def call(self, method: str, path: str, payload: dict | None = None) -> dict | list:
+        try:
+            return self.request(method, path, payload)
+        except GiteaError as exc:
+            sys.exit(f"tracker: {exc}")
 
     def list(self, state: str, labels: list[str]) -> list[dict]:
         rows: list[dict] = []

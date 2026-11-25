@@ -25,8 +25,8 @@ exception, not a shortcut.
 6. **Review**: the automated reviewer (OpenCodeReview) comments inline as
    `Important —` or `Nit —`. Fix every Important finding; reply to a Nit you
    keep. Unrelated findings become linked issues. `/review` re-runs it.
-7. **Merge**: green CI and resolved threads. Merge commit
-   (`gh pr merge --merge`), then delete the branch.
+7. **Merge**: through ship-pr's gate, as `merge_policy` in
+   `.claude/harness.json` allows; irreversible paths wait for a person.
 
 ## Commits and branches
 

@@ -17,7 +17,7 @@ description: >
   The skill itself. OpenCode reads it here; Claude Code loads it through the
   generated .claude/skills/<name>/SKILL.md pointer.
   contract: templates/_shared/doctrine/skill-execution.md
-  version: 2.8.0, owner: John D
+  version: 2.9.0, owner: John D
   invokes: .agents/scripts/dispatch.py,
            .agents/scripts/plan.py,
            .agents/scripts/budget.py
@@ -124,8 +124,9 @@ reviewer or diagnosis), run `python3 $b record --epic <epic> --unit <unit>
    from its integration worktree with ship-pr's `pr_size.py --base
    origin/main`. Over budget, or `ship: per-track`, open stacked PRs: one
    branch `<story branch>-<track>` per track at its `merged` sha, in
-   `merge_order`, each PR based on the previous one. Run ship-pr on each PR;
-   it merges only on green CI with every thread addressed.
+   `merge_order`, each PR based on the previous one. Run ship-pr on each PR
+   (GitHub or Gitea); it merges on green CI as `merge_policy` allows. A PR it
+   leaves "ready for a person" is `awaiting_human`: never merge it yourself.
 7. **Report** from `python3 $d report`; each unit's `history` gives its
    attempts, failed checks, blocks and rollbacks across every run.
 

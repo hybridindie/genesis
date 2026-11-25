@@ -14,7 +14,8 @@
 - The misread thread is answered **with evidence** (the actual lines) and then
   resolved — not "fixed" by adding the code the reviewer asked for.
 - Once the review has landed, every check passes and every thread is resolved,
-  it merges with `gh pr merge --merge` (never `--admin`).
+  it merges through `merge_pr.py` (a merge commit under the default policy;
+  never `--admin`).
 - The report names what was verified and the merge commit.
 - A follow-up concern in the thread becomes a linked issue, not an unrelated
   edit in this PR.
