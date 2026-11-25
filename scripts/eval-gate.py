@@ -36,7 +36,6 @@ import json
 import os
 import re
 import subprocess
-import sys
 import tempfile
 from pathlib import Path
 
@@ -237,6 +236,8 @@ def main(argv: list[str] | None = None) -> int:
         log_mlflow(result, verdicts, params, result_path)
 
     if args.update_baseline:
+        if failed(verdicts):
+            print("\nWARNING: writing a baseline over regressed or missing cases; the lower scores become the floor")
         meta = {"runs": args.runs, "model": params["model"], "sha": params["git_sha"][:12],
                 "date": dt.date.today().isoformat()}
         args.baseline.write_text(json.dumps(update_baseline(baseline, scores, meta), indent=2) + "\n")

@@ -137,6 +137,7 @@ jobs:
     name: Skill evals
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -152,14 +153,18 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           MLFLOW_DISABLE_AGENT_HINT: "1"
+          EVALS_BASE_REF: ${{ github.base_ref }}
+          # Pinned: judge and scoring behaviour can change between releases, so
+          # bump this only together with a re-recorded baseline.
+          CLAUDE_CODE_VERSION: "2.1.332"
         run: |
           if [ -z "$ANTHROPIC_API_KEY" ]; then
             echo "::notice::ANTHROPIC_API_KEY not set: fixture evals skipped"
             exit 0
           fi
-          npm install -g --silent @anthropic-ai/claude-code
+          npm install -g --silent "@anthropic-ai/claude-code@$CLAUDE_CODE_VERSION"
           pip install -q --user mlflow pyyaml uv
-          python3 scripts/eval-gate.py --base "origin/${{ github.base_ref }}" \
+          python3 scripts/eval-gate.py --base "origin/$EVALS_BASE_REF" \
             --runs 3 --max-cost-usd 10
 
       - name: Keep the eval record
