@@ -26,7 +26,9 @@ if the gates pass and the repo's merge policy allows it. `--no-merge` stops shor
 - Forge: from the `origin` remote, as `.agents/scripts/tracker.py` decides it
   (github.com → GitHub via `gh`; any other host → Gitea REST with
   `GITEA_TOKEN` or `TEA_TOKEN`, `GITEA_URL` to override the URL;
-  `TRACKER=github|gitea` forces one). The scripts below hide the difference.
+  `TRACKER=github|gitea` forces one). tracker.py is the project's copy, else
+  `~/.agents/scripts/tracker.py` from the user-level install. The scripts
+  below hide the difference.
 - Merge policy: `merge_policy` in `.claude/harness.json` — `merge`
   (`when-green` default, or `never`), `method` (`merge` default, `squash`,
   `rebase`), `irreversible: "person"` (fixed) and `irreversible_paths` (globs
