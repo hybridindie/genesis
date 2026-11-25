@@ -138,6 +138,9 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     timeout-minutes: 60
+    concurrency:  # a new push supersedes a paid eval run in flight
+      group: skill-evals-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
         with:
