@@ -1,0 +1,6 @@
+{
+  "name": "no-self-matching-wait",
+  "private": true,
+  "type": "module",
+  "description": "Refuse self-matching pgrep -f wait loops (shared check: ~/.agents/hooks/no-self-matching-wait.sh)"
+}
