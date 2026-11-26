@@ -531,8 +531,10 @@ if args[:2] == ["repo", "view"]:
     print("o/r")
 elif args[:2] == ["api", "graphql"] and any("reviewThreads" in a for a in args):
     node = lambda i, resolved, outdated, body: {{"id": i, "isResolved": resolved, "isOutdated": outdated,
-        "path": "a.py", "line": 3, "comments": {{"nodes": [{{"author": {{"login": "rev[bot]"}}, "body": body}}]}}}}
-    print(json.dumps({{"data": {{"repository": {{"pullRequest": {{"reviewThreads": {{"nodes": [
+        "path": "a.py", "line": 3, "first": {{"nodes": [{{"author": {{"login": "rev[bot]"}}, "body": body}}]}},
+        "latest": {{"nodes": [{{"author": {{"login": "rev[bot]"}}, "body": body}}]}}}}
+    print(json.dumps({{"data": {{"repository": {{"pullRequest": {{"reviewThreads": {{
+        "pageInfo": {{"hasNextPage": False, "endCursor": None}}, "nodes": [
         node("T1", False, False, "Important — leak"), node("T2", True, False, "Nit — x"),
         node("T3", False, True, "Nit — y")]}}}}}}}}}}))
 elif args[:2] == ["api", "graphql"]:
@@ -601,3 +603,30 @@ def test_a_non_github_origin_without_tracker_is_an_error_not_github(monkeypatch)
         forge.detect()
     monkeypatch.setattr(forge, "origin_url", lambda: "git@github.com:o/r.git")
     assert forge.detect() == "github"
+
+
+def test_github_threads_follow_every_page_and_report_the_latest_comment(monkeypatch):
+    # The merge gate treats this list as complete: a thread past the first page,
+    # or a reply past the first few comments, must not disappear.
+    def node(i, latest):
+        return {"id": i, "isResolved": False, "isOutdated": False, "path": "a.py", "line": 1,
+                "first": {"nodes": [{"author": {"login": "rev"}, "body": "Important — x"}]},
+                "latest": {"nodes": [{"author": {"login": latest}, "body": f"{latest} said"}]}}
+    pages = {None: ([node("T1", "rev")], True, "c1"), "c1": ([node("T2", "me")], False, "c2")}
+    seen = []
+
+    def fake_json(*args, check=True):
+        cursor = next((a.split("=", 1)[1] for a in args if a.startswith("cursor=")), None)
+        seen.append(cursor)
+        nodes, more, end = pages[cursor]
+        return {"data": {"repository": {"pullRequest": {"reviewThreads": {
+            "pageInfo": {"hasNextPage": more, "endCursor": end}, "nodes": nodes}}}}}
+
+    gh = forge.GitHub()
+    monkeypatch.setattr(gh, "repo", lambda: ("o", "r"))
+    monkeypatch.setattr(gh, "json", fake_json)
+    threads = gh.threads("5")
+    assert [t["id"] for t in threads] == ["T1", "T2"]
+    assert seen == [None, "c1"]
+    assert threads[1]["author"] == "me" and threads[1]["severity"] == "important"
+    assert "comments(first: 1)" in forge.THREADS_QUERY and "comments(last: 1)" in forge.THREADS_QUERY
