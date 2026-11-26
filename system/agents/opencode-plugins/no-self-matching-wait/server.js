@@ -4,8 +4,9 @@
 // which Claude Code also runs as a PreToolUse hook; this plugin feeds it the
 // same JSON before every shell call. When the script refuses, the command is
 // replaced with one that prints the reason and exits 1, so the model sees why
-// and nothing waits forever. (v2 tool hooks mutate event.input in place, as
-// OpenCode's own opencode.tool.input.repair hook does.)
+// and nothing waits forever. The command is changed on event.input itself, so
+// the dispatcher sees it whether it reads event.input after the hooks or
+// kept the object from before them.
 //
 // `Plugin.define` from @opencode/plugin is an identity helper, so a plain
 // default object with an `id` and `setup(ctx)` is equivalent and dependency-free.
@@ -44,7 +45,7 @@ export default {
       const reason = refusal(command);
       if (!reason) return;
       const quoted = "'" + reason.replaceAll("'", "'\\''") + "'";
-      event.input = { ...event.input, command: `printf '%s\\n' ${quoted} >&2; exit 1` };
+      event.input.command = `printf '%s\\n' ${quoted} >&2; exit 1`;
     });
   },
 };

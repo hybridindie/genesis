@@ -41,6 +41,9 @@ jobs:
           test -f /tmp/syshome/.claude/settings.json
           test -x /tmp/syshome/.agents/hooks/no-self-matching-wait.sh
           test -f /tmp/syshome/.config/opencode/plugins/no-self-matching-wait/server.js
+          test -f /tmp/syshome/.config/opencode/plugins/no-self-matching-wait/package.json
+          # Import the rendered plugin once: catches a syntax error or a lost ESM package.json.
+          node --input-type=module -e "const m = await import('file:///tmp/syshome/.config/opencode/plugins/no-self-matching-wait/server.js'); if (typeof m.default?.setup !== 'function') process.exit(1);"
           jq -e '.hooks.PreToolUse[] | select(.matcher == "Bash") | .hooks[].command' \
             /tmp/syshome/.claude/settings.json | grep -q no-self-matching-wait
           test -f /tmp/syshome/.config/system/gitconfig

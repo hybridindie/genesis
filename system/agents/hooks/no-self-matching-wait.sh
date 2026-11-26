@@ -18,10 +18,19 @@ command -v jq >/dev/null 2>&1 || exit 0
 cmd=$(jq -r '.tool_input.command // empty')
 [ -n "$cmd" ] || exit 0
 
-# `while`/`until` whose condition (up to the first `;` or newline) calls
+# Newlines become `;` so a loop split over lines reads like a one-liner.
+flat=$(printf '%s' "$cmd" | tr '\n' ';')
+
+# The loop keyword must start a command (line start, or after ; & | ( or a
+# quote), so prose that only mentions the construct is let through.
+start="(^|[;&|({'\"])[[:space:]]*(while|until)[[:space:]]"
 # pgrep with the f flag anywhere in its options: -f, -af, -fa, -u me -f, ...
-loop='(^|[^[:alnum:]_])(while|until)[[:space:]][^;]*pgrep[^;]*[[:space:]]-[[:alpha:]]*f'
-if printf '%s\n' "$cmd" | grep -Eq "$loop"; then
+pgrep_f='pgrep[^;]*[[:space:]]-[[:alpha:]]*f'
+# 1. pgrep -f is the loop's condition (before the first `;`).
+cond="${start}[^;]*${pgrep_f}"
+# 2. pgrep -f in the body, breaking out on its status: `while :; do pgrep -f x || break; ...`.
+body="${start}[^;]*;[[:space:]]*do[[:space:]].*${pgrep_f}[^;]*(\|\||&&)[[:space:]]*break"
+if printf '%s\n' "$flat" | grep -Eq -e "$cond" -e "$body"; then
   jq -n '{hookSpecificOutput: {
     hookEventName: "PreToolUse",
     permissionDecision: "deny",
