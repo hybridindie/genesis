@@ -44,6 +44,11 @@ def decision(command: str) -> str:
         "while pgrep -fl thing\ndo sleep 1; done",
         "while :; do pgrep -f app >/dev/null || break; sleep 1; done",
         "timeout 60 bash -c 'until ! pgrep -f probe >/dev/null; do sleep 1; done'",
+        'if [ -d "$d" ]; then while pgrep -f \'cargo build\' >/dev/null; do sleep 10; done; fi',
+        "while :; do if ! pgrep -f x; then break; fi; sleep 1; done",
+        "while :; do pgrep -f x || exit 1; done",
+        "while :; do\n  pgrep -f app >/dev/null || break\n  sleep 1\ndone",
+        "while :; do\n  pgrep -f app >/dev/null\n  || break\ndone",
     ],
 )
 def test_refuses_a_self_matching_wait(command):
