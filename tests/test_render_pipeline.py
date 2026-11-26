@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -116,6 +117,16 @@ def test_render_passes_the_checks_and_they_catch_a_broken_pipeline(tmp_path):
     assert "escalation.md, which is missing" in result.stderr and "plan.py is not executable" in result.stderr
     result = subprocess.run(sync, capture_output=True, text=True)
     assert result.returncode == 1 and "pipeline file not rendered: .agents/doctrine/escalation.md" in result.stderr
+
+
+def test_drift_check_skips_pipeline_refs_when_the_pipeline_is_per_user(tmp_path):
+    """A project without .agents/doctrine or .agents/scripts uses ~/.agents; ship-pr's refs are fine."""
+    run_render(tmp_path)
+    for folder in ("doctrine", "scripts", "templates", "evals"):
+        shutil.rmtree(tmp_path / ".agents" / folder, ignore_errors=True)
+    drift = [sys.executable, str(tmp_path / ".claude/hooks/check-project-drift.py"), "--root", str(tmp_path)]
+    result = subprocess.run(drift, capture_output=True, text=True)
+    assert "which is missing" not in result.stderr, result.stderr
 
 
 def test_render_preserves_rule_aliases(tmp_path):
