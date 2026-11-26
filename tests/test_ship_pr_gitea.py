@@ -578,3 +578,26 @@ def test_github_reply_and_resolve_send_the_graphql_mutations(gh_repo):
     assert any("addPullRequestReviewThreadReply" in a for a in reply)
     assert "thread=T1" in reply and "body=Fixed in abc" in reply
     assert any("resolveReviewThread" in a for a in resolve) and "thread=T1" in resolve
+
+
+def test_finds_the_user_level_tracker_when_the_repo_has_none(tmp_path, monkeypatch):
+    # A repo that takes the pipeline from the user-level install has no
+    # .agents/scripts/tracker.py; ship-pr must use ~/.agents/scripts/tracker.py.
+    skill = tmp_path / "repo" / ".agents" / "skills" / "ship-pr" / "scripts"
+    skill.mkdir(parents=True)
+    home = tmp_path / "home"
+    (home / ".agents" / "scripts").mkdir(parents=True)
+    (home / ".agents" / "scripts" / "tracker.py").write_text("WHERE = 'user'\n")
+    monkeypatch.setattr(forge.Path, "home", classmethod(lambda cls: home))
+    found = forge.tracker_module(skill / "forge.py")
+    assert found is not None and found.WHERE == "user"
+
+
+def test_a_non_github_origin_without_tracker_is_an_error_not_github(monkeypatch):
+    monkeypatch.delenv("TRACKER", raising=False)
+    monkeypatch.setattr(forge, "tracker_module", lambda *a: None)
+    monkeypatch.setattr(forge, "origin_url", lambda: "https://git.example.com/o/r.git")
+    with pytest.raises(forge.ForgeError, match="tracker.py"):
+        forge.detect()
+    monkeypatch.setattr(forge, "origin_url", lambda: "git@github.com:o/r.git")
+    assert forge.detect() == "github"

@@ -13,8 +13,9 @@
 The forge comes from the `origin` remote exactly as `.agents/scripts/tracker.py`
 decides it (that file is imported, not copied): github.com is GitHub, any other
 host is Gitea, `TRACKER=github|gitea` overrides. Gitea uses tracker.py's client,
-so `GITEA_TOKEN` (or `TEA_TOKEN`) and `GITEA_URL` mean the same here. Without
-tracker.py beside the skill, ship-pr stays on GitHub, as it was before Gitea.
+so `GITEA_TOKEN` (or `TEA_TOKEN`) and `GITEA_URL` mean the same here. tracker.py
+is the project's own copy or, failing that, the user-level install's
+(`~/.agents/scripts/`). With neither, only a github.com origin works.
 
 Exits 0 on success, 1 when `find` has no PR, 2 on a forge or setup error.
 """
@@ -73,11 +74,14 @@ class ForgeError(RuntimeError):
         self.status = status
 
 
-def tracker_module():
-    """`.agents/scripts/tracker.py` from the nearest ancestor that has one: the
-    project root when rendered, the genesis root when run from templates/."""
-    for parent in Path(__file__).resolve().parents:
-        path = parent / ".agents" / "scripts" / "tracker.py"
+def tracker_module(here: Path | None = None):
+    """`.agents/scripts/tracker.py` from the nearest ancestor that has one (the
+    project root when rendered, the genesis root when run from templates/), else
+    the user-level install's `~/.agents/scripts/tracker.py`."""
+    here = (here or Path(__file__)).resolve()
+    candidates = [parent / ".agents" / "scripts" / "tracker.py" for parent in here.parents]
+    candidates.append(Path.home() / ".agents" / "scripts" / "tracker.py")
+    for path in candidates:
         if path.is_file():
             spec = importlib.util.spec_from_file_location("ship_pr_tracker", path)
             module = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
@@ -105,12 +109,15 @@ def detect(tracker=None) -> str:
     if override:
         raise ForgeError(f"TRACKER must be github or gitea, not {override!r}")
     tracker = tracker or tracker_module()
-    if tracker is None:
-        return "github"
     try:
         url = origin_url()
     except ForgeError:  # no origin: leave it to gh, as before Gitea support (GH_REPO still works)
         return "github"
+    if tracker is None:  # without tracker.py only GitHub works; never send gh at another host
+        if re.search(r"(^|[@/.])github\.com[:/]", url):
+            return "github"
+        raise ForgeError(f"origin {url} is not GitHub and no tracker.py was found: "
+                         "re-render the harness or install the genesis pipeline")
     try:
         host = tracker.parse_remote(url)[0]
     except SystemExit as exc:  # tracker.py reports a bad remote by exiting
