@@ -12,7 +12,7 @@ user-invocable: true
 
 <!--
   contract: .claude/rules/doctrine/skill-execution.md
-  version: 3.4.0, owner: John D
+  version: 3.5.0, owner: John D
   invokes: ship-pr/scripts/{forge,watch_pr,pr_threads,pr_size,merge_pr}.py
 -->
 
@@ -41,7 +41,9 @@ Set once: `s=.agents/skills/ship-pr/scripts; [[ -d $s ]] || s=templates/_shared/
 
 1. **Preflight.** Require `git status` clean and the branch pushed. Confirm the
    PR body links an issue (`Closes #N` or a link). Run `/preflight`; fix failures,
-   never bypass a hook.
+   never bypass a hook. If the project has a pre-review checklist
+   (`.claude/rules/doctrine/pre-review-checklist.md`), self-review the diff
+   against it before the first push: each push re-runs the review.
 2. **Size budget.** Before opening a PR: `python3 "$s/pr_size.py" --base origin/main`
    (git only, so the same on both forges). Exit 1 means over budget
    (`.claude/rules/workflow.md`, step 5): stop and propose a split by layer or
@@ -78,7 +80,9 @@ Set once: `s=.agents/skills/ship-pr/scripts; [[ -d $s ]] || s=templates/_shared/
    commit after the review. OpenCodeReview also posts a summary comment
    (`<!-- ocr-summary -->`) whose *Additional findings* are not threads, and
    which names any file it didn't review: read the latest one on the head too.
-7. **Triage each.** Real defect → fix + test + rerun preflight + push. Misread →
+7. **Triage each.** Real defect → fix + test + rerun preflight, all of the
+   round's fixes in one push (re-run the pre-review checklist over them, if
+   there is one). Misread →
    reply with evidence. Separate concern → linked follow-up issue + reply.
    Ambiguous → leave open and list for the human. Answer the summary's
    additional findings in one PR comment, one line each (fixed in <sha>, or
