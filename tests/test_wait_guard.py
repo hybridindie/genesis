@@ -49,6 +49,8 @@ def decision(command: str) -> str:
         "while :; do pgrep -f x || exit 1; done",
         "while :; do\n  pgrep -f app >/dev/null || break\n  sleep 1\ndone",
         "while :; do\n  pgrep -f app >/dev/null\n  || break\ndone",
+        "while\npgrep -f app >/dev/null\ndo sleep 20\ndone",
+        "until\n! pgrep -f '(godot|cargo)' >/dev/null\ndo\n  sleep 20\ndone",
     ],
 )
 def test_refuses_a_self_matching_wait(command):
@@ -67,6 +69,8 @@ def test_refuses_a_self_matching_wait(command):
         'git commit -m "guard until pgrep -f stalls"',
         'echo "watch: until pgrep -f build ends"',
         "while :; do pgrep -f app; sleep 1; done",
+        "while kill -0 991; do sleep 5; done; pgrep -af ffmpeg; exit 0",
+        "while kill -0 991; do sleep 5; done; if pgrep -af ffmpeg; then exit 1; fi",
         "git status",
     ],
 )

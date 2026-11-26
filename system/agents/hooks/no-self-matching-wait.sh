@@ -24,15 +24,18 @@ flat=$(printf '%s' "$cmd" | tr '\n' ';')
 # The loop keyword must start a command: line start, after ; & | ( { or a
 # quote, or after then/do/else/elif (a loop nested in a block). Prose that
 # only mentions the construct is let through. After flattening, `;` counts
-# as whitespace wherever whitespace may follow a keyword.
-start="(^|[;&|({'\"]|(then|do|else|elif)[[:space:];])[[:space:];]*(while|until)[[:space:]]"
+# as whitespace wherever whitespace may follow a keyword, the loop keyword
+# included (`while` at a line's end).
+start="(^|[;&|({'\"]|(then|do|else|elif)[[:space:];])[[:space:];]*(while|until)[[:space:];]"
 # pgrep with the f flag anywhere in its options: -f, -af, -fa, -u me -f, ...
 pgrep_f='pgrep[^;]*[[:space:]]-[[:alpha:]]*f'
+# Any run of text without the word `done`: keeps a body match inside its loop.
+nd='([^d]|d[^o]|do[^n]|don[^e]|done[[:alnum:]_])*'
 # 1. pgrep -f is the loop's condition (before the first `;`).
 cond="${start}[^;]*${pgrep_f}"
-# 2. pgrep -f in the body with a break or exit after it: `|| break`,
-#    `|| exit 1`, `if ! pgrep -f x; then break; fi`, on one line or several.
-body="${start}[^;]*;[[:space:];]*do[[:space:];].*${pgrep_f}.*(^|[^[:alnum:]_])(break|exit)([^[:alnum:]_]|$)"
+# 2. pgrep -f in the body with a break or exit after it, before the loop's
+#    `done`: `|| break`, `|| exit 1`, `if ! pgrep -f x; then break; fi`.
+body="${start}[^;]*;[[:space:];]*do[[:space:];]${nd}${pgrep_f}${nd}(^|[^[:alnum:]_])(break|exit)([^[:alnum:]_]|$)"
 if printf '%s\n' "$flat" | grep -Eq -e "$cond" -e "$body"; then
   jq -n '{hookSpecificOutput: {
     hookEventName: "PreToolUse",
