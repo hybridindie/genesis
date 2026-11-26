@@ -10,7 +10,9 @@ system/
   install.sh          render into $HOME (idempotent, backs up on --force)
   shell/              zsh config -> ~/.config/zsh + $HOME loaders
   agents/             AGENTS.md (user-level), CLAUDE.md import, opencode.jsonc, settings.json,
-                      stage_skills.py (the `skills` component, below)
+                      stage_skills.py (the `skills` component, below),
+                      hooks/ -> ~/.agents/hooks (guards both harnesses call),
+                      opencode-plugins/ -> ~/.config/opencode/plugins (one directory per plugin)
   git/                shared gitconfig + global gitignore
   herdr/config.toml   optional, installed when herdr is present
   zed/settings.json   optional, installed when zed is present
@@ -59,6 +61,13 @@ backs up and replaces the link with a regular file. Pick one owner per path —
 either this installer or the dotfiles links — and keep machine-only values in
 `conf.d/99-local.zsh` or the dotfiles overlay. Do not run both update paths over
 the same file.
+
+Both harnesses refuse wait loops whose condition is `pgrep -f`: the pattern is
+in the waiting shell's own command line, so the loop matches itself and never
+exits. One script, `~/.agents/hooks/no-self-matching-wait.sh`, does the check;
+Claude Code runs it as a `PreToolUse` hook (`settings.json`) and the OpenCode
+plugin `plugins/no-self-matching-wait/` runs it before every shell call, replacing a
+refused command with one that prints the reason and exits 1.
 
 Project configs carry the portable permission baseline; the machine-level
 OpenCode/Claude configs add the global denies (SSH, cloud credentials, `.env`).

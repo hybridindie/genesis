@@ -236,6 +236,11 @@ install_shell() {
 install_agents() {
   say "== agents"
   install_file "$SELF_DIR/agents/AGENTS.md" "$TARGET_HOME/.config/opencode/AGENTS.md"
+  # Guard hooks shared by both harnesses (settings.json and the OpenCode plugins call them).
+  local f
+  for f in "$SELF_DIR"/agents/hooks/*; do
+    install_file "$f" "$TARGET_HOME/.agents/hooks/$(basename -- "$f")" raw
+  done
   if have_or_all claude "$TARGET_HOME/.claude"; then
     install_file "$SELF_DIR/agents/CLAUDE.md" "$TARGET_HOME/.claude/CLAUDE.md"
     install_file "$SELF_DIR/agents/settings.json" "$TARGET_HOME/.claude/settings.json"
@@ -244,6 +249,10 @@ install_agents() {
   fi
   if have_or_all opencode "$TARGET_HOME/.config/opencode"; then
     install_file "$SELF_DIR/agents/opencode.jsonc" "$TARGET_HOME/.config/opencode/opencode.jsonc"
+    # v2 loads each directory under plugins/ (its server.js), not loose files.
+    while IFS= read -r f; do
+      install_file "$f" "$TARGET_HOME/.config/opencode/plugins/${f#"$SELF_DIR/agents/opencode-plugins/"}" raw
+    done < <(find "$SELF_DIR/agents/opencode-plugins" -type f | sort)
   else
     say "skipped OpenCode config (opencode not installed; use --all to force)"
   fi

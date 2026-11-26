@@ -31,5 +31,19 @@
       "Bash(fd *)",
       "Bash(ls *)"
     ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.agents/hooks/no-self-matching-wait.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
   }
 }
