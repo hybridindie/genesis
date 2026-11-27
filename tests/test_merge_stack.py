@@ -161,3 +161,19 @@ def test_a_retargeted_part_listing_no_checks_keeps_the_checks_its_head_passed():
     code, report = runner(client).run(["1", "2", "3"], dry_run=False)
     assert code == stack.EXIT_MERGED, report
     assert [m["pr"] for m in report["merged"]] == [1, 2, 3]
+
+
+def test_a_failed_check_after_a_merge_still_lists_the_part_as_merged():
+    client = Fake(three())
+    run = runner(client)
+    real = run.fetch
+
+    def fetch(ref):
+        if ref == "main" and client.views[1]["state"] == "MERGED":
+            raise stack.forge.ForgeError("git fetch origin main: timed out")
+        return real(ref)
+
+    run.fetch = fetch
+    code, report = run.run(["1", "2", "3"], dry_run=False)
+    assert (code, report["stopped_at"], [m["pr"] for m in report["merged"]]) == (stack.EXIT_BLOCKED, 1, [1])
+    assert "landed" in report["blocked_by"][0]

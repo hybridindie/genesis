@@ -60,7 +60,10 @@ def stack_errors(views: list[dict]) -> list[str]:
 
 
 def git(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", *args], capture_output=True, text=True, timeout=300)
+    try:
+        return subprocess.run(["git", *args], capture_output=True, text=True, timeout=300)
+    except (OSError, subprocess.SubprocessError) as exc:  # a timeout too: forge.py's rule
+        raise forge.ForgeError(f"git {' '.join(args[:2])}: {exc}") from None
 
 
 def fetch(ref: str) -> str:
@@ -68,7 +71,10 @@ def fetch(ref: str) -> str:
     proc = git("fetch", "-q", "origin", ref)
     if proc.returncode != 0:
         raise forge.ForgeError(f"git fetch origin {ref}: {proc.stderr.strip()}")
-    return git("rev-parse", "FETCH_HEAD").stdout.strip()
+    sha = git("rev-parse", "FETCH_HEAD").stdout.strip()
+    if not sha:
+        raise forge.ForgeError(f"git rev-parse FETCH_HEAD after fetching {ref}: no commit")
+    return sha
 
 
 def differing(tested: str, landed: str, files: list[str]) -> list[str]:
@@ -151,12 +157,15 @@ class Stack:
             if tested[n] != sha:
                 return stop(n, f"head moved since the gate: {sha[:7]} -> {tested[n][:7]}")
             if k:
-                fresh = self.retargeted(v, base)
+                try:
+                    fresh = self.retargeted(v, base)
+                    reasons, _ = self.gate(fresh, gated=self.seen.get(n))
+                except forge.ForgeError as exc:
+                    return stop(n, f"re-gating #{n} after the retarget: {exc}")
                 if fresh["base"] != base:
                     return stop(n, f"not retargeted to {base} (base is {fresh['base']})")
                 if fresh["sha"] != sha:
                     return stop(n, f"head moved since the gate: {sha[:7]} -> {fresh['sha'][:7]}")
-                reasons, _ = self.gate(fresh, gated=self.seen.get(n))
                 if reasons:
                     return stop(n, *reasons)
             try:
@@ -164,10 +173,13 @@ class Stack:
                 for d in self.client.dependents(v["head"]):
                     self.client.retarget(d, base)
                 commit = self.client.merge(str(n), self.policy["method"], sha)
-                off = self.differing(sha, self.fetch(base), self.client.files(str(n)))
             except forge.ForgeError as exc:
                 return stop(n, f"merge of #{n}: {exc}")
             report["merged"].append({"pr": n, "merge_commit": commit})
+            try:
+                off = self.differing(sha, self.fetch(base), self.client.files(str(n)))
+            except forge.ForgeError as exc:
+                return stop(n, f"#{n} landed ({commit[:7]}), but checking its tree failed: {exc}")
             if off:
                 return stop(n, f"#{n} landed, but {base} differs from its tested head in: {', '.join(off[:10])}")
         return EXIT_MERGED, {**report, "decision": "merged"}
