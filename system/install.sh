@@ -259,15 +259,15 @@ install_agents() {
 }
 
 report_user_pipeline() { # the pipeline ships in each repo now; older installs left a copy here
-  local p found=()
-  for p in .agents/scripts .agents/doctrine .agents/templates .agents/evals \
-           .claude/skills/epic-acceptance-linter .claude/skills/epic-composer .claude/skills/epic-interview \
-           .claude/skills/factory .claude/skills/plan-reviewer .claude/skills/story-decomposer \
-           .claude/skills/task-decomposer .claude/skills/wave-dispatcher \
-           .config/opencode/skills/epic-acceptance-linter .config/opencode/skills/epic-composer \
-           .config/opencode/skills/epic-interview .config/opencode/skills/factory \
-           .config/opencode/skills/plan-reviewer .config/opencode/skills/story-decomposer \
-           .config/opencode/skills/task-decomposer .config/opencode/skills/wave-dispatcher; do
+  local p name found=() names=()
+  # Skill names come from scripts/pipeline.py, the one list render.py uses too.
+  local listed
+  listed=$(python3 -c 'import sys; from pathlib import Path; sys.path.insert(0, sys.argv[1] + "/scripts"); import pipeline; print("\n".join(pipeline.skills(Path(sys.argv[1]))))' "$REPO_ROOT") \
+    || die "listing the pipeline skills failed"
+  while IFS= read -r name; do [[ -n "$name" ]] && names+=("$name"); done <<< "$listed"
+  local paths=(.agents/scripts .agents/doctrine .agents/templates .agents/evals)
+  for name in "${names[@]}"; do paths+=(".claude/skills/$name" ".config/opencode/skills/$name"); done
+  for p in "${paths[@]}"; do
     [[ -e "$TARGET_HOME/$p" ]] && found+=("$TARGET_HOME/$p")
   done
   (( ${#found[@]} )) || return 0
@@ -275,7 +275,9 @@ report_user_pipeline() { # the pipeline ships in each repo now; older installs l
   say "== old user-level pipeline"
   say "  The plan-and-dispatch pipeline now renders into each repo (bootstrap.sh); these"
   say "  copies from an older install are no longer used. Re-render each repo first, then remove:"
-  for p in "${found[@]}"; do say "    rm -rf $(display "$p")"; done
+  # Full, quoted paths: these lines are meant to be pasted, and `~` would point at the real
+  # home even when --home named another directory.
+  for p in "${found[@]}"; do say "    rm -rf '$p'"; done
 }
 
 install_git() {

@@ -41,7 +41,14 @@ jobs:
           test -f /tmp/syshome/.claude/settings.json
           test -x /tmp/syshome/.agents/hooks/no-self-matching-wait.sh
           # The pipeline renders into each repo; nothing of it is installed per user.
-          test ! -e /tmp/syshome/.agents/scripts && test ! -e /tmp/syshome/.claude/skills/factory
+          test ! -e /tmp/syshome/.agents/scripts
+          test ! -e /tmp/syshome/.claude/skills/factory
+          # An older install's copy is reported with its full path, ready to paste.
+          mkdir -p /tmp/syshome/.claude/skills/factory
+          bash system/install.sh --home /tmp/syshome --dev-root /tmp/dev --machine-label ci --all --no-tools --diff \
+            | tee /tmp/report.txt
+          grep -qF "rm -rf '/tmp/syshome/.claude/skills/factory'" /tmp/report.txt
+          rm -rf /tmp/syshome/.claude/skills/factory
           test -f /tmp/syshome/.config/opencode/plugins/no-self-matching-wait/server.js
           test -f /tmp/syshome/.config/opencode/plugins/no-self-matching-wait/package.json
           # Import the rendered plugin once: catches a syntax error or a lost ESM package.json.
