@@ -12,7 +12,7 @@
 #   --diff                   show what would change; write nothing
 #   --all                    install agent/herdr/zed configs even if the tool is absent
 #   --no-tools               skip the tooling report
-#   --skip <a,b,...>         skip components: shell,agents,skills,git,herdr,zed,bin,brewfile
+#   --skip <a,b,...>         skip components: shell,agents,git,herdr,zed,bin,brewfile
 #   -h, --help               show this help
 #
 # Existing files are never overwritten silently: a differing file is kept and
@@ -258,37 +258,24 @@ install_agents() {
   fi
 }
 
-install_skills() { # the plan-and-dispatch pipeline (scripts/pipeline.py), available in every repo
-  # Shared doctrine/templates/scripts go to ~/.agents once; each installed
-  # harness gets its own full copy of the skills (both only if both are present).
-  say "== skills"
-  local stage f rel
-  stage=$(mktemp -d "${TMPDIR:-/tmp}/genesis-skills.XXXXXX")
-  local shared=claude  # shared files name skills by path: point them at an installed harness
-  have_or_all claude "$TARGET_HOME/.claude" || shared=opencode
-  python3 "$SELF_DIR/agents/stage_skills.py" "$REPO_ROOT" "$stage" "$TARGET_HOME" --shared-harness "$shared" \
-    || die "staging skills failed"
-  while IFS= read -r f; do
-    rel=${f#"$stage/agents/"}
-    install_file "$f" "$TARGET_HOME/.agents/$rel" raw
-  done < <(find "$stage/agents" -type f | sort)
-  if have_or_all claude "$TARGET_HOME/.claude"; then
-    while IFS= read -r f; do
-      rel=${f#"$stage/claude/"}
-      install_file "$f" "$TARGET_HOME/.claude/skills/$rel" raw
-    done < <(find "$stage/claude" -type f | sort)
-  else
-    say "skipped Claude skills (claude not installed; use --all to force)"
-  fi
-  if have_or_all opencode "$TARGET_HOME/.config/opencode"; then
-    while IFS= read -r f; do
-      rel=${f#"$stage/opencode/"}
-      install_file "$f" "$TARGET_HOME/.config/opencode/skills/$rel" raw
-    done < <(find "$stage/opencode" -type f | sort)
-  else
-    say "skipped OpenCode skills (opencode not installed; use --all to force)"
-  fi
-  rm -rf -- "$stage"
+report_user_pipeline() { # the pipeline ships in each repo now; older installs left a copy here
+  local p found=()
+  for p in .agents/scripts .agents/doctrine .agents/templates .agents/evals \
+           .claude/skills/epic-acceptance-linter .claude/skills/epic-composer .claude/skills/epic-interview \
+           .claude/skills/factory .claude/skills/plan-reviewer .claude/skills/story-decomposer \
+           .claude/skills/task-decomposer .claude/skills/wave-dispatcher \
+           .config/opencode/skills/epic-acceptance-linter .config/opencode/skills/epic-composer \
+           .config/opencode/skills/epic-interview .config/opencode/skills/factory \
+           .config/opencode/skills/plan-reviewer .config/opencode/skills/story-decomposer \
+           .config/opencode/skills/task-decomposer .config/opencode/skills/wave-dispatcher; do
+    [[ -e "$TARGET_HOME/$p" ]] && found+=("$TARGET_HOME/$p")
+  done
+  (( ${#found[@]} )) || return 0
+  say
+  say "== old user-level pipeline"
+  say "  The plan-and-dispatch pipeline now renders into each repo (bootstrap.sh); these"
+  say "  copies from an older install are no longer used. Re-render each repo first, then remove:"
+  for p in "${found[@]}"; do say "    rm -rf $(display "$p")"; done
 }
 
 install_git() {
@@ -385,7 +372,6 @@ say
 
 skipping shell    || install_shell
 skipping agents   || install_agents
-skipping skills   || install_skills
 skipping git      || install_git
 skipping herdr    || install_herdr
 skipping zed      || install_zed
@@ -396,6 +382,7 @@ if (( CHECK_TOOLS )); then
   say
   check_tools
 fi
+report_user_pipeline
 
 say
 say "next:"

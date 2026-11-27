@@ -10,7 +10,6 @@ system/
   install.sh          render into $HOME (idempotent, backs up on --force)
   shell/              zsh config -> ~/.config/zsh + $HOME loaders
   agents/             AGENTS.md (user-level), CLAUDE.md import, opencode.jsonc, settings.json,
-                      stage_skills.py (the `skills` component, below),
                       hooks/ -> ~/.agents/hooks (guards both harnesses call),
                       opencode-plugins/ -> ~/.config/opencode/plugins (one directory per plugin)
   git/                shared gitconfig + global gitignore
@@ -34,14 +33,13 @@ bash system/install.sh \
 Flags: `--home` (test target), `--force` (update differing files after a
 timestamped backup), `--diff` (show changes, write nothing), `--all` (install
 agent/editor configs even when the tool is absent), `--no-tools` (skip the
-tooling report), `--skip shell,agents,skills,git,herdr,zed,bin,brewfile`.
+tooling report), `--skip shell,agents,git,herdr,zed,bin,brewfile`.
 
-The `skills` component installs the plan-and-dispatch pipeline (epic-composer
-through wave-dispatcher, plan-reviewer and factory; the list comes from
-`scripts/pipeline.py`) for every repo on the machine: shared doctrine, templates and
-scripts into `~/.agents/`, and a full copy of each skill into
-`~/.claude/skills/` and/or `~/.config/opencode/skills/` — only for the
-harnesses that are installed (`--all` forces both).
+Nothing of the plan-and-dispatch pipeline is installed here: it renders into
+each repo with the harness (`bootstrap.sh`), so user space holds only shell, git
+and OS configuration. When an older install left copies in `~/.agents/` or the
+harnesses' user skill folders, the installer lists them with the `rm -rf` lines
+to run once each repo is re-rendered; it never deletes them itself.
 
 Safety rules:
 

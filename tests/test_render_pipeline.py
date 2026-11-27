@@ -119,14 +119,13 @@ def test_render_passes_the_checks_and_they_catch_a_broken_pipeline(tmp_path):
     assert result.returncode == 1 and "pipeline file not rendered: .agents/doctrine/escalation.md" in result.stderr
 
 
-def test_drift_check_skips_pipeline_refs_when_the_pipeline_is_per_user(tmp_path):
-    """A project without .agents/doctrine or .agents/scripts uses ~/.agents; ship-pr's refs are fine."""
+def test_drift_check_reports_a_pipeline_folder_that_was_not_rendered(tmp_path):
+    """Every render ships the pipeline; a missing folder is a broken render, not a per-user install."""
     run_render(tmp_path)
-    for folder in ("doctrine", "scripts", "templates", "evals"):
-        shutil.rmtree(tmp_path / ".agents" / folder, ignore_errors=True)
+    shutil.rmtree(tmp_path / ".agents" / "doctrine")
     drift = [sys.executable, str(tmp_path / ".claude/hooks/check-project-drift.py"), "--root", str(tmp_path)]
     result = subprocess.run(drift, capture_output=True, text=True)
-    assert "which is missing" not in result.stderr, result.stderr
+    assert result.returncode == 1 and "escalation.md, which is missing" in result.stderr
 
 
 def test_render_preserves_rule_aliases(tmp_path):

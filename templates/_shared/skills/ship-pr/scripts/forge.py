@@ -14,8 +14,8 @@ The forge comes from the `origin` remote exactly as `.agents/scripts/tracker.py`
 decides it (that file is imported, not copied): github.com is GitHub, any other
 host is Gitea, `TRACKER=github|gitea` overrides. Gitea uses tracker.py's client,
 so `GITEA_TOKEN` (or `TEA_TOKEN`) and `GITEA_URL` mean the same here. tracker.py
-is the project's own copy or, failing that, the user-level install's
-(`~/.agents/scripts/`). With neither, only a github.com origin works.
+is the project's own copy (rendered with the harness); without it, only a
+github.com origin works.
 
 Exits 0 on success, 1 when `find` has no PR, 2 on a forge or setup error.
 """
@@ -78,11 +78,10 @@ class ForgeError(RuntimeError):
 
 def tracker_module(here: Path | None = None):
     """`.agents/scripts/tracker.py` from the nearest ancestor that has one (the
-    project root when rendered, the genesis root when run from templates/), else
-    the user-level install's `~/.agents/scripts/tracker.py`."""
+    project root when rendered, the genesis root when run from templates/). Never
+    a copy in the user's home: the pipeline ships in each repo."""
     here = (here or Path(__file__)).resolve()
     candidates = [parent / ".agents" / "scripts" / "tracker.py" for parent in here.parents]
-    candidates.append(Path.home() / ".agents" / "scripts" / "tracker.py")
     for path in candidates:
         if path.is_file():
             spec = importlib.util.spec_from_file_location("ship_pr_tracker", path)

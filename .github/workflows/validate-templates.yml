@@ -40,6 +40,8 @@ jobs:
           test -f /tmp/syshome/.config/opencode/AGENTS.md
           test -f /tmp/syshome/.claude/settings.json
           test -x /tmp/syshome/.agents/hooks/no-self-matching-wait.sh
+          # The pipeline renders into each repo; nothing of it is installed per user.
+          test ! -e /tmp/syshome/.agents/scripts && test ! -e /tmp/syshome/.claude/skills/factory
           test -f /tmp/syshome/.config/opencode/plugins/no-self-matching-wait/server.js
           test -f /tmp/syshome/.config/opencode/plugins/no-self-matching-wait/package.json
           # Import the rendered plugin once: catches a syntax error or a lost ESM package.json.
