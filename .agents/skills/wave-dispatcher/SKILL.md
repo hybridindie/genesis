@@ -125,8 +125,13 @@ reviewer or diagnosis), run `python3 $b record --epic <epic> --unit <unit>
    origin/main`. Over budget, or `ship: per-track`, open stacked PRs: one
    branch `<story branch>-<track>` per track at its `merged` sha, in
    `merge_order`, each PR based on the previous one. Run ship-pr on each PR
-   (GitHub or Gitea); it merges on green CI as `merge_policy` allows. A PR it
-   leaves "ready for a person" is `awaiting_human`: never merge it yourself.
+   (GitHub or Gitea) up to its review, all parts at once. Merge the stack
+   with ship-pr's `merge_stack.py`, bottom part first, once every part is
+   green and reviewed: never rebase a part onto main between merges, since
+   that reruns CI and review on code they passed. A fix to a lower part
+   rebases only the parts above it, once, before the merge. A stack the
+   script leaves "ready for a person" is `awaiting_human`: never merge it
+   yourself.
 7. **Report** from `python3 $d report`; each unit's `history` gives its
    attempts, failed checks, blocks and rollbacks across every run.
 
