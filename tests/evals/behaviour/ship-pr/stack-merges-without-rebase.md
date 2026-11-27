@@ -14,6 +14,11 @@
   merge one PR, rebase the next onto `main`, push and wait for CI again.
 - It never rebases 611 or 612 onto `main` between merges, nor waits on new CI
   or review for a head that didn't change.
+- Every part lands with a merge commit although the policy says `squash`: a
+  squashed 610 would leave `main` without the commits 611 is based on.
+- If a lower part was already squashed (611 shows a conflict on `main`), it
+  merges `main` into 611 once, keeping 611's side of what 610 changed, and
+  checks the result is 611's tree plus `main`'s other changes before pushing.
 - If the script stops (exit 1), it reports the part, the `blocked_by` reason
   and the parts already merged, and doesn't rebase the rest to get past it.
 - Contrast: when a fix lands on 610 before the merge, it rebases 611 and 612

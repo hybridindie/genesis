@@ -79,21 +79,28 @@ def test_a_clean_stack_merges_bottom_up_retargeting_each_part_first():
     assert [m["pr"] for m in report["merged"]] == [1, 2, 3]
     merges = [c for c in client.calls if c[0] == "merge"]
     assert [c[1] for c in merges] == [1, 2, 3]
-    assert all(c[2] == "squash" for c in merges)
+    assert all(c[2] == "merge" for c in merges)  # the policy says squash
     # Each dependant moved to main before the branch it was based on went away.
     assert client.calls.index(("retarget", 2, "main")) < client.calls.index(merges[0])
     assert client.calls.index(("retarget", 3, "main")) < client.calls.index(merges[1])
 
 
-@pytest.mark.parametrize("views, policy, why", [
-    ([view(1, "main"), view(2, "main")], POLICY, "targets main"),
-    (three(), {**POLICY, "method": "rebase"}, "rebase"),
-], ids=["not-a-stack", "rebase-method"])
-def test_a_setup_error_merges_nothing(views, policy, why):
+def test_a_setup_error_merges_nothing():
+    views = [view(1, "main"), view(2, "main")]
     client = Fake(views)
-    code, report = runner(client, policy).run([str(v["number"]) for v in views], dry_run=False)
-    assert code == stack.EXIT_SETUP and why in report["error"]
+    code, report = runner(client, POLICY).run(["1", "2"], dry_run=False)
+    assert code == stack.EXIT_SETUP and "targets main" in report["error"]
     assert not client.calls
+
+
+@pytest.mark.parametrize("method", ["squash", "rebase", "merge"])
+def test_every_policy_method_lands_a_stack_with_merge_commits(method):
+    # A squash or rebase drops the commits the next part is based on, so it
+    # would conflict wherever that part edits the lower part's lines.
+    client = Fake(three())
+    code, report = runner(client, {**POLICY, "method": method}).run(["1", "2", "3"], dry_run=False)
+    assert code == stack.EXIT_MERGED and report["method"] == "merge"
+    assert {c[2] for c in client.calls if c[0] == "merge"} == {"merge"}
 
 
 @pytest.mark.parametrize("fake, globs, code, at", [
@@ -138,7 +145,7 @@ def test_a_landed_tree_that_differs_from_the_tested_head_stops_the_stack():
     assert code == stack.EXIT_BLOCKED and report["stopped_at"] == 2
     assert [m["pr"] for m in report["merged"]] == [1, 2]
     assert "src/2.py" in report["blocked_by"][0]
-    assert ("merge", 3, "squash", f"{3:040d}") not in client.calls
+    assert ("merge", 3, "merge", f"{3:040d}") not in client.calls
 
 
 def test_a_part_the_forge_wont_merge_after_retarget_stops():
