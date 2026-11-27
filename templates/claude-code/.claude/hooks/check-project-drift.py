@@ -236,16 +236,12 @@ class Drift:
 
     # Files a skill names under these .agents/ folders ship with the harness
     # (the plan-and-dispatch pipeline); `.agents/plan-constraints.yaml` is the
-    # project's own and only exists once a lesson is recorded. A project that
-    # has no such folder at all uses the per-user install (`~/.agents/`), so
-    # its references are not checked here.
+    # project's own and only exists once a lesson is recorded.
     PIPELINE_REF = re.compile(r"(?<![\w/~-])\.agents/(?:scripts|doctrine|templates|evals)/[\w./-]*\w\.(?:py|md)")
 
     def pipeline(self) -> None:
         for skill in sorted((self.root / ".agents" / "skills").glob("*/SKILL.md")):
             for rel in sorted(set(self.PIPELINE_REF.findall(skill.read_text(encoding="utf-8")))):
-                if not (self.root / Path(rel).parts[0] / Path(rel).parts[1]).is_dir():
-                    continue
                 self.check((self.root / rel).is_file(),
                            f"DRIFT: {skill.relative_to(self.root)} uses {rel}, which is missing")
         for script in sorted((self.root / ".agents" / "scripts").glob("*.py")):

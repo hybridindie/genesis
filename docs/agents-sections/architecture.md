@@ -39,11 +39,7 @@ Rendered projects use the same layout: `bootstrap.sh` writes skills to
 the pipeline listed by `scripts/pipeline.py`: every `.agents/skills/` skill
 except `bootstrap-harness`, plus `scripts/`, `doctrine/`, `templates/` and the
 eval rubrics (not tests, fixtures or eval cases), at the same `.agents/` paths.
-Scripts are copied byte for byte. The user-level install stages the same list
-and is the one place copies are allowed: `system/install.sh` puts the shared files in
-`~/.agents/` and a full copy of each skill into every installed harness's own
-skills folder (`~/.claude/skills/`, `~/.config/opencode/skills/`), only for
-harnesses that are present.
+Scripts are copied byte for byte. Nothing is installed per user: each repo carries its own copy.
 
 **Golden rule:** Edit content in `.agents/`. Never hand-edit a generated pointer
 or mirror; regenerate it.

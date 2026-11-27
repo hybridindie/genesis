@@ -582,17 +582,15 @@ def test_github_reply_and_resolve_send_the_graphql_mutations(gh_repo):
     assert any("resolveReviewThread" in a for a in resolve) and "thread=T1" in resolve
 
 
-def test_finds_the_user_level_tracker_when_the_repo_has_none(tmp_path, monkeypatch):
-    # A repo that takes the pipeline from the user-level install has no
-    # .agents/scripts/tracker.py; ship-pr must use ~/.agents/scripts/tracker.py.
+def test_never_uses_a_tracker_from_the_users_home(tmp_path, monkeypatch):
+    # The pipeline ships in each repo; a stale copy left in ~/.agents must not be picked up.
     skill = tmp_path / "repo" / ".agents" / "skills" / "ship-pr" / "scripts"
     skill.mkdir(parents=True)
     home = tmp_path / "home"
     (home / ".agents" / "scripts").mkdir(parents=True)
     (home / ".agents" / "scripts" / "tracker.py").write_text("WHERE = 'user'\n")
     monkeypatch.setattr(forge.Path, "home", classmethod(lambda cls: home))
-    found = forge.tracker_module(skill / "forge.py")
-    assert found is not None and found.WHERE == "user"
+    assert forge.tracker_module(skill / "forge.py") is None
 
 
 def test_a_non_github_origin_without_tracker_is_an_error_not_github(monkeypatch):

@@ -1,7 +1,7 @@
 """The plan-and-dispatch pipeline: what of genesis's `.agents/` leaves this repo.
 
-One list, used by templates/scripts/render.py (every rendered project) and
-system/agents/stage_skills.py (the user-level install). The pipeline is every
+One list, used by templates/scripts/render.py (every rendered project; nothing
+is installed per user). The pipeline is every
 skill under `.agents/skills/` except genesis's own installer, plus the files
 those skills read: scripts, doctrine, templates and eval rubrics. Tests,
 fixtures and behavioural eval cases stay here. A project's own
