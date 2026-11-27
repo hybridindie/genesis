@@ -41,13 +41,15 @@ GITEA_PAGE = 50
 REVIEW_STATES = ("APPROVED", "REQUEST_CHANGES")  # what decides a Gitea reviewer's verdict
 
 THREADS_QUERY = """
-query($owner: String!, $repo: String!, $pr: Int!) {
+query($owner: String!, $repo: String!, $pr: Int!, $cursor: String) {
   repository(owner: $owner, name: $repo) {
     pullRequest(number: $pr) {
-      reviewThreads(first: 100) {
+      reviewThreads(first: 100, after: $cursor) {
+        pageInfo { hasNextPage endCursor }
         nodes {
           id isResolved isOutdated path line
-          comments(first: 5) { nodes { author { login } body } }
+          first: comments(first: 1) { nodes { author { login } body } }
+          latest: comments(last: 1) { nodes { author { login } body } }
         }
       }
     }
@@ -211,13 +213,24 @@ class GitHub:
     def threads(self, pr: str) -> list[dict]:
         """Every review thread, with GitHub's own resolved/outdated flags."""
         owner, repo = self.repo()
-        data = self.json("api", "graphql", "-f", f"query={THREADS_QUERY}",
-                         "-F", f"owner={owner}", "-F", f"repo={repo}", "-F", f"pr={pr}")
+        nodes: list[dict] = []
+        cursor = None
+        while True:  # the merge gate reads this list as complete, so follow every page
+            data = self.json("api", "graphql", "-f", f"query={THREADS_QUERY}",
+                             "-F", f"owner={owner}", "-F", f"repo={repo}", "-F", f"pr={pr}",
+                             *(["-f", f"cursor={cursor}"] if cursor else []))
+            page = data["data"]["repository"]["pullRequest"]["reviewThreads"]
+            nodes += page["nodes"]
+            info = page.get("pageInfo") or {}
+            if not (info.get("hasNextPage") and info.get("endCursor")):
+                break
+            if info["endCursor"] == cursor:  # a stuck cursor would loop forever; the list is incomplete
+                raise ForgeError(f"GitHub review threads for PR {pr}: the page cursor did not advance")
+            cursor = info["endCursor"]
         out = []
-        for node in data["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"]:
-            comments = node["comments"]["nodes"]
-            first = comments[0] if comments else {}
-            last = comments[-1] if comments else {}
+        for node in nodes:
+            first = (node["first"]["nodes"] or [{}])[0]
+            last = (node["latest"]["nodes"] or [{}])[-1]
             out.append({
                 "id": node["id"], "path": node["path"] or "", "line": node["line"],
                 "author": (last.get("author") or {}).get("login", ""), "body": last.get("body", ""),
