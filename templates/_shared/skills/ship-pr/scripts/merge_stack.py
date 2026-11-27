@@ -8,11 +8,16 @@ on the base, the base holds part k-1's tree, so retargeting part k (its head,
 and its checks, unchanged) and merging it lands the tree CI tested. A rebase
 between merges would only rerun CI and review on code they passed.
 
+Every part merges with a merge commit, whatever `merge_policy.method` says:
+part k is based on part k-1's commits, and a squash or rebase leaves the base
+without them, so git replays part k-1 from the old merge-base and part k
+conflicts wherever it edits part k-1's lines (#178 follow-up, apeiron S7:
+five of six squashed parts conflicted).
+
 Every part must pass `merge_pr`'s gate before anything merges. Then, bottom
 up: each part must be retargeted to the base with the head it was gated on
 (a retarget fires no CI run, so the checks that head passed stand), and after
 its merge every file its PR shows must match its tested head on the base.
-The method is `merge_policy.method`; a stack needs `squash` or `merge`.
 
 Prints one JSON report. Exits:
   0  every part merged (with --dry-run: would merge)
@@ -34,6 +39,8 @@ from pathlib import Path
 EXIT_MERGED, EXIT_BLOCKED, EXIT_SETUP, EXIT_PERSON = 0, 1, 2, 3
 RETARGET_WAIT_SECONDS = 180
 POLL_SECONDS = 10
+# Squash or rebase would drop the history the next part is based on.
+STACK_METHOD = "merge"
 
 
 def load(name: str):
@@ -125,10 +132,9 @@ class Stack:
 
     def run(self, numbers: list[str], dry_run: bool) -> tuple[int, dict]:
         views = [self.client.view(n) for n in numbers]
-        report: dict = {"stack": [v["number"] for v in views], "policy": self.policy, "merged": []}
+        report: dict = {"stack": [v["number"] for v in views], "policy": self.policy,
+                        "method": STACK_METHOD, "merged": []}
         errors = stack_errors(views)
-        if self.policy["method"] == "rebase":
-            errors.append("merge_policy.method is rebase: a stack merges with squash or merge")
         if errors:
             return EXIT_SETUP, {**report, "decision": "error", "error": "; ".join(errors)}
         base = views[0]["base"]
@@ -172,7 +178,7 @@ class Stack:
                 # Deleting the head branch closes PRs based on it: move them first.
                 for d in self.client.dependents(v["head"]):
                     self.client.retarget(d, base)
-                commit = self.client.merge(str(n), self.policy["method"], sha)
+                commit = self.client.merge(str(n), STACK_METHOD, sha)
             except forge.ForgeError as exc:
                 return stop(n, f"merge of #{n}: {exc}")
             report["merged"].append({"pr": n, "merge_commit": commit})

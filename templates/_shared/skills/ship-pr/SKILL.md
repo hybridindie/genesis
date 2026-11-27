@@ -132,8 +132,8 @@ Set once: `s=.agents/skills/ship-pr/scripts; [[ -d $s ]] || s=templates/_shared/
     `python3 "$s/forge.py" reopen --pr "$N"` and watch until they run.
     If branch protection needs a human approval, stop and report it. Never use
     `--admin`, a forge's force-merge, or bypass hooks.
-    A stack merges with `merge_stack.py <bottom> ... <top>`: every part
-    gated, then merged bottom-up by retargeting, never rebasing.
+    A stack lands via `merge_stack.py <bottom> ... <top>`: all gated, then
+    merged bottom-up with merge commits (never squash or rebase a stack).
 
 ## LLM Judgment
 

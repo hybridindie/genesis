@@ -125,7 +125,7 @@ reviewer or diagnosis), run `python3 $b record --epic <epic> --unit <unit>
    origin/main`. Over budget, or `ship: per-track`, open stacked PRs: one
    branch `<story branch>-<track>` per track at its `merged` sha, in
    `merge_order`, each PR based on the previous one; ship-pr them all at
-   once and merge with its `merge_stack.py` (no rebase between parts). A PR
+   once and merge with its `merge_stack.py` (merge commits, no rebase). A PR
    left "ready for a person" is `awaiting_human`: never merge it yourself.
 7. **Report** from `python3 $d report`; each unit's `history` gives its
    attempts, failed checks, blocks and rollbacks across every run.
