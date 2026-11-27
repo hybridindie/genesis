@@ -132,14 +132,8 @@ Set once: `s=.agents/skills/ship-pr/scripts; [[ -d $s ]] || s=templates/_shared/
     `python3 "$s/forge.py" reopen --pr "$N"` and watch until they run.
     If branch protection needs a human approval, stop and report it. Never use
     `--admin`, a forge's force-merge, or bypass hooks.
-    **A stack** (each PR based on the one below) merges with
-    `python3 "$s/merge_stack.py" <bottom> ... <top>` once every part has
-    settled on its watcher. It gates every part before merging any, then
-    merges bottom-up, retargeting each part instead of rebasing it, so the
-    checks and review on each head still stand. After each merge it confirms
-    the base holds that part's tested files. Its exits match `merge_pr.py`'s.
-    Never rebase a part onto the base between merges: that reruns CI and
-    review on code they already passed.
+    A stack merges with `merge_stack.py <bottom> ... <top>`: every part
+    gated, then merged bottom-up by retargeting, never rebasing.
 
 ## LLM Judgment
 
