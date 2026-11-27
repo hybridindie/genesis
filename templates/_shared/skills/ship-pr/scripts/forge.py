@@ -224,6 +224,8 @@ class GitHub:
             info = page.get("pageInfo") or {}
             if not (info.get("hasNextPage") and info.get("endCursor")):
                 break
+            if info["endCursor"] == cursor:  # a stuck cursor would loop forever; the list is incomplete
+                raise ForgeError(f"GitHub review threads for PR {pr}: the page cursor did not advance")
             cursor = info["endCursor"]
         out = []
         for node in nodes:

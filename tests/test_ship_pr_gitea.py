@@ -630,3 +630,15 @@ def test_github_threads_follow_every_page_and_report_the_latest_comment(monkeypa
     assert seen == [None, "c1"]
     assert threads[1]["author"] == "me" and threads[1]["severity"] == "important"
     assert "comments(first: 1)" in forge.THREADS_QUERY and "comments(last: 1)" in forge.THREADS_QUERY
+
+
+def test_github_threads_stop_on_a_cursor_that_does_not_advance(monkeypatch):
+    page = {"data": {"repository": {"pullRequest": {"reviewThreads": {
+        "pageInfo": {"hasNextPage": True, "endCursor": "same"}, "nodes": []}}}}}
+    calls = []
+    gh = forge.GitHub()
+    monkeypatch.setattr(gh, "repo", lambda: ("o", "r"))
+    monkeypatch.setattr(gh, "json", lambda *a, check=True: calls.append(a) or page)
+    with pytest.raises(forge.ForgeError, match="did not advance"):
+        gh.threads("5")
+    assert len(calls) == 2
